@@ -2,6 +2,22 @@ import { mockProductCategories, mockProducts } from '../data';
 import { Product, ProductCategory, ProductSeries } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
+const toNullableInt = (value: any): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number.parseInt(String(value).trim(), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const tryParseJsonObject = (raw: any): Record<string, any> => {
+  if (typeof raw !== 'string' || !raw.trim()) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 const flattenCategories = (nodes: ProductCategory[]): ProductCategory[] => {
   const result: ProductCategory[] = [];
   const walk = (items: ProductCategory[], parentId: string | null = null) => {
@@ -51,14 +67,11 @@ const mapDbCategoryToUi = (row: any): ProductCategory => ({
 });
 
 const mapDbProductToUi = (row: any): Product => {
-  let metadata: any = {};
-  if (typeof row.status === 'string' && row.status.trim()) {
-    try {
-      metadata = JSON.parse(row.status);
-    } catch {
-      metadata = {};
-    }
-  }
+  // 新结构写入 specification_doc；兼容旧数据（曾错误写入 status 文本）
+  const metadata = {
+    ...tryParseJsonObject(row.specification_doc),
+    ...tryParseJsonObject(row.status)
+  };
   return {
     id: String(row.id || ''),
     categoryId: row.category_id ? String(row.category_id) : '',
@@ -85,14 +98,15 @@ const mapDbProductToUi = (row: any): Product => {
 };
 
 const mapUiProductToDb = (product: Product) => ({
-  id: product.id || `P${Date.now()}`,
-  category_id: product.categoryId || null,
+  ...(toNullableInt(product.id) !== null ? { id: toNullableInt(product.id) } : {}),
+  category_id: toNullableInt(product.categoryId),
   material_no: product.materialNo || '',
   material_name: product.materialName || '',
   specification: product.specification || '',
   unit: product.basicUnit || '',
   price: (product as any).price || 0,
-  status: JSON.stringify({
+  status: 1,
+  specification_doc: JSON.stringify({
     creationOrg: product.creationOrg || '',
     seriesId: product.seriesId || '',
     inventoryCategory: product.inventoryCategory || '',
@@ -226,9 +240,18 @@ export const saveProductToSupabase = async (product: Product) => {
   if (!isSupabaseConfigured()) return { ...product, id: product.id || `P${Date.now()}` };
   const supabase = getSupabaseClient();
   const payload = mapUiProductToDb(product);
-  const { error } = await supabase.from('ba_cpinfo').upsert(payload, { onConflict: 'id' });
+  const normalizedId = toNullableInt(product.id);
+  if (normalizedId === null) {
+    const insertPayload = { ...payload };
+    delete (insertPayload as any).id;
+    const { data, error } = await supabase.from('ba_cpinfo').insert(insertPayload).select('*').single();
+    if (error) throw error;
+    return mapDbProductToUi(data);
+  }
+
+  const { data, error } = await supabase.from('ba_cpinfo').upsert(payload, { onConflict: 'id' }).select('*').single();
   if (error) throw error;
-  return { ...product, id: payload.id };
+  return mapDbProductToUi(data);
 };
 
 export const deleteProductFromSupabase = async (id: string) => {

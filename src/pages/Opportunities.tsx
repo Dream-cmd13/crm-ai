@@ -62,6 +62,11 @@ const parseAttachments = (raw: unknown): FileAttachment[] => {
   return [];
 };
 
+const isMissingOpportunityCustomerTypeColumn = (error: any): boolean => {
+  const message = String(error?.message || '');
+  return error?.code === 'PGRST204' && message.includes("'customer_type'") && message.includes("'crm_opportunity'");
+};
+
 interface OpportunitiesProps {
   role: Role;
   currentUser?: User;
@@ -160,6 +165,19 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const upsertOpportunityWithSchemaFallback = async (dbData: any) => {
+    const supabase = getSupabaseClient();
+    const primaryResult = await supabase.from('crm_opportunity').upsert(dbData, { onConflict: 'id' }).select('*');
+    if (!isMissingOpportunityCustomerTypeColumn(primaryResult.error)) return primaryResult;
+
+    const { customer_type: _ignored, ...fallbackData } = dbData;
+    const fallbackResult = await supabase.from('crm_opportunity').upsert(fallbackData, { onConflict: 'id' }).select('*');
+    if (!fallbackResult.error) {
+      console.warn("Column 'crm_opportunity.customer_type' missing, retried upsert without this field.");
+    }
+    return fallbackResult;
   };
 
   useEffect(() => {
@@ -294,8 +312,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
         updated_at: new Date().toISOString()
       };
       if (isSupabaseConfigured()) {
-        const supabase = getSupabaseClient();
-        const { data: savedRows, error } = await supabase.from('crm_opportunity').upsert(dbData, { onConflict: 'id' }).select('*');
+        const { data: savedRows, error } = await upsertOpportunityWithSchemaFallback(dbData);
         if (error) throw error;
         if (savedRows && savedRows.length > 0) {
           const savedOpp = mapDbOppToUi(savedRows[0]);

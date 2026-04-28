@@ -35,8 +35,12 @@ const mapItemToRow = (item: any, parentKey: string, parentId: string) => {
   return baseRow;
 };
 
-const DEFAULT_CATEGORY_ID = 'CAT_DEFAULT';
 const DEFAULT_CATEGORY_NAME = '未分类';
+const toNullableInt = (value: any): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 const resolveMaterialNo = (item: any) => {
   const raw = String(item?.materialNo || item?.customerMaterialNo || '').trim();
   if (raw) return raw;
@@ -47,41 +51,68 @@ const resolveMaterialNo = (item: any) => {
 const ensureProductsForItems = async (supabase: any, items: any[]) => {
   const validItems = (items || []).filter((item) => item?.productId && item?.productName);
   if (validItems.length === 0) return;
-  const { error: categoryError } = await supabase.from('ba_cptype').upsert(
-    {
-      id: DEFAULT_CATEGORY_ID,
-      name: DEFAULT_CATEGORY_NAME,
-      updated_at: new Date().toISOString()
-    },
-    { onConflict: 'id' }
-  );
-  if (categoryError) throw categoryError;
 
-  const productRows = validItems.map((item) => ({
-    id: item.productId,
-    category_id: item.categoryId || item.productCategoryId || DEFAULT_CATEGORY_ID,
-    category_name: item.categoryName || item.productCategoryName || DEFAULT_CATEGORY_NAME,
-    material_no: resolveMaterialNo(item),
-    material_name: String(item.productName || item.materialName || '').trim() || '未命名物料',
-    specification: item.specification || '',
-    unit: item.unit || 'PCS',
-    price: Number(item.taxIncludedPrice || 0),
-    updated_at: new Date().toISOString()
-  }));
+  const requestedCategoryIds = Array.from(
+    new Set(
+      validItems
+        .map((item) => toNullableInt(item.categoryId ?? item.productCategoryId))
+        .filter((id): id is number => id !== null)
+    )
+  );
+
+  const existingCategoryIdSet = new Set<number>();
+  if (requestedCategoryIds.length > 0) {
+    const { data: existingCategories, error: categoryError } = await supabase
+      .from('ba_cptype')
+      .select('id')
+      .in('id', requestedCategoryIds);
+    if (categoryError) throw categoryError;
+    (existingCategories || []).forEach((row: any) => {
+      const id = toNullableInt(row?.id);
+      if (id !== null) existingCategoryIdSet.add(id);
+    });
+  }
+
+  const productRows = validItems
+    .map((item) => {
+      const productId = toNullableInt(item.productId);
+      if (productId === null) return null;
+      const cid = toNullableInt(item.categoryId ?? item.productCategoryId);
+      return {
+        id: productId,
+        category_id: cid !== null && existingCategoryIdSet.has(cid) ? cid : null,
+        category_name: item.categoryName || item.productCategoryName || DEFAULT_CATEGORY_NAME,
+        material_no: resolveMaterialNo(item),
+        material_name: String(item.productName || item.materialName || '').trim() || '未命名物料',
+        specification: item.specification || '',
+        unit: item.unit || 'PCS',
+        price: Number(item.taxIncludedPrice || 0),
+        updated_at: new Date().toISOString()
+      };
+    })
+    .filter((row): row is Record<string, any> => row !== null);
+  if (productRows.length === 0) return;
   const dedupedRows = Array.from(new Map(productRows.map((row) => [row.id, row])).values());
   const { error } = await supabase.from('ba_cpinfo').upsert(dedupedRows, { onConflict: 'id' });
   if (error) throw error;
 };
 
 const normalizeItemsWithValidProducts = async (supabase: any, items: any[]) => {
-  const productIds = Array.from(new Set((items || []).map((item) => item?.productId).filter(Boolean)));
-  if (productIds.length === 0) return items || [];
+  const productIds = Array.from(
+    new Set((items || []).map((item) => toNullableInt(item?.productId)).filter((id): id is number => id !== null))
+  );
+  if (productIds.length === 0) {
+    return (items || []).map((item) => ({ ...item, productId: null }));
+  }
   const { data, error } = await supabase.from('ba_cpinfo').select('id').in('id', productIds);
   if (error) throw error;
-  const validProductIdSet = new Set((data || []).map((row: any) => row.id));
+  const validProductIdSet = new Set((data || []).map((row: any) => toNullableInt(row.id)).filter((id: any) => id !== null));
   return (items || []).map((item) => ({
     ...item,
-    productId: item?.productId && validProductIdSet.has(item.productId) ? item.productId : null
+    productId: (() => {
+      const productId = toNullableInt(item?.productId);
+      return productId !== null && validProductIdSet.has(productId) ? productId : null;
+    })()
   }));
 };
 
@@ -137,16 +168,20 @@ const saveWithItems = async (
   const supabase = getSupabaseClient();
   await ensureProductsForItems(supabase, items);
   const normalizedItems = await normalizeItemsWithValidProducts(supabase, items);
+  if (typeof mainRow.customer_id === 'string') {
+    const normalizedCustomerId = mainRow.customer_id.trim();
+    mainRow.customer_id = normalizedCustomerId || null;
+  }
   if (mainRow.customer_id && mainRow.customer_name) {
     const { error: customerError } = await supabase.from('ba_manucustinfo').upsert(
       {
         id: mainRow.customer_id,
         name: mainRow.customer_name,
-        status: '活跃',
+        status: 1,
         level: '普通客户',
         industry: '未分类',
-        source: '单据自动创建',
-        region: '未分类'
+        source: 7,
+        region: null
       },
       { onConflict: 'id' }
     );

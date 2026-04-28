@@ -1,13 +1,15 @@
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
-import { updateCustomerLastContactInSupabase } from './customerRepository';
+import { resolveCustomerDbIdFromSupabase, updateCustomerLastContactInSupabase } from './customerRepository';
 
 export const fetchCustomerContactsFromSupabase = async (customerId: string) => {
   if (!customerId || !isSupabaseConfigured()) return [];
+  const dbCustomerId = await resolveCustomerDbIdFromSupabase(customerId);
+  if (!dbCustomerId) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('crm_customer_contact')
     .select('*')
-    .eq('customer_id', customerId);
+    .eq('customer_id', dbCustomerId);
   if (error) {
     console.error('Error fetching contacts:', error);
     return [];
@@ -46,10 +48,12 @@ export const fetchCustomerContactsFromSupabase = async (customerId: string) => {
 export const saveCustomerContactToSupabase = async (customerId: string, data: any) => {
   if (!customerId) throw new Error('缺少客户ID，无法保存联系人');
   if (!isSupabaseConfigured()) return;
+  const dbCustomerId = await resolveCustomerDbIdFromSupabase(customerId);
+  if (!dbCustomerId) throw new Error(`无法识别客户ID：${customerId}`);
   const supabase = getSupabaseClient();
   const payload: any = {
     id: data.id || `CON${Date.now()}`,
-    customer_id: customerId,
+    customer_id: dbCustomerId,
     name: data.name || '',
     position: data.position || '',
     department: data.department || '',
@@ -101,17 +105,19 @@ export const saveCustomerContactToSupabase = async (customerId: string, data: an
       throw error;
     }
   }
-  await updateCustomerLastContactInSupabase(customerId, '联系人更新');
+  await updateCustomerLastContactInSupabase(String(dbCustomerId), '联系人更新');
 };
 
 export const saveGroupChatToSupabase = async (data: any) => {
   if (!isSupabaseConfigured()) return;
   const supabase = getSupabaseClient();
   const id = data.id || `GC${Date.now()}`;
+  const customerId = String(data.customerId || '').trim();
+  const dbCustomerId = customerId ? await resolveCustomerDbIdFromSupabase(customerId) : null;
   const payload = {
     id,
     group_id: data.groupId || `G${Date.now()}`,
-    customer_id: data.customerId || null,
+    customer_id: dbCustomerId,
     source_group: data.sourceGroup || null,
     manager_contact_id: data.managerContactId || null,
     manager_employee_id: data.managerEmployeeId || null
@@ -119,7 +125,7 @@ export const saveGroupChatToSupabase = async (data: any) => {
   const { error } = await supabase.from('crm_group_chat').upsert(payload, { onConflict: 'id' });
   if (error) throw error;
   if (payload.customer_id) {
-    await updateCustomerLastContactInSupabase(payload.customer_id, '群聊更新');
+    await updateCustomerLastContactInSupabase(String(payload.customer_id), '群聊更新');
   }
   const members = Array.isArray(data.members) ? data.members : data.members ? [data.members] : [];
   if (members.length > 0) {

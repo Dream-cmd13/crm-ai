@@ -5,19 +5,16 @@ insert into public.ba_employeeinfo(id, no, name, username, email, role, departme
   ('EMP002', 'E002', '销售经理', 'sales_manager', 'sales_manager@example.com', '总监', '销售部', true),
   ('EMP003', 'E003', '业务员A', 'sales_a', 'sales_a@example.com', '业务员', '销售部', true);
 
--- 品牌表种子数据
 insert into public.ba_brand(id, name, status) values
   (1, '胜蓝', 1),
   (2, '万连', 1),
   (3, '电子谷', 1);
 
--- 归属小组表种子数据
 insert into public.ba_group(id, name, manager) values
   (1, '销售一组', 'EMP002'),
   (2, '销售二组', 'EMP003'),
   (3, '技术支持组', '技术经理');
 
--- 产品线表种子数据
 insert into public.ba_product_line(id, parent_id, name, manager) values
   (1, null, '接插件', '产品经理A'),
   (2, 1, '工业连接器', '产品经理B'),
@@ -26,24 +23,20 @@ insert into public.ba_product_line(id, parent_id, name, manager) values
   (5, 4, '新能源线束', '产品经理E'),
   (6, 4, '工业线束', '产品经理F');
 
--- 产品类别表种子数据
 insert into public.ba_cptype(id, parent_id, name, fab_features, fab_advantages, fab_benefits, status) values
   (1, null, '接插件', '连接稳定', '一致性高', '降低返修率', 1),
   (2, null, '线束', '定制能力强', '交付柔性高', '提升交付确定性', 1);
 
--- SPU表种子数据
 insert into public.ba_spu(id, name, brand_id, category_id, category_name) values
   (1, '工业连接器标准系列', 1, 1, '接插件'),
   (2, '新能源线束系列', 1, 2, '线束');
 
--- 公共属性名称表种子数据
 insert into public.public_property_name(id, specification_name, group_name, image, is_searchable) values
   (1, '接口类型', '基本属性', null, 1),
   (2, '额定电流', '电气属性', null, 1),
   (3, '额定电压', '电气属性', null, 1),
   (4, '防护等级', '环境属性', null, 1);
 
--- 公共属性值表种子数据
 insert into public.public_property_value(id, property_id, property_value, property_value_image, public_property_name) values
   (1, 1, '8Pin', null, '接口类型'),
   (2, 1, '12Pin', null, '接口类型'),
@@ -54,7 +47,7 @@ insert into public.public_property_value(id, property_id, property_value, proper
   (7, 4, 'IP67', null, '防护等级'),
   (8, 4, 'IP68', null, '防护等级');
 
-insert into public.crm_product_series(id, name, category_id, description, fab_features, fab_advantages, fab_benefits) values
+insert into public.crm_product_series(series_no, name, category_id, description, fab_features, fab_advantages, fab_benefits) values
   ('SER001', '工业连接器标准系列', 1, '面向工业控制场景', '耐振动', '长期稳定', '减少维护停机'),
   ('SER002', '新能源线束系列', 2, '面向新能源设备', '耐温', '轻量化', '提升系统效率');
 
@@ -62,7 +55,6 @@ insert into public.ba_cpinfo(id, category_id, category_name, material_no, materi
   (1, 1, '接插件', 'IO-001', '工业连接器A', '8Pin IP67', 'pcs', 68.00, 62.00, 1, 1, '胜蓝', 10, 100, 1, 2, 1, '销售一组', 1, '工业连接器标准系列'),
   (2, 2, '线束', 'WH-101', '新能源线束B', 'UL认证', 'pcs', 96.00, 88.00, 1, 1, '胜蓝', 5, 50, 4, 5, 2, '销售二组', 2, '新能源线束系列');
 
--- 产品属性关系表种子数据
 insert into public.ba_product_property_relation(id, material_id, product_id, spu_status, product_status, product_name, property_id, property_name, property_value, property_value_id, category_id, category_name) values
   (1, 'IO-001', 1, 1, 1, '工业连接器A', 1, '接口类型', '8Pin', 1, 1, '接插件'),
   (2, 'IO-001', 1, 1, 1, '工业连接器A', 4, '防护等级', 'IP67', 7, 1, '接插件'),
@@ -102,202 +94,130 @@ insert into public.crm_customer_persona(
    '国产厂商', '性价比优先', '希望缩短认证周期', '重视技术支持', '1周快速打样', '批量一致性', current_date);
 
 insert into public.crm_inquiry(
-  id, customer_id, company_name, customer_name, contact, source_channel, category, province, situation,
+  inquiry_no, customer_id, company_name, customer_name, contact, source_channel, category, province, situation,
   status, classification, customer_inquiry, notes, create_date, update_date, creator_id, creator_name
 ) values
-  ('INQ001', 1, '华东智造股份有限公司', '华东智造股份有限公司', '王总', '其他', '技术咨询', '上海',
+  ('INQ-2026-001', 1, '华东智造股份有限公司', '华东智造股份有限公司', '王总', '其他', '技术咨询', '上海',
    '希望确认替代型号交付稳定性', '待处理', '有效', '是否有长期稳定供货方案', '客户对二供方案兴趣高', current_date, current_date, 'EMP002', '销售经理'),
-  ('INQ002', 2, '南方设备集团有限公司', '南方设备集团有限公司', '李工', '官网', '产品询价', '深圳',
+  ('INQ-2026-002', 2, '南方设备集团有限公司', '南方设备集团有限公司', '李工', '官网', '产品询价', '深圳',
    '关注认证和样品进度', '待处理', '处理中', '能否一周内交样', '希望同步FAE支持', current_date, current_date, 'EMP003', '业务员A');
 
 insert into public.crm_lead(
-  id, customer_id, customer_name, name, phone, customer_action, industry, status, classification, assignee,
+  lead_no, customer_id, customer_name, name, phone, customer_action, industry, status, classification, assignee,
   source_channel, source_type, product_category, product_series, source_status, inquiry_id, contact_id,
   buying_mode, buyer_role, product_industry, customer_opportunity, create_date, creator_id, creator_name
 ) values
-  ('LEAD001', 1, '华东智造股份有限公司', '王总', '13800000001', '寻替代品', '工业自动化', '跟进中', '有效', 'EMP002',
-   '其他', '在线', '接插件', '工业连接器标准系列', '客服', 'INQ001', 'CON001', '理性决策', '决策者', '工业', '替代导入项目', current_date, 'EMP002', '销售经理');
+  ('LEAD-2026-001', 1, '华东智造股份有限公司', '王总', '13800000001', '寻替代品', '工业自动化', '跟进中', '有效', 'EMP002',
+   '其他', '在线', '接插件', '工业连接器标准系列', '客服', 1, 'CON001', '理性决策', '决策者', '工业', '替代导入项目', current_date, 'EMP002', '销售经理');
 
 insert into public.crm_opportunity(
-  id, customer_id, customer_name, opp_date, status, opp_summary, product_line, sales_rep, opp_level, intent_amount,
+  opportunity_no, customer_id, customer_name, opp_date, status, opp_summary, product_line, sales_rep, opp_level, intent_amount,
   associated_project, end_customer, end_project, product_industry, lead_id, inquiry_id, application_scenario,
   estimated_usage, estimated_mass_production_date
 ) values
-  ('OPP001', 1, '华东智造股份有限公司', current_date, '跟进中', '温控系统替代导入', '工业连接器', 'EMP002', 'A级', 800000,
-   'PRJ001', '华东终端客户A', '产线升级项目', '工业', 'LEAD001', 'INQ001', '温控产线', '月均5万pcs', current_date + interval '120 day');
+  ('OPP-2026-001', 1, '华东智造股份有限公司', current_date, '跟进中', '温控系统替代导入', '工业连接器', 'EMP002', 'A级', 800000,
+   'PRJ001', '华东终端客户A', '产线升级项目', '工业', 1, 1, '温控产线', '月均5万pcs', current_date + interval '120 day');
 
 insert into public.crm_project(
-  id, customer_id, customer_name, project_name, status, stage, manager, project_type, project_level, wechat_group,
+  project_no, customer_id, customer_name, project_name, status, stage, manager, project_type, project_level, wechat_group,
   team, intent_amount, end_customer, opp_summary, application_scenario, product_industry, estimated_usage,
   estimated_mass_production_date, customer_action, sales_rep, product_owner, quality_owner, purchaser, fae,
   lead_id, opportunity_id, inquiry_id, product_line, start_date, end_date, create_date, creator_id, creator_name
 ) values
-  ('PRJ001', 1, '华东智造股份有限公司', '华东智造温控升级项目', '跟进中', '设计阶段', '张项目经理',
+  ('PRJ-2026-001', 1, '华东智造股份有限公司', '华东智造温控升级项目', '跟进中', '设计阶段', '张项目经理',
    '研发型项目', 'A', '华东智造-项目群',
    '{"sales":"EMP002","pm":"张项目经理","product":"产品经理A","quality":"质量负责人B","purchasing":"采购C","fae":"FAE-D"}'::jsonb,
    800000, '华东终端客户A', '核心机型导入', '温控产线', '工业', '月均5万pcs',
    current_date + interval '120 day', '寻替代品', 'EMP002', '产品经理A', '质量负责人B', '采购C', 'FAE-D',
-   'LEAD001', 'OPP001', 'INQ001', '工业连接器', current_date, current_date + interval '180 day', current_date, 'EMP002', '销售经理');
+   1, 1, 1, '工业连接器', current_date, current_date + interval '180 day', current_date, 'EMP002', '销售经理');
 
 do $$
 begin
-  if to_regclass('public.crm_wx_conversation') is not null then
-    insert into public.crm_wx_conversation(
-      conversation_key, source_guid, conversation_type, conversation_identity_type,
-      my_wechat_id, my_wechat_name, peer_wechat_id, peer_wechat_name, peer_name_tokens,
-      conversation_name, customer_id, primary_contact_id, status,
-      last_message_at, last_message_preview, message_count
-    ) values
-      ('private:seed:wx_sales_manager', 'seed-guid-private-001', 'private', 'private_direct',
-       'wx_sales_manager', '销售经理', 'wx_wangzong', '王总', array['王总'],
-       '王总', '1', 'CON001', 'active',
-       now() - interval '10 minutes', '请先确认下周评审时间。', 6),
-      ('private:seed:wx_sales_a', 'seed-guid-private-002', 'private', 'private_direct',
-       'wx_sales_a', '业务员A', 'wx_ligong', '李工', array['李工'],
-       '李工', '2', 'CON002', 'active',
-       now() - interval '5 minutes', '认证资料今天会补齐。', 6),
-      ('group:seed:wx_grp_huadong_001', 'seed-guid-group-001', 'group', 'group',
-       'wx_sales_manager', '销售经理', null, null, array[]::text[],
-       '华东智造项目群', '1', null, 'active',
-       now() - interval '2 minutes', '今天同步试产节奏与风险清单。', 4)
-    on conflict (conversation_key) do update
+  if to_regclass('public.crm_wechat_session') is not null then
+    insert into public.crm_wechat_session(id, my_wechat_id, peer_wechat_id, customer_id, contact_id) values
+      ('11111111-1111-1111-1111-111111111001', 'wx_sales_manager', 'wx_wangzong', 1, 'CON001'),
+      ('11111111-1111-1111-1111-111111111002', 'wx_sales_a', 'wx_ligong', 2, 'CON002')
+    on conflict (my_wechat_id, peer_wechat_id) do update
     set
-      my_wechat_name = excluded.my_wechat_name,
-      peer_wechat_name = excluded.peer_wechat_name,
-      conversation_name = excluded.conversation_name,
       customer_id = excluded.customer_id,
-      primary_contact_id = excluded.primary_contact_id,
-      last_message_at = excluded.last_message_at,
-      last_message_preview = excluded.last_message_preview,
-      message_count = excluded.message_count,
-      updated_at = now();
+      contact_id = excluded.contact_id;
   end if;
 end
 $$;
 
 do $$
 begin
-  if to_regclass('public.crm_wx_conversation_member') is not null then
-    insert into public.crm_wx_conversation_member(
-      conversation_id, wechat_id, display_name, member_type, contact_id, employee_id, is_internal
-    )
-    select c.id, member.wechat_id, member.display_name, member.member_type, member.contact_id, member.employee_id, member.is_internal
-    from public.crm_wx_conversation c
-    join (
-      values
-        ('group:seed:wx_grp_huadong_001', 'wx_sales_manager', '销售经理', 'employee', null, 'EMP002', true),
-        ('group:seed:wx_grp_huadong_001', 'wx_procurement_hd', '采购同事', 'external_unknown', null, null, false),
-        ('group:seed:wx_grp_huadong_001', 'wx_quality_team', '质量同事', 'external_unknown', null, null, false)
-    ) as member(conversation_key, wechat_id, display_name, member_type, contact_id, employee_id, is_internal)
-      on member.conversation_key = c.conversation_key
-    on conflict (conversation_id, wechat_id) do update
+  if to_regclass('public.crm_wechat_group') is not null then
+    insert into public.crm_wechat_group(id, group_id, group_name, customer_id) values
+      ('22222222-2222-2222-2222-222222222001', 'wx_grp_huadong_001', '华东智造项目群', 1),
+      ('22222222-2222-2222-2222-222222222002', 'wx_grp_nanfang_001', '南方设备技术群', 2)
+    on conflict (group_id) do update
     set
-      display_name = excluded.display_name,
-      member_type = excluded.member_type,
-      contact_id = excluded.contact_id,
-      employee_id = excluded.employee_id,
-      is_internal = excluded.is_internal,
-      updated_at = now();
+      group_name = excluded.group_name,
+      customer_id = excluded.customer_id;
   end if;
 end
 $$;
 
 do $$
 begin
-  if to_regclass('public.crm_wx_message') is not null then
-    insert into public.crm_wx_message(
-      conversation_id, source_guid, message_scope, message_origin_type, raw_event_table, raw_event_dedupe_key,
-      raw_msg_id, sender_wechat_id, sender_display_name, receiver_wechat_id, receiver_display_name, peer_display_name,
-      msg_type, content, quote_content, quote_msg_type, send_time, remote_media_url
-    )
+  if to_regclass('public.crm_wechat_message') is not null then
+    insert into public.crm_wechat_message(session_id, sender_wechat_id, msg_type, content, send_time)
     select
-      c.id,
-      msg.source_guid,
-      msg.message_scope,
-      msg.message_origin_type,
-      msg.raw_event_table,
-      msg.raw_event_dedupe_key,
-      msg.raw_msg_id,
-      msg.sender_wechat_id,
-      msg.sender_display_name,
-      msg.receiver_wechat_id,
-      msg.receiver_display_name,
-      msg.peer_display_name,
-      msg.msg_type,
-      msg.content,
-      msg.quote_content,
-      msg.quote_msg_type,
-      msg.send_time,
-      msg.remote_media_url
-    from public.crm_wx_conversation c
-    join (
-      values
-        ('private:seed:wx_sales_manager', 'seed-guid-private-001', 'private', 'unknown', 'wechat_raw.wechat_private_message_events', 'seed-private-001', 'seed-msg-001', 'wx_sales_manager', '销售经理', 'wx_wangzong', '王总', '王总', 1, '王总您好，这批替代料我们今天完成了可靠性验证。', null, null, now() - interval '55 minutes', null),
-        ('private:seed:wx_sales_manager', 'seed-guid-private-001', 'private', 'unknown', 'wechat_raw.wechat_private_message_events', 'seed-private-002', 'seed-msg-002', 'wx_wangzong', '王总', 'wx_sales_manager', '销售经理', '王总', 1, '好的，那请先确认下周评审时间。', null, null, now() - interval '50 minutes', null),
-        ('private:seed:wx_sales_manager', 'seed-guid-private-001', 'private', 'private_forward', 'wechat_raw.wechat_private_message_events', 'seed-private-003', 'seed-msg-003', 'wx_sales_manager', '销售经理', 'wx_wangzong', '王总', '王总', 1, '我转发一条内部结论给你。', '内部建议先小批量导入，再安排量产验证。', 1, now() - interval '45 minutes', null),
-        ('private:seed:wx_sales_manager', 'seed-guid-private-001', 'private', 'unknown', 'wechat_raw.wechat_private_message_events', 'seed-private-004', 'seed-msg-004', 'wx_sales_manager', '销售经理', 'wx_wangzong', '王总', '王总', 3, '[图片] 样品测试报告截图', null, null, now() - interval '40 minutes', 'https://example.com/report.png'),
-        ('private:seed:wx_sales_a', 'seed-guid-private-002', 'private', 'unknown', 'wechat_raw.wechat_private_message_events', 'seed-private-005', 'seed-msg-005', 'wx_sales_a', '业务员A', 'wx_ligong', '李工', '李工', 1, '李工您好，认证资料今天会补齐。', null, null, now() - interval '35 minutes', null),
-        ('private:seed:wx_sales_a', 'seed-guid-private-002', 'private', 'unknown', 'wechat_raw.wechat_private_message_events', 'seed-private-006', 'seed-msg-006', 'wx_ligong', '李工', 'wx_sales_a', '业务员A', '李工', 1, '好的，重点把UL认证和耐温数据一起发我。', null, null, now() - interval '30 minutes', null),
-        ('group:seed:wx_grp_huadong_001', 'seed-guid-group-001', 'group', 'group_live', 'wechat_raw.wechat_group_message_events', 'seed-group-001', 'seed-gmsg-001', 'wx_sales_manager', '销售经理', null, null, '华东智造项目群', 1, '各位好，今天同步试产节奏和风险清单。', null, null, now() - interval '25 minutes', null),
-        ('group:seed:wx_grp_huadong_001', 'seed-guid-group-001', 'group', 'group_live', 'wechat_raw.wechat_group_message_events', 'seed-group-002', 'seed-gmsg-002', 'wx_procurement_hd', '采购同事', null, null, '华东智造项目群', 1, '请补充异常升级路径和责任人。', null, null, now() - interval '20 minutes', null)
-    ) as msg(
-      conversation_key, source_guid, message_scope, message_origin_type, raw_event_table, raw_event_dedupe_key,
-      raw_msg_id, sender_wechat_id, sender_display_name, receiver_wechat_id, receiver_display_name, peer_display_name,
-      msg_type, content, quote_content, quote_msg_type, send_time, remote_media_url
-    ) on msg.conversation_key = c.conversation_key
-    on conflict (raw_event_table, raw_event_dedupe_key) do update
-    set
-      content = excluded.content,
-      quote_content = excluded.quote_content,
-      quote_msg_type = excluded.quote_msg_type,
-      send_time = excluded.send_time,
-      remote_media_url = excluded.remote_media_url,
-      updated_at = now();
+      case when mod(i, 2) = 1 then '11111111-1111-1111-1111-111111111001'::uuid else '11111111-1111-1111-1111-111111111002'::uuid end as session_id,
+      case
+        when mod(i, 4) = 1 then 'wx_sales_manager'
+        when mod(i, 4) = 2 then 'wx_wangzong'
+        when mod(i, 4) = 3 then 'wx_sales_a'
+        else 'wx_ligong'
+      end as sender_wechat_id,
+      'text' as msg_type,
+      case mod(i, 10)
+        when 0 then format('第%s轮沟通：请确认交付节奏和风险兜底方案。', i)
+        when 1 then format('第%s轮沟通：客户关注价格边界，请给TCO测算。', i)
+        when 2 then format('第%s轮沟通：请补充认证资料与测试计划。', i)
+        when 3 then format('第%s轮沟通：交期是否可以压缩到两周内？', i)
+        when 4 then format('第%s轮沟通：请同步替代料验证进度。', i)
+        when 5 then format('第%s轮沟通：样品反馈已回传，需优化插拔力。', i)
+        when 6 then format('第%s轮沟通：竞品报价已到，需给差异化话术。', i)
+        when 7 then format('第%s轮沟通：本周安排一次技术对齐会议。', i)
+        when 8 then format('第%s轮沟通：请确认批量导入窗口和备货策略。', i)
+        else format('第%s轮沟通：建议先小批试产再推进量产。', i)
+      end as content,
+      now() - interval '3 day' + (i || ' minutes')::interval as send_time
+    from generate_series(1, 100) as g(i);
   end if;
 end
 $$;
 
 do $$
 begin
-  if to_regclass('public.crm_customer_message_session') is not null then
-    insert into public.crm_customer_message_session(
-      id, customer_id, contact_id, channel, source_sender_key, source_sender_wechat_id, source_sender_display_name,
-      title, message_count, last_message_at, last_message_preview, status
-    ) values
-      (
-        'CMS_SEED_001',
-        '1',
-        'CON001',
-        'wechat_private',
-        'wx_sales_manager',
-        'wx_sales_manager',
-        '销售经理',
-        '华东智造 - 销售经理 会话',
-        3,
-        now() - interval '40 minutes',
-        '我转发一条内部结论给你。',
-        'active'
-      )
-    on conflict (id) do update
-    set
-      contact_id = excluded.contact_id,
-      title = excluded.title,
-      message_count = excluded.message_count,
-      last_message_at = excluded.last_message_at,
-      last_message_preview = excluded.last_message_preview,
-      updated_at = now();
-
-    insert into public.crm_customer_message_session_item(session_id, wx_message_id, sort_order)
+  if to_regclass('public.crm_wechat_group_message') is not null then
+    insert into public.crm_wechat_group_message(group_id, sender_wechat_id, msg_type, content, send_time)
     select
-      'CMS_SEED_001',
-      m.id,
-      row_number() over (order by m.send_time asc, m.id asc) - 1
-    from public.crm_wx_message m
-    join public.crm_wx_conversation c on c.id = m.conversation_id
-    where c.conversation_key = 'private:seed:wx_sales_manager'
-      and m.raw_event_dedupe_key in ('seed-private-001', 'seed-private-002', 'seed-private-003')
-    on conflict (session_id, wx_message_id) do update
-    set sort_order = excluded.sort_order;
+      case when mod(i, 2) = 1 then '22222222-2222-2222-2222-222222222001'::uuid else '22222222-2222-2222-2222-222222222002'::uuid end as group_id,
+      case
+        when mod(i, 5) = 0 then 'wx_sales_manager'
+        when mod(i, 5) = 1 then 'wx_procurement_hd'
+        when mod(i, 5) = 2 then 'wx_sales_a'
+        when mod(i, 5) = 3 then 'wx_ligong'
+        else 'wx_quality_team'
+      end as sender_wechat_id,
+      'text' as msg_type,
+      case mod(i, 10)
+        when 0 then format('群聊第%s条：今天同步试产节奏与里程碑。', i)
+        when 1 then format('群聊第%s条：请补充异常升级路径和责任人。', i)
+        when 2 then format('群聊第%s条：客户要求先验证耐温和振动指标。', i)
+        when 3 then format('群聊第%s条：请确认本周样品出货与签收时间。', i)
+        when 4 then format('群聊第%s条：竞品在价格上有优势，我们强调可靠性。', i)
+        when 5 then format('群聊第%s条：请更新供应链备货安全库存。', i)
+        when 6 then format('群聊第%s条：会议纪要已发，待各部门确认。', i)
+        when 7 then format('群聊第%s条：客户关注点转向交付一致性。', i)
+        when 8 then format('群聊第%s条：下周安排联合测试和问题复盘。', i)
+        else format('群聊第%s条：请在今天18点前反馈风险项。', i)
+      end as content,
+      now() - interval '2 day' + (i || ' minutes')::interval as send_time
+    from generate_series(1, 100) as g(i);
   end if;
 end
 $$;
@@ -413,56 +333,69 @@ insert into public.crm_stakeholder_assessment(
   ('ASM001', 1, 'CON001', current_date, 4, 5, 1, 3, 4, 72, '王总可推动替代导入，但需要风险兜底。', '先安排小批量试产并建立周报机制。', 'manual', 'gemini-3.1-pro-preview', 'EMP002');
 
 insert into public.crm_quotation(
-  id, quote_no, customer_id, customer_name, project_id, project_name, quote_date, status, audit_status,
-  tax_included_total_amount, tax_excluded_total_amount, total_amount
+  quote_no, customer_id, customer_name, project_id, project_name, quote_date, status, audit_status,
+  tax_included_total_amount, tax_excluded_total_amount, total_amount, contact_person, valid_until
 ) values
-  ('QUO001', 'Q-2026-001', 1, '华东智造股份有限公司', 'PRJ001', '华东智造温控升级项目', current_date, '草稿', '未审核', 6800, 6017.70, 6800);
+  ('Q-2026-001', 1, '华东智造股份有限公司', 1, '华东智造温控升级项目', current_date, 'quotation_complete', '未审核', 6800, 6017.70, 6800, '王总', current_date + interval '30 day');
 
 insert into public.crm_quotation_item(
-  id, quotation_id, product_id, product_name, material_no, quantity, tax_type, tax_rate, tax_included_price,
-  tax_excluded_price, tax_included_amount, tax_excluded_amount, tax_amount
+  quotation_id, product_id, product_name, material_no, quantity, tax_type, tax_rate, tax_included_price,
+  tax_excluded_price, tax_included_amount, tax_excluded_amount, tax_amount, lead_time, moq
 ) values
-  ('QUOI001', 'QUO001', 1, '工业连接器A', 'IO-001', 100, '增值税专票', 13, 68, 60.1770, 6800, 6017.70, 782.30);
+  (1, 1, '工业连接器A', 'IO-001', 100, '增值税专票', 13, 68, 60.1770, 6800, 6017.70, 782.30, '15天', 100);
 
 insert into public.crm_sales_order(
-  id, order_no, customer_id, customer_name, project_id, project_name, order_date, status, audit_status,
-  tax_included_total_amount, tax_excluded_total_amount, total_amount
+  order_no, customer_id, customer_name, project_id, project_name, order_date, status, audit_status,
+  tax_included_total_amount, tax_excluded_total_amount, total_amount, sales_rep, merchandiser
 ) values
-  ('SO001', 'SO-2026-001', 1, '华东智造股份有限公司', 'PRJ001', '华东智造温控升级项目', current_date, '待执行', '未审核', 13600, 12035.40, 13600);
+  ('SO-2026-001', 1, '华东智造股份有限公司', 1, '华东智造温控升级项目', current_date, 'un_paid', '未审核', 13600, 12035.40, 13600, 'EMP002', '张跟单');
 
 insert into public.crm_sales_order_item(
-  id, sales_order_id, product_id, product_name, material_no, quantity, tax_type, tax_rate, tax_included_price,
+  sales_order_id, product_id, product_name, material_no, quantity, tax_type, tax_rate, tax_included_price,
   tax_excluded_price, tax_included_amount, tax_excluded_amount, tax_amount
 ) values
-  ('SOI001', 'SO001', 1, '工业连接器A', 'IO-001', 200, '增值税专票', 13, 68, 60.1770, 13600, 12035.40, 1564.60);
+  (1, 1, '工业连接器A', 'IO-001', 200, '增值税专票', 13, 68, 60.1770, 13600, 12035.40, 1564.60);
 
 insert into public.crm_sample_order(
-  id, sample_no, customer_id, customer_name, applicant, project_id, project_name, status, audit_status,
-  tax_included_total_amount, tax_excluded_total_amount, total_amount
+  sample_no, customer_id, customer_name, applicant, project_id, project_name, status, audit_status,
+  tax_included_total_amount, tax_excluded_total_amount, total_amount, sales_rep, merchandiser
 ) values
-  ('SAM001', 'SAM-2026-001', 1, '华东智造股份有限公司', 'EMP002', 'PRJ001', '华东智造温控升级项目', '待审批', '未审核', 680, 601.77, 680);
+  ('SAM-2026-001', 1, '华东智造股份有限公司', 'EMP002', 1, '华东智造温控升级项目', 'wait_leader_examine', '未审核', 680, 601.77, 680, 'EMP002', '张跟单');
 
 insert into public.crm_sample_order_item(
-  id, sample_order_id, product_id, product_name, material_no, quantity, tax_type, tax_rate, tax_included_price,
+  sample_order_id, product_id, product_name, material_no, quantity, tax_type, tax_rate, tax_included_price,
   tax_excluded_price, tax_included_amount, tax_excluded_amount, tax_amount
 ) values
-  ('SAMI001', 'SAM001', 1, '工业连接器A', 'IO-001', 10, '增值税专票', 13, 68, 60.1770, 680, 601.77, 78.23);
+  (1, 1, '工业连接器A', 'IO-001', 10, '增值税专票', 13, 68, 60.1770, 680, 601.77, 78.23);
 
 insert into public.crm_return_order(
-  id, return_no, order_no, original_order_no, customer_id, customer_name, reason, handler, sales_rep, merchandiser,
-  project_id, project_name, status, audit_status, tax_included_total_amount, tax_excluded_total_amount
+  return_no, order_no, original_order_no, customer_id, customer_name, reason, handler, sales_rep, merchandiser,
+  project_id, project_name, status, audit_status, tax_included_total_amount, tax_excluded_total_amount,
+  after_sale_no, after_sale_reason
 ) values
-  ('RET001', 'RET-2026-001', 'SO-2026-001', 'SO-2026-001', 1, '华东智造股份有限公司', '批次外观不一致', 'EMP002',
-   'EMP002', '张跟单', 'PRJ001', '华东智造温控升级项目', '待处理', '未审核', 680, 601.77);
+  ('RET-2026-001', 'SO-2026-001', 'SO-2026-001', 1, '华东智造股份有限公司', '批次外观不一致', 'EMP002',
+   'EMP002', '张跟单', 1, '华东智造温控升级项目', '待处理', '未审核', 680, 601.77, 'RET-2026-001', '批次外观不一致');
 
 insert into public.crm_return_order_item(
-  id, return_order_id, product_id, product_name, material_no, quantity, tax_type, tax_rate, tax_included_price,
+  return_order_id, product_id, product_name, material_no, quantity, tax_type, tax_rate, tax_included_price,
   tax_excluded_price, tax_included_amount, tax_excluded_amount, tax_amount, order_no, return_no, material_id,
   material_name, expected_after_sale_method, after_sale_reason, issue_description, return_tracking_no,
-  final_handling_method, return_qty, return_method
+  final_handling_method, return_qty, return_method, after_sale_order_id, after_sale_no, material_qty
 ) values
-  ('RETI001', 'RET001', 1, '工业连接器A', 'IO-001', 10, '增值税专票', 13, 68, 60.1770, 680, 601.77, 78.23,
-   'SO-2026-001', 'RET-2026-001', 'IO-001', '工业连接器A', '退货', '外观问题', '外观色差超标', 'SF12345678', '退货入库', 10, '退货入库');
+  (1, 1, '工业连接器A', 'IO-001', 10, '增值税专票', 13, 68, 60.1770, 680, 601.77, 78.23,
+   'SO-2026-001', 'RET-2026-001', 'IO-001', '工业连接器A', '退货', '外观问题', '外观色差超标', 'SF12345678',
+   '退货入库', 10, '退货入库', 1, 'RET-2026-001', 10);
+
+insert into public.crm_purchase_quotation(
+  purchase_quote_no, project_id, quote_time, supplier, created_by, customer_name, customer_id, valid_until
+) values
+  ('PQ-2026-001', 1, current_date, '供应商A', 'EMP002', '华东智造股份有限公司', 1, current_date + interval '15 day');
+
+insert into public.crm_purchase_quotation_item(
+  material_no, material_desc, tax_included_unit_price, tax_excluded_unit_price, sample_price, unit, lead_time, moq, mpq,
+  purchase_quotation_id
+) values
+  ('IO-001', '工业连接器A', 58, 51.33, 68, 'pcs', '10天', 50, 100, 1);
 
 insert into public.crm_potential_customer(id, name) values
   ('PC001', '北方精工有限公司'),

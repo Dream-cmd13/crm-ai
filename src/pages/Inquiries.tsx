@@ -171,13 +171,14 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   const [displayCount, setDisplayCount] = useState(20);
   const [searchTerm, setSearchTerm] = useState('');
 
+  const normalizeForSearch = (value: unknown) => String(value ?? '').toLowerCase();
   const filteredInquiries = inquiries.filter(inq => {
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = normalizeForSearch(searchTerm);
     return (
-      inq.id.toLowerCase().includes(searchLower) ||
-      inq.companyName.toLowerCase().includes(searchLower) ||
-      inq.customerName.toLowerCase().includes(searchLower) ||
-      inq.contact.toLowerCase().includes(searchLower)
+      normalizeForSearch(inq.id).includes(searchLower) ||
+      normalizeForSearch(inq.companyName).includes(searchLower) ||
+      normalizeForSearch(inq.customerName).includes(searchLower) ||
+      normalizeForSearch(inq.contact).includes(searchLower)
     );
   });
 

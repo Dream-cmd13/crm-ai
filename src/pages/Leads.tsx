@@ -133,6 +133,24 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
     createDate: row.create_date || new Date().toISOString().split('T')[0]
   });
 
+  const isMissingLeadCustomerTypeColumn = (error: any): boolean => {
+    const message = String(error?.message || '');
+    return error?.code === 'PGRST204' && message.includes("'customer_type'") && message.includes("'crm_lead'");
+  };
+
+  const upsertLeadWithSchemaFallback = async (dbData: any) => {
+    const supabase = getSupabaseClient();
+    const primaryResult = await supabase.from('crm_lead').upsert(dbData, { onConflict: 'id' }).select('*');
+    if (!isMissingLeadCustomerTypeColumn(primaryResult.error)) return primaryResult;
+
+    const { customer_type: _ignored, ...fallbackData } = dbData;
+    const fallbackResult = await supabase.from('crm_lead').upsert(fallbackData, { onConflict: 'id' }).select('*');
+    if (!fallbackResult.error) {
+      console.warn("Column 'crm_lead.customer_type' missing, retried upsert without this field.");
+    }
+    return fallbackResult;
+  };
+
   const fetchLeads = async () => {
     if (!isSupabaseConfigured()) return;
     try {
@@ -279,8 +297,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
         };
 
         if (isSupabaseConfigured()) {
-          const supabase = getSupabaseClient();
-          const { data: insertedData, error } = await supabase.from('crm_lead').upsert(dbData, { onConflict: 'id' }).select('*');
+          const { data: insertedData, error } = await upsertLeadWithSchemaFallback(dbData);
           if (error) throw error;
           if (insertedData && insertedData.length > 0) {
             const newLead = mapDbLeadToUi(insertedData[0]);
@@ -365,8 +382,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           updated_at: new Date().toISOString(),
         };
         if (isSupabaseConfigured()) {
-          const supabase = getSupabaseClient();
-          const { data: updatedData, error } = await supabase.from('crm_lead').upsert(dbData, { onConflict: 'id' }).select('*');
+          const { data: updatedData, error } = await upsertLeadWithSchemaFallback(dbData);
           if (error) throw error;
           if (updatedData && updatedData.length > 0) {
             const updatedLead = mapDbLeadToUi(updatedData[0]);
