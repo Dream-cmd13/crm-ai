@@ -16,6 +16,66 @@ export interface CommunicationDetail {
   sourceGroup?: string; // e.g. "WeChat Group A", "1688 Inquiry"
 }
 
+export interface WechatSenderInbox {
+  senderKey: string;
+  senderWechatId?: string;
+  senderDisplayName?: string;
+  messageCount: number;
+  lastMessageAt?: string;
+  lastMessagePreview?: string;
+  archivedMessageCount: number;
+}
+
+export interface WechatSenderMessage {
+  id: string;
+  conversationId?: string;
+  senderKey: string;
+  senderWechatId?: string;
+  senderDisplayName?: string;
+  peerDisplayName?: string;
+  messageOriginType?: string;
+  msgType?: number | null;
+  content: string;
+  quoteContent?: string;
+  quoteMsgType?: number | null;
+  quoteRemoteMediaUrl?: string;
+  quoteFileName?: string;
+  remoteMediaUrl?: string;
+  sendTime?: string;
+  archivedSessionId?: string;
+  archivedSessionTitle?: string;
+}
+
+export interface CustomerMessageSession {
+  id: string;
+  customerId: string;
+  contactId?: string;
+  channel: 'wechat_private';
+  sourceSenderKey: string;
+  sourceSenderWechatId?: string;
+  sourceSenderDisplayName?: string;
+  title: string;
+  messageCount: number;
+  lastMessageAt?: string;
+  lastMessagePreview?: string;
+  status: 'active' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerMessageSessionItem {
+  id: string;
+  sessionId: string;
+  wxMessageId: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface CustomerMessageSessionDetail {
+  session: CustomerMessageSession;
+  messages: CommunicationDetail[];
+}
+
 export interface FileAttachment {
   name: string;
   type: string;

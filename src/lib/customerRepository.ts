@@ -1,12 +1,7 @@
 import { CommunicationDetail, Customer, CustomerPersona, TodoTask } from '../types';
-import { mockCustomers, mockPersonas, mockTodoTasks } from '../data';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
-const visitFallback = mockTodoTasks.filter((task) => (
-  task.taskType === '客户拜访'
-  || task.taskType === '拜访'
-  || task.taskType === '客户激活任务'
-));
+const visitFallback: TodoTask[] = [];
 
 // 辅助函数：将 UI 客户 ID 转换为数据库 customer_number
 // 支持 CUS- 和 CUST- 两种前缀格式
@@ -201,8 +196,6 @@ const mapDbCommunicationToUi = (row: any): CommunicationDetail => ({
   sourceGroup: row.source_group || undefined
 });
 
-const isUuid = (value: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
-
 const normalizeContactTimeToIso = (raw: string): string => {
   const value = String(raw || '').trim();
   if (!value) return new Date().toISOString();
@@ -220,7 +213,7 @@ export const fetchCustomersModuleDataFromSupabase = async (): Promise<{
   visitPlans: TodoTask[];
 }> => {
   if (!isSupabaseConfigured()) {
-    return { customers: mockCustomers, personas: mockPersonas, visitPlans: visitFallback };
+    return { customers: [], personas: [], visitPlans: visitFallback };
   }
   const supabase = getSupabaseClient();
   const [{ data: customerRows, error: customerError }, { data: contactRows, error: contactError }, { data: followRows, error: followError }, { data: personaRows, error: personaError }, { data: taskRows, error: taskError }] = await Promise.all([
@@ -289,81 +282,7 @@ export const fetchCustomerCommunicationsFromSupabase = async (customerId: string
     .eq('customer_id', id)
     .order('created_at', { ascending: true });
   if (error) throw error;
-  const baseList = (data || []).map(mapDbCommunicationToUi);
-
-  // 读取系统微信个人会话消息并映射到沟通详情
-  let wechatList: CommunicationDetail[] = [];
-  try {
-    const { data: sessions } = await supabase
-      .from('crm_wechat_session')
-      .select('id,my_wechat_id,peer_wechat_id')
-      .eq('customer_id', id);
-    const sessionRows = sessions || [];
-    const sessionIds = sessionRows.map((s: any) => String(s.id || '')).filter((sid: string) => isUuid(sid));
-    if (sessionIds.length > 0) {
-      const { data: messages } = await supabase
-        .from('crm_wechat_message')
-        .select('id,session_id,sender_wechat_id,msg_type,content,send_time')
-        .in('session_id', sessionIds)
-        .order('send_time', { ascending: true });
-      const sessionMap = new Map<string, any>();
-      sessionRows.forEach((s: any) => sessionMap.set(String(s.id), s));
-      wechatList = (messages || []).map((m: any) => {
-        const session = sessionMap.get(String(m.session_id || ''));
-        return {
-          id: `WMSG_${m.id}`,
-          date: String(m.send_time || ''),
-          sender: String(m.sender_wechat_id || ''),
-          content: String(m.content || ''),
-          type: 'wechat',
-          sourceId: String(m.session_id || ''),
-          customerId: id,
-          sourceGroup: String(session?.peer_wechat_id || session?.my_wechat_id || '')
-        } as CommunicationDetail;
-      });
-    }
-  } catch (e) {
-    console.error('Error fetching crm_wechat_message:', e);
-  }
-
-  // 读取系统微信群会话消息并映射到沟通详情
-  let wechatGroupList: CommunicationDetail[] = [];
-  try {
-    const { data: groups } = await supabase
-      .from('crm_wechat_group')
-      .select('id,group_id,group_name')
-      .eq('customer_id', id);
-    const groupRows = groups || [];
-    const groupIds = groupRows.map((g: any) => String(g.id || '')).filter((gid: string) => isUuid(gid));
-    if (groupIds.length > 0) {
-      const { data: messages } = await supabase
-        .from('crm_wechat_group_message')
-        .select('id,group_id,sender_wechat_id,msg_type,content,send_time')
-        .in('group_id', groupIds)
-        .order('send_time', { ascending: true });
-      const groupMap = new Map<string, any>();
-      groupRows.forEach((g: any) => groupMap.set(String(g.id), g));
-      wechatGroupList = (messages || []).map((m: any) => {
-        const group = groupMap.get(String(m.group_id || ''));
-        return {
-          id: `WGMSG_${m.id}`,
-          date: String(m.send_time || ''),
-          sender: String(m.sender_wechat_id || ''),
-          content: String(m.content || ''),
-          type: 'wechat_group',
-          sourceId: String(m.group_id || ''),
-          customerId: id,
-          sourceGroup: String(group?.group_name || group?.group_id || '')
-        } as CommunicationDetail;
-      });
-    }
-  } catch (e) {
-    console.error('Error fetching crm_wechat_group_message:', e);
-  }
-
-  const merged = [...baseList, ...wechatList, ...wechatGroupList];
-  merged.sort((a, b) => new Date(a.date || '').getTime() - new Date(b.date || '').getTime());
-  return merged;
+  return (data || []).map(mapDbCommunicationToUi);
 };
 
 export const saveCustomerCommunicationToSupabase = async (
@@ -393,27 +312,6 @@ export const saveCustomerCommunicationToSupabase = async (
     .select('*')
     .single();
   if (error) throw error;
-  const sourceId = String(comm.sourceId || '').trim();
-  if (isUuid(sourceId) && String(comm.type || '') === 'wechat') {
-    const sendTime = new Date(String(comm.date || now.toISOString()));
-    await supabase.from('crm_wechat_message').insert({
-      session_id: sourceId,
-      sender_wechat_id: String(comm.sender || ''),
-      msg_type: 'text',
-      content: String(comm.content || ''),
-      send_time: Number.isNaN(sendTime.getTime()) ? now.toISOString() : sendTime.toISOString()
-    });
-  }
-  if (isUuid(sourceId) && String(comm.type || '') === 'wechat_group') {
-    const sendTime = new Date(String(comm.date || now.toISOString()));
-    await supabase.from('crm_wechat_group_message').insert({
-      group_id: sourceId,
-      sender_wechat_id: String(comm.sender || ''),
-      msg_type: 'text',
-      content: String(comm.content || ''),
-      send_time: Number.isNaN(sendTime.getTime()) ? now.toISOString() : sendTime.toISOString()
-    });
-  }
   await updateCustomerLastContactInSupabase(id, '沟通记录更新');
   return mapDbCommunicationToUi(data);
 };

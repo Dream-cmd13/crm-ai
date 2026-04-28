@@ -1,15 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { MessageSquare, Send, Mic, Plus, Sparkles, Loader2 } from 'lucide-react';
-import { CommunicationDetail } from '../types';
+import { CommunicationDetail, CustomerMessageSession } from '../types';
 import { cn } from '../lib/utils';
 import AddSessionRecordModal from './AddSessionRecordModal';
-import WechatChatSelectorModal from './WechatChatSelectorModal';
 import { callAiProxy } from '../lib/aiProxy';
 import { fetchCustomerFaqLibraryConfig, type CustomerFaqSubCategory } from '../lib/customerFaqLibraryRepository';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
 import { fetchChatAssistConfigFromSupabase, defaultChatAssistConfig } from '../lib/chatAssistConfigRepository';
 import { fetchCasesFromSupabase } from '../lib/caseRepository';
 import { fetchProductSeriesFromSupabase } from '../lib/productRepository';
+import { fetchCustomerMessageSessionMessagesFromSupabase, fetchCustomerMessageSessionsFromSupabase } from '../lib/customerMessageSessionRepository';
 import { toast } from 'react-hot-toast';
 
 interface CommunicationLogProps {
@@ -73,11 +73,12 @@ export default function CommunicationLog({
   const [selectedGroupChatId, setSelectedGroupChatId] = useState<string>(String((initialSelectedChat as any)?.id || groupChats[0]?.id || ''));
 
   const [showAddSessionModal, setShowAddSessionModal] = useState(false);
-  const [showSessionSelector, setShowSessionSelector] = useState(false);
-  const [sessionSelectorMode, setSessionSelectorMode] = useState<'individual' | 'group'>('individual');
   const [showAiPanel, setShowAiPanel] = useState(false);
   const [systemWechatSessions, setSystemWechatSessions] = useState<any[]>([]);
   const [systemWechatGroups, setSystemWechatGroups] = useState<any[]>([]);
+  const [customerSessions, setCustomerSessions] = useState<CustomerMessageSession[]>([]);
+  const [selectedCustomerSessionId, setSelectedCustomerSessionId] = useState('');
+  const [selectedCustomerSessionMessages, setSelectedCustomerSessionMessages] = useState<CommunicationDetail[]>([]);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState('');
@@ -118,6 +119,35 @@ export default function CommunicationLog({
         console.error(error);
       });
   }, []);
+  React.useEffect(() => {
+    if (!customerId) {
+      setCustomerSessions([]);
+      setSelectedCustomerSessionId('');
+      setSelectedCustomerSessionMessages([]);
+      return;
+    }
+    fetchCustomerMessageSessionsFromSupabase(customerId)
+      .then((sessions) => {
+        setCustomerSessions(sessions);
+        setSelectedCustomerSessionId((prev) => prev || sessions[0]?.id || '');
+      })
+      .catch((error) => {
+        console.error(error);
+        setCustomerSessions([]);
+      });
+  }, [customerId, communications.length]);
+  React.useEffect(() => {
+    if (!selectedCustomerSessionId) {
+      setSelectedCustomerSessionMessages([]);
+      return;
+    }
+    fetchCustomerMessageSessionMessagesFromSupabase(selectedCustomerSessionId)
+      .then(setSelectedCustomerSessionMessages)
+      .catch((error) => {
+        console.error(error);
+        setSelectedCustomerSessionMessages([]);
+      });
+  }, [selectedCustomerSessionId]);
   const loadSystemWechatSessions = React.useCallback(async () => {
     if (!isSupabaseConfigured()) return;
     const wechatIds = (contacts || []).map((c) => String(c.wechatId || '').trim()).filter(Boolean);
@@ -298,45 +328,6 @@ export default function CommunicationLog({
       ? (selectedGroupChat?.messages || filteredCommunications.filter((x) => x.type === 'wechat_group'))
       : filteredCommunications;
   const getMessageKey = (comm: any, idx: number) => String(comm?.id || `${comm?.date || ''}_${comm?.sender || ''}_${idx}`);
-
-  const handleSelectSystemSession = async (chat: any) => {
-    const selectedId = String(chat?.id || '');
-    if (!selectedId) {
-      setShowSessionSelector(false);
-      return;
-    }
-    try {
-      if (isSupabaseConfigured() && customerId) {
-        const supabase = getSupabaseClient();
-        if (sessionSelectorMode === 'individual') {
-          const payload: any = { customer_id: customerId };
-          const peerWechatId = String(chat?.peer_wechat_id || '');
-          const peerWechatName = String(chat?.peer_wechat_name || chat?.conversation_name || '').trim();
-          const matchedContact = (contacts || []).find((c) =>
-            String(c.wechatId || '') === peerWechatId || String(c.name || '').trim() === peerWechatName
-          );
-          if (matchedContact?.id) payload.primary_contact_id = matchedContact.id;
-          const { error } = await supabase.from('crm_wx_conversation').update(payload).eq('id', selectedId);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from('crm_wx_conversation').update({ customer_id: customerId }).eq('id', selectedId);
-          if (error) throw error;
-        }
-      }
-      await loadSystemWechatSessions();
-      if (sessionSelectorMode === 'individual') {
-        setActiveTab('wechat');
-        setSelectedWechatSessionId(selectedId);
-      } else {
-        setActiveTab('wechat_group');
-        setSelectedGroupChatId(selectedId);
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setShowSessionSelector(false);
-    }
-  };
 
   React.useEffect(() => {
     const validIds = new Set(sessionMessages.map((comm: any, idx: number) => getMessageKey(comm, idx)));
@@ -733,6 +724,57 @@ export default function CommunicationLog({
         </h3>
       </div>
       <div className="px-4 pt-3 bg-white border-b border-gray-100">
+        {customerSessions.length > 0 && (
+          <div className="mb-4 rounded-xl border border-green-100 bg-green-50/50 p-3">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-green-800">
+              <MessageSquare className="w-4 h-4" />
+              客户会话
+            </div>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[280px_1fr]">
+              <div className="space-y-2">
+                {customerSessions.map((session) => {
+                  const selected = selectedCustomerSessionId === session.id;
+                  return (
+                    <button
+                      key={session.id}
+                      type="button"
+                      onClick={() => setSelectedCustomerSessionId(session.id)}
+                      className={cn(
+                        'w-full rounded-lg border px-3 py-2 text-left',
+                        selected ? 'border-green-300 bg-white shadow-sm' : 'border-green-100 bg-white/80 hover:bg-white'
+                      )}
+                    >
+                      <div className="text-sm font-medium text-gray-900">{session.title}</div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {session.sourceSenderDisplayName || session.sourceSenderWechatId || session.sourceSenderKey}
+                      </div>
+                      <div className="mt-1 text-xs text-gray-400">
+                        {session.messageCount} 条消息 · {session.lastMessageAt ? new Date(session.lastMessageAt).toLocaleString() : '-'}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="rounded-lg border border-green-100 bg-white p-3">
+                {selectedCustomerSessionMessages.length === 0 ? (
+                  <div className="py-10 text-center text-sm text-gray-400">当前客户会话暂无消息</div>
+                ) : (
+                  <div className="max-h-[220px] space-y-3 overflow-y-auto pr-1">
+                    {selectedCustomerSessionMessages.map((comm) => (
+                      <div key={comm.id} className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <span className="font-medium text-gray-700">{comm.sender}</span>
+                          <span>{comm.date}</span>
+                        </div>
+                        <div className="mt-1 whitespace-pre-wrap break-words text-sm text-gray-800">{comm.content}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
           {tabItems.map((tab) => (
             <button
@@ -758,27 +800,7 @@ export default function CommunicationLog({
             <div className="border-r border-gray-200 bg-white overflow-y-auto">
               <div className="p-3 border-b border-gray-100 flex items-center justify-between">
                 <span className="text-xs font-bold text-gray-700">{activeTab === 'wechat' ? '微信会话' : '微信群会话'}</span>
-                {activeTab === 'wechat' ? (
-                  <button
-                    onClick={() => {
-                      setSessionSelectorMode('individual');
-                      setShowSessionSelector(true);
-                    }}
-                    className="text-xs px-2 py-1 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded hover:bg-indigo-100"
-                  >
-                    新增会话
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setSessionSelectorMode('group');
-                      setShowSessionSelector(true);
-                    }}
-                    className="text-xs px-2 py-1 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded hover:bg-indigo-100"
-                  >
-                    新增群聊
-                  </button>
-                )}
+                <span className="text-[11px] text-gray-400">系统原始消息浏览</span>
               </div>
               <div className="p-2 space-y-1">
                 {(activeTab === 'wechat' ? derivedWechatSessions : derivedGroupChats).map((chat: any) => {
@@ -1078,15 +1100,6 @@ export default function CommunicationLog({
           type={newCommType as any}
           onClose={() => setShowAddSessionModal(false)}
           onSave={handleSaveSession}
-        />
-      )}
-      {showSessionSelector && (
-        <WechatChatSelectorModal
-          mode={sessionSelectorMode}
-          customerId={customerId}
-          contacts={contacts as any[]}
-          onClose={() => setShowSessionSelector(false)}
-          onSelect={handleSelectSystemSession}
         />
       )}
     </div>

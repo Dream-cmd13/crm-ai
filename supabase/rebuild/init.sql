@@ -575,42 +575,226 @@ create table if not exists public.crm_communication_log (
   created_at timestamptz not null default now()
 );
 
--- ========= WECHAT SESSION / MESSAGE =========
-create table if not exists public.crm_wechat_session (
-  id uuid default gen_random_uuid() primary key,
-  my_wechat_id text not null,
-  peer_wechat_id text not null,
-  customer_id integer,
+-- ========= WECHAT MESSAGE / CONVERSATION =========
+drop table if exists public.crm_wechat_group_message;
+drop table if exists public.crm_wechat_group_member;
+drop table if exists public.crm_wechat_group;
+drop table if exists public.crm_wechat_message;
+drop table if exists public.crm_wechat_session;
+
+create table if not exists public.crm_wx_conversation (
+  id bigint generated always as identity primary key,
+  conversation_key text not null unique,
+  source_guid text not null,
+  conversation_type text not null check (conversation_type in ('private', 'group')),
+  conversation_identity_type text not null default 'private_direct'
+    check (conversation_identity_type in ('group', 'private_direct', 'private_forward_batch', 'private_internal', 'private_name')),
+  is_internal_chat boolean not null default false,
+  forward_batch_key text,
+  my_wechat_id text,
+  my_wechat_name text,
+  peer_wechat_id text,
+  peer_wechat_name text,
+  peer_name_tokens text[] not null default '{}',
+  room_username text,
+  conversation_name text,
+  room_name text,
+  room_remark_name text,
+  customer_id text,
+  primary_contact_id text,
+  owner_employee_id text,
+  status text not null default 'active' check (status in ('active', 'archived')),
+  last_message_id bigint,
+  last_message_at timestamptz,
+  last_message_preview text,
+  message_count integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  last_member_sync_version bigint not null default 0,
+  last_member_synced_at timestamptz
+);
+
+create index if not exists idx_crm_wx_conversation_guid_type
+  on public.crm_wx_conversation (source_guid, conversation_type);
+create index if not exists idx_crm_wx_conversation_guid_last_message_at
+  on public.crm_wx_conversation (source_guid, last_message_at desc);
+create index if not exists idx_crm_wx_conversation_private_identity
+  on public.crm_wx_conversation (source_guid, conversation_type, conversation_identity_type, is_internal_chat, my_wechat_id);
+create index if not exists idx_crm_wx_conversation_forward_batch_key
+  on public.crm_wx_conversation (forward_batch_key);
+create index if not exists idx_crm_wx_conversation_peer_name_tokens
+  on public.crm_wx_conversation using gin (peer_name_tokens);
+create index if not exists idx_crm_wx_conversation_customer_id
+  on public.crm_wx_conversation (customer_id);
+create index if not exists idx_crm_wx_conversation_primary_contact_id
+  on public.crm_wx_conversation (primary_contact_id);
+
+create table if not exists public.crm_wx_message (
+  id bigint generated always as identity primary key,
+  conversation_id bigint not null references public.crm_wx_conversation(id) on delete cascade,
+  source_guid text not null,
+  message_scope text not null check (message_scope in ('private', 'group')),
+  message_origin_type text not null default 'unknown'
+    check (message_origin_type in ('private_forward', 'group_forward', 'group_live', 'unknown')),
+  raw_event_table text not null check (raw_event_table in (
+    'wechat_raw.wechat_private_message_events',
+    'wechat_raw.wechat_group_message_events',
+    'wechat_raw.wework_private_message_events',
+    'wechat_raw.wework_group_message_events'
+  )),
+  raw_event_dedupe_key text not null,
+  raw_msg_id text,
+  sender_wechat_id text,
+  sender_display_name text,
+  sender_alias text,
+  receiver_wechat_id text,
+  receiver_display_name text,
+  peer_display_name text,
+  forward_batch_key text,
+  room_username text,
+  room_name text,
+  room_remark_name text,
+  msg_type integer,
+  content text,
+  quote_content text,
+  quote_msg_type integer,
+  quote_remote_media_url text,
+  quote_file_name text,
+  send_time timestamptz,
+  remote_media_url text,
+  local_media_path text,
+  voice_trans_text text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (raw_event_table, raw_event_dedupe_key)
+);
+
+create index if not exists idx_crm_wx_message_conversation_send_time
+  on public.crm_wx_message (conversation_id, send_time desc);
+create index if not exists idx_crm_wx_message_source_guid_send_time
+  on public.crm_wx_message (source_guid, send_time desc);
+create index if not exists idx_crm_wx_message_sender_wechat_id
+  on public.crm_wx_message (sender_wechat_id);
+create index if not exists idx_crm_wx_message_room_username
+  on public.crm_wx_message (room_username);
+
+create table if not exists public.crm_wx_conversation_member (
+  id bigint generated always as identity primary key,
+  conversation_id bigint not null references public.crm_wx_conversation(id) on delete cascade,
+  wechat_id text not null,
+  display_name text,
+  member_type text not null default 'external_unknown'
+    check (member_type in ('customer_contact', 'employee', 'external_unknown')),
   contact_id text,
-  created_at timestamptz not null default timezone('utc'::text, now()),
-  unique(my_wechat_id, peer_wechat_id)
+  employee_id text,
+  is_internal boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (conversation_id, wechat_id)
 );
 
-create table if not exists public.crm_wechat_message (
-  id uuid default gen_random_uuid() primary key,
-  session_id uuid references public.crm_wechat_session(id) on delete cascade,
-  sender_wechat_id text not null,
-  msg_type text default 'text',
-  content text not null,
-  send_time timestamptz not null default timezone('utc'::text, now())
+create index if not exists idx_crm_wx_conversation_member_contact_id
+  on public.crm_wx_conversation_member (contact_id);
+create index if not exists idx_crm_wx_conversation_member_wechat_id
+  on public.crm_wx_conversation_member (wechat_id);
+
+create table if not exists public.crm_customer_message_session (
+  id text primary key,
+  customer_id text not null,
+  contact_id text,
+  channel text not null default 'wechat_private' check (channel in ('wechat_private')),
+  source_sender_key text not null,
+  source_sender_wechat_id text,
+  source_sender_display_name text,
+  title text not null,
+  message_count integer not null default 0,
+  last_message_at timestamptz,
+  last_message_preview text,
+  status text not null default 'active' check (status in ('active', 'archived')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
-create table if not exists public.crm_wechat_group (
-  id uuid default gen_random_uuid() primary key,
-  group_id text not null unique,
-  group_name text not null,
-  customer_id integer,
-  created_at timestamptz not null default timezone('utc'::text, now())
+create index if not exists idx_crm_customer_message_session_customer_id
+  on public.crm_customer_message_session (customer_id, created_at desc);
+create index if not exists idx_crm_customer_message_session_contact_id
+  on public.crm_customer_message_session (contact_id);
+create index if not exists idx_crm_customer_message_session_sender_key
+  on public.crm_customer_message_session (source_sender_key);
+
+create table if not exists public.crm_customer_message_session_item (
+  id bigint generated always as identity primary key,
+  session_id text not null references public.crm_customer_message_session(id) on delete cascade,
+  wx_message_id bigint not null references public.crm_wx_message(id) on delete cascade,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  unique (session_id, wx_message_id),
+  unique (wx_message_id)
 );
 
-create table if not exists public.crm_wechat_group_message (
-  id uuid default gen_random_uuid() primary key,
-  group_id uuid references public.crm_wechat_group(id) on delete cascade,
-  sender_wechat_id text not null,
-  msg_type text default 'text',
-  content text not null,
-  send_time timestamptz not null default timezone('utc'::text, now())
+create index if not exists idx_crm_customer_message_session_item_session_id
+  on public.crm_customer_message_session_item (session_id, sort_order asc, wx_message_id asc);
+
+drop view if exists public.crm_wx_sender_inbox_v;
+create view public.crm_wx_sender_inbox_v as
+with private_messages as (
+  select
+    m.id,
+    m.send_time,
+    coalesce(m.content, '') as content,
+    nullif(btrim(c.my_wechat_id), '') as sender_wechat_id,
+    nullif(btrim(c.my_wechat_name), '') as sender_display_name,
+    coalesce(
+      nullif(btrim(c.my_wechat_id), ''),
+      lower(nullif(btrim(c.my_wechat_name), ''))
+    ) as sender_key
+  from public.crm_wx_message m
+  join public.crm_wx_conversation c on c.id = m.conversation_id
+  where m.message_scope = 'private'
+    and coalesce(nullif(btrim(c.my_wechat_id), ''), nullif(btrim(c.my_wechat_name), '')) is not null
+),
+latest_messages as (
+  select distinct on (pm.sender_key)
+    pm.sender_key,
+    pm.send_time as last_message_at,
+    pm.content as last_message_preview
+  from private_messages pm
+  order by pm.sender_key, pm.send_time desc nulls last, pm.id desc
+)
+select
+  pm.sender_key,
+  max(pm.sender_wechat_id) filter (where pm.sender_wechat_id is not null) as sender_wechat_id,
+  max(pm.sender_display_name) filter (where pm.sender_display_name is not null) as sender_display_name,
+  count(*)::integer as message_count,
+  lm.last_message_at,
+  lm.last_message_preview,
+  count(cmsi.wx_message_id)::integer as archived_message_count
+from private_messages pm
+join latest_messages lm on lm.sender_key = pm.sender_key
+left join public.crm_customer_message_session_item cmsi on cmsi.wx_message_id = pm.id
+group by pm.sender_key, lm.last_message_at, lm.last_message_preview;
+
+create table if not exists public.crm_wx_projection_jobs (
+  id bigint generated always as identity primary key,
+  dedupe_key text not null unique,
+  source_guid text not null,
+  raw_event_table text not null,
+  raw_event_dedupe_key text not null,
+  job_type text not null check (job_type in ('project_message')),
+  status text not null default 'pending' check (status in ('pending', 'processing', 'retrying', 'success', 'failed')),
+  attempt_count integer not null default 0,
+  next_retry_at timestamptz,
+  last_error text,
+  processing_started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
+
+create index if not exists idx_crm_wx_projection_jobs_poll
+  on public.crm_wx_projection_jobs (status, next_retry_at, created_at);
+create index if not exists idx_crm_wx_projection_jobs_source_guid
+  on public.crm_wx_projection_jobs (source_guid, created_at desc);
 
 create table if not exists public.crm_task_type (
   id text primary key,

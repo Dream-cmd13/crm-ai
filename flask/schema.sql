@@ -755,6 +755,84 @@ create index if not exists idx_crm_wx_conversation_member_contact_id
 create index if not exists idx_crm_wx_conversation_member_wechat_id
     on public.crm_wx_conversation_member (wechat_id);
 
+create table if not exists public.crm_customer_message_session (
+    id text primary key,
+    customer_id text not null,
+    contact_id text,
+    channel text not null default 'wechat_private'
+        check (channel in ('wechat_private')),
+    source_sender_key text not null,
+    source_sender_wechat_id text,
+    source_sender_display_name text,
+    title text not null,
+    message_count integer not null default 0,
+    last_message_at timestamptz,
+    last_message_preview text,
+    status text not null default 'active'
+        check (status in ('active', 'archived')),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_crm_customer_message_session_customer_id
+    on public.crm_customer_message_session (customer_id, created_at desc);
+create index if not exists idx_crm_customer_message_session_contact_id
+    on public.crm_customer_message_session (contact_id);
+create index if not exists idx_crm_customer_message_session_sender_key
+    on public.crm_customer_message_session (source_sender_key);
+
+create table if not exists public.crm_customer_message_session_item (
+    id bigint generated always as identity primary key,
+    session_id text not null references public.crm_customer_message_session(id) on delete cascade,
+    wx_message_id bigint not null references public.crm_wx_message(id) on delete cascade,
+    sort_order integer not null default 0,
+    created_at timestamptz not null default now(),
+    unique (session_id, wx_message_id),
+    unique (wx_message_id)
+);
+
+create index if not exists idx_crm_customer_message_session_item_session_id
+    on public.crm_customer_message_session_item (session_id, sort_order asc, wx_message_id asc);
+
+drop view if exists public.crm_wx_sender_inbox_v;
+create view public.crm_wx_sender_inbox_v as
+with private_messages as (
+    select
+        m.id,
+        m.send_time,
+        coalesce(m.content, '') as content,
+        nullif(btrim(c.my_wechat_id), '') as sender_wechat_id,
+        nullif(btrim(c.my_wechat_name), '') as sender_display_name,
+        coalesce(
+            nullif(btrim(c.my_wechat_id), ''),
+            lower(nullif(btrim(c.my_wechat_name), ''))
+        ) as sender_key
+    from public.crm_wx_message m
+    join public.crm_wx_conversation c on c.id = m.conversation_id
+    where m.message_scope = 'private'
+      and coalesce(nullif(btrim(c.my_wechat_id), ''), nullif(btrim(c.my_wechat_name), '')) is not null
+),
+latest_messages as (
+    select distinct on (pm.sender_key)
+        pm.sender_key,
+        pm.send_time as last_message_at,
+        pm.content as last_message_preview
+    from private_messages pm
+    order by pm.sender_key, pm.send_time desc nulls last, pm.id desc
+)
+select
+    pm.sender_key,
+    max(pm.sender_wechat_id) filter (where pm.sender_wechat_id is not null) as sender_wechat_id,
+    max(pm.sender_display_name) filter (where pm.sender_display_name is not null) as sender_display_name,
+    count(*)::integer as message_count,
+    lm.last_message_at,
+    lm.last_message_preview,
+    count(cmsi.wx_message_id)::integer as archived_message_count
+from private_messages pm
+join latest_messages lm on lm.sender_key = pm.sender_key
+left join public.crm_customer_message_session_item cmsi on cmsi.wx_message_id = pm.id
+group by pm.sender_key, lm.last_message_at, lm.last_message_preview;
+
 create table if not exists public.crm_wx_projection_jobs (
     id bigint generated always as identity primary key,
     dedupe_key text not null unique,

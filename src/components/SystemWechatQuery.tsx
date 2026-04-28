@@ -1,7 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Building2, Download, ExternalLink, FileText, Image as ImageIcon, MessageSquare, Plus, RefreshCw, Save, Search, User, Users, X } from 'lucide-react';
+import { ArrowLeft, Building2, CheckSquare, Download, ExternalLink, FileText, Image as ImageIcon, MessageSquare, RefreshCw, Save, Search, Square, User, Users, X } from 'lucide-react';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
+import {
+  createCustomerMessageSessionFromSupabase,
+  fetchWechatSenderInboxesFromSupabase,
+  fetchWechatSenderMessagesFromSupabase,
+} from '../lib/customerMessageSessionRepository';
+import type { WechatSenderInbox, WechatSenderMessage } from '../types';
 
 type ConversationType = 'private' | 'group';
 
@@ -263,70 +269,35 @@ function getPrivateConversationDisplayNames(chat: WxConversationRow) {
     customerDisplayName
   };
 }
-
 type CustomerLite = { id: string; name: string };
 type ContactLite = { id: string; name: string };
-
-function buildConversationKey(parts: string[]) {
-  return parts.map((part) => String(part || '').trim().toLowerCase().replace(/\s+/g, '') || '_').join(':');
-}
-
-function buildWechatDisplayName(name: string, nickname: string) {
-  const cleanName = normalizeName(name);
-  const cleanNickname = normalizeName(nickname);
-  if (cleanName && cleanNickname) return `${cleanName}(${cleanNickname})`;
-  return cleanName || cleanNickname;
-}
 
 export default function SystemWechatQuery() {
   const [activeTab, setActiveTab] = useState<'individual' | 'group'>('individual');
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showAddIndividual, setShowAddIndividual] = useState(false);
-  const [showAddGroup, setShowAddGroup] = useState(false);
-  const [indForm, setIndForm] = useState({
-    my_wechat_name: '',
-    my_wechat_nickname: '',
-    peer_wechat_name: '',
-    peer_wechat_nickname: '',
-    customer_id: '',
-    customer_name: '',
-    primary_contact_id: '',
-    primary_contact_name: ''
-  });
-  const [indCustomerKeyword, setIndCustomerKeyword] = useState('');
-  const [indContactKeyword, setIndContactKeyword] = useState('');
-  const [indCustomerOptions, setIndCustomerOptions] = useState<CustomerLite[]>([]);
-  const [indContactOptions, setIndContactOptions] = useState<ContactLite[]>([]);
-  const [indCustomerDropdownOpen, setIndCustomerDropdownOpen] = useState(false);
-  const [indContactDropdownOpen, setIndContactDropdownOpen] = useState(false);
-  const [grpForm, setGrpForm] = useState({
-    room_username: '',
-    room_name: '',
-    room_remark_name: '',
-    customer_id: '',
-    customer_name: ''
-  });
-  const [grpCustomerKeyword, setGrpCustomerKeyword] = useState('');
-  const [grpCustomerOptions, setGrpCustomerOptions] = useState<CustomerLite[]>([]);
-  const [grpCustomerDropdownOpen, setGrpCustomerDropdownOpen] = useState(false);
-  const [showBindModal, setShowBindModal] = useState(false);
-  const [bindMode, setBindMode] = useState<'individual' | 'group'>('individual');
-  const [bindTargetId, setBindTargetId] = useState<number | null>(null);
-  const [bindCustomerId, setBindCustomerId] = useState('');
-  const [bindContactId, setBindContactId] = useState('');
-  const [bindCustomerKeyword, setBindCustomerKeyword] = useState('');
-  const [bindContactKeyword, setBindContactKeyword] = useState('');
-  const [bindCustomerOptions, setBindCustomerOptions] = useState<CustomerLite[]>([]);
-  const [bindContactOptions, setBindContactOptions] = useState<ContactLite[]>([]);
-  const [bindCustomerDropdownOpen, setBindCustomerDropdownOpen] = useState(false);
-  const [bindContactDropdownOpen, setBindContactDropdownOpen] = useState(false);
+  const [senderInboxes, setSenderInboxes] = useState<WechatSenderInbox[]>([]);
+  const [selectedSenderKey, setSelectedSenderKey] = useState('');
+  const [senderMessages, setSenderMessages] = useState<WechatSenderMessage[]>([]);
+  const [showOnlyUnarchived, setShowOnlyUnarchived] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const [showCreateSessionModal, setShowCreateSessionModal] = useState(false);
+  const [sessionTitle, setSessionTitle] = useState('');
+  const [customerKeyword, setCustomerKeyword] = useState('');
+  const [contactKeyword, setContactKeyword] = useState('');
+  const [customerOptions, setCustomerOptions] = useState<CustomerLite[]>([]);
+  const [contactOptions, setContactOptions] = useState<ContactLite[]>([]);
+  const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
+  const [contactDropdownOpen, setContactDropdownOpen] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [selectedCustomerName, setSelectedCustomerName] = useState('');
+  const [selectedContactId, setSelectedContactId] = useState('');
+  const [selectedContactName, setSelectedContactName] = useState('');
   const [conversations, setConversations] = useState<WxConversationRow[]>([]);
   const [customersById, setCustomersById] = useState<Record<string, CustomerLite>>({});
-  const [contactsById, setContactsById] = useState<Record<string, ContactLite>>({});
   const [memberCountByConversationId, setMemberCountByConversationId] = useState<Record<number, number>>({});
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
-  const [conversationMessages, setConversationMessages] = useState<WxMessageRow[]>([]);
+  const [groupMessages, setGroupMessages] = useState<WxMessageRow[]>([]);
   const [previewAttachment, setPreviewAttachment] = useState<AttachmentDescriptor | null>(null);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [loadingChats, setLoadingChats] = useState(false);
@@ -336,20 +307,23 @@ export default function SystemWechatQuery() {
     setLoadingChats(true);
     const supabase = getSupabaseClient();
     try {
-      const { data: conversationRows, error: conversationError } = await supabase
-        .from('crm_wx_conversation')
-        .select('*')
-        .order('last_message_at', { ascending: false, nullsFirst: false });
-      if (conversationError) throw conversationError;
+      const [inboxes, conversationResp] = await Promise.all([
+        fetchWechatSenderInboxesFromSupabase(),
+        supabase
+          .from('crm_wx_conversation')
+          .select('*')
+          .eq('conversation_type', 'group')
+          .order('last_message_at', { ascending: false, nullsFirst: false }),
+      ]);
+      if (conversationResp.error) throw conversationResp.error;
 
-      const nextConversations = (conversationRows || []) as WxConversationRow[];
+      setSenderInboxes(inboxes);
+      setSelectedSenderKey((prev) => prev || inboxes[0]?.senderKey || '');
+      const nextConversations = (conversationResp.data || []) as WxConversationRow[];
       setConversations(nextConversations);
       setSelectedConversationId((prev) => prev || (nextConversations[0] ? Number(nextConversations[0].id) : null));
 
       const customerIds = Array.from(new Set(nextConversations.map((item) => String(item.customer_id || '')).filter(Boolean)));
-      const contactIds = Array.from(new Set(nextConversations.map((item) => String(item.primary_contact_id || '')).filter(Boolean)));
-      const groupConversationIds = nextConversations.filter((item) => item.conversation_type === 'group').map((item) => Number(item.id));
-
       if (customerIds.length > 0) {
         const { data: customerRowsData } = await supabase.from('ba_manucustinfo').select('id,name').in('id', customerIds);
         const nextCustomers: Record<string, CustomerLite> = {};
@@ -361,22 +335,11 @@ export default function SystemWechatQuery() {
         setCustomersById({});
       }
 
-      if (contactIds.length > 0) {
-        const { data: contactRowsData } = await supabase.from('crm_customer_contact').select('id,name').in('id', contactIds);
-        const nextContacts: Record<string, ContactLite> = {};
-        (contactRowsData || []).forEach((row: any) => {
-          nextContacts[String(row.id)] = { id: String(row.id), name: String(row.name || row.id) };
-        });
-        setContactsById(nextContacts);
-      } else {
-        setContactsById({});
-      }
-
-      if (groupConversationIds.length > 0) {
+      if (nextConversations.length > 0) {
         const { data: memberRows } = await supabase
           .from('crm_wx_conversation_member')
           .select('conversation_id')
-          .in('conversation_id', groupConversationIds);
+          .in('conversation_id', nextConversations.map((item) => Number(item.id)));
         const nextCounts: Record<number, number> = {};
         (memberRows || []).forEach((row: any) => {
           const conversationId = Number(row.conversation_id);
@@ -388,13 +351,31 @@ export default function SystemWechatQuery() {
       }
     } catch (error) {
       console.error(error);
-      toast.error('微信会话加载失败，请先执行最新微信 schema');
+      toast.error('微信消息加载失败，请确认已执行最新 schema');
     } finally {
       setLoadingChats(false);
     }
   }, []);
 
-  const loadConversationMessages = useCallback(async (conversationId: number) => {
+  const loadSenderMessages = useCallback(async (senderKey: string, onlyUnarchived: boolean) => {
+    if (!senderKey) {
+      setSenderMessages([]);
+      return;
+    }
+    setLoadingMessages(true);
+    try {
+      const data = await fetchWechatSenderMessagesFromSupabase(senderKey, { onlyUnarchived: onlyUnarchived });
+      setSenderMessages(data);
+    } catch (error) {
+      console.error(error);
+      setSenderMessages([]);
+      toast.error('消息列表加载失败');
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, []);
+
+  const loadGroupMessages = useCallback(async (conversationId: number) => {
     if (!isSupabaseConfigured()) return;
     setLoadingMessages(true);
     try {
@@ -405,39 +386,37 @@ export default function SystemWechatQuery() {
         .eq('conversation_id', conversationId)
         .order('send_time', { ascending: false });
       if (error) throw error;
-      setConversationMessages((data || []) as WxMessageRow[]);
+      setGroupMessages((data || []) as WxMessageRow[]);
     } catch (error) {
       console.error(error);
-      setConversationMessages([]);
-      toast.error('消息明细加载失败');
+      setGroupMessages([]);
+      toast.error('群聊消息加载失败');
     } finally {
       setLoadingMessages(false);
     }
   }, []);
 
-  const openConversation = async (conversationId: number) => {
-    setSelectedConversationId(conversationId);
-    setViewMode('detail');
-    await loadConversationMessages(conversationId);
-  };
-
   useEffect(() => {
     fetchChats();
-  }, [activeTab, fetchChats]);
+  }, [fetchChats]);
 
   useEffect(() => {
-    if (selectedConversationId) {
-      loadConversationMessages(selectedConversationId);
-    } else {
-      setConversationMessages([]);
+    if (activeTab === 'individual' && viewMode === 'detail' && selectedSenderKey) {
+      loadSenderMessages(selectedSenderKey, showOnlyUnarchived);
     }
-  }, [selectedConversationId, loadConversationMessages]);
+  }, [activeTab, viewMode, selectedSenderKey, showOnlyUnarchived, loadSenderMessages]);
 
   useEffect(() => {
-    if (!showAddIndividual || !isSupabaseConfigured()) return;
-    const keyword = indCustomerKeyword.trim();
+    if (activeTab === 'group' && viewMode === 'detail' && selectedConversationId) {
+      loadGroupMessages(selectedConversationId);
+    }
+  }, [activeTab, viewMode, selectedConversationId, loadGroupMessages]);
+
+  useEffect(() => {
+    if (!showCreateSessionModal || !isSupabaseConfigured()) return;
+    const keyword = customerKeyword.trim();
     if (!keyword) {
-      setIndCustomerOptions([]);
+      setCustomerOptions([]);
       return;
     }
     let active = true;
@@ -451,311 +430,71 @@ export default function SystemWechatQuery() {
       if (!active) return;
       if (error) {
         console.error(error);
-        setIndCustomerOptions([]);
+        setCustomerOptions([]);
         return;
       }
-      const options = ((data || []) as any[]).map((row) => ({
+      setCustomerOptions(((data || []) as any[]).map((row) => ({
         id: String(row.id),
-        name: String(row.name || row.id || '')
-      })).filter((row) => row.id && row.name);
-      setIndCustomerOptions(options);
+        name: String(row.name || row.id || ''),
+      })).filter((row) => row.id && row.name));
     })();
     return () => {
       active = false;
     };
-  }, [showAddIndividual, indCustomerKeyword]);
+  }, [showCreateSessionModal, customerKeyword]);
 
   useEffect(() => {
-    if (!showAddIndividual || !isSupabaseConfigured()) return;
-    if (!indForm.customer_id) {
-      setIndContactOptions([]);
+    if (!showCreateSessionModal || !isSupabaseConfigured() || !selectedCustomerId) {
+      setContactOptions([]);
       return;
     }
-    const keyword = indContactKeyword.trim();
     let active = true;
     const supabase = getSupabaseClient();
     (async () => {
-      let query = supabase
-        .from('crm_customer_contact')
-        .select('id,name')
-        .eq('customer_id', indForm.customer_id)
-        .limit(8);
-      if (keyword) {
-        query = query.ilike('name', `%${keyword}%`);
+      let query = supabase.from('crm_customer_contact').select('id,name').eq('customer_id', selectedCustomerId).limit(8);
+      if (contactKeyword.trim()) {
+        query = query.ilike('name', `%${contactKeyword.trim()}%`);
       }
       const { data, error } = await query;
       if (!active) return;
       if (error) {
         console.error(error);
-        setIndContactOptions([]);
+        setContactOptions([]);
         return;
       }
-      const options = ((data || []) as any[]).map((row) => ({
+      setContactOptions(((data || []) as any[]).map((row) => ({
         id: String(row.id),
-        name: String(row.name || row.id || '')
-      })).filter((row) => row.id && row.name);
-      setIndContactOptions(options);
+        name: String(row.name || row.id || ''),
+      })).filter((row) => row.id && row.name));
     })();
     return () => {
       active = false;
     };
-  }, [showAddIndividual, indForm.customer_id, indContactKeyword]);
-
-  useEffect(() => {
-    if (!showBindModal || !isSupabaseConfigured()) return;
-    const keyword = bindCustomerKeyword.trim();
-    if (!keyword) {
-      setBindCustomerOptions([]);
-      return;
-    }
-    let active = true;
-    const supabase = getSupabaseClient();
-    (async () => {
-      const { data, error } = await supabase
-        .from('ba_manucustinfo')
-        .select('id,name')
-        .ilike('name', `%${keyword}%`)
-        .limit(8);
-      if (!active) return;
-      if (error) {
-        console.error(error);
-        setBindCustomerOptions([]);
-        return;
-      }
-      const options = ((data || []) as any[]).map((row) => ({
-        id: String(row.id),
-        name: String(row.name || row.id || '')
-      })).filter((row) => row.id && row.name);
-      setBindCustomerOptions(options);
-    })();
-    return () => {
-      active = false;
-    };
-  }, [showBindModal, bindCustomerKeyword]);
-
-  useEffect(() => {
-    if (!showBindModal || !isSupabaseConfigured() || bindMode !== 'individual') return;
-    if (!bindCustomerId) {
-      setBindContactOptions([]);
-      return;
-    }
-    const keyword = bindContactKeyword.trim();
-    let active = true;
-    const supabase = getSupabaseClient();
-    (async () => {
-      let query = supabase
-        .from('crm_customer_contact')
-        .select('id,name')
-        .eq('customer_id', bindCustomerId)
-        .limit(8);
-      if (keyword) {
-        query = query.ilike('name', `%${keyword}%`);
-      }
-      const { data, error } = await query;
-      if (!active) return;
-      if (error) {
-        console.error(error);
-        setBindContactOptions([]);
-        return;
-      }
-      const options = ((data || []) as any[]).map((row) => ({
-        id: String(row.id),
-        name: String(row.name || row.id || '')
-      })).filter((row) => row.id && row.name);
-      setBindContactOptions(options);
-    })();
-    return () => {
-      active = false;
-    };
-  }, [showBindModal, bindMode, bindCustomerId, bindContactKeyword]);
-
-  useEffect(() => {
-    if (!showAddGroup || !isSupabaseConfigured()) return;
-    const keyword = grpCustomerKeyword.trim();
-    if (!keyword) {
-      setGrpCustomerOptions([]);
-      return;
-    }
-    let active = true;
-    const supabase = getSupabaseClient();
-    (async () => {
-      const { data, error } = await supabase
-        .from('ba_manucustinfo')
-        .select('id,name')
-        .ilike('name', `%${keyword}%`)
-        .limit(8);
-      if (!active) return;
-      if (error) {
-        console.error(error);
-        setGrpCustomerOptions([]);
-        return;
-      }
-      const options = ((data || []) as any[]).map((row) => ({
-        id: String(row.id),
-        name: String(row.name || row.id || '')
-      })).filter((row) => row.id && row.name);
-      setGrpCustomerOptions(options);
-    })();
-    return () => {
-      active = false;
-    };
-  }, [showAddGroup, grpCustomerKeyword]);
-
-  const saveIndividualToDb = async () => {
-    if (!isSupabaseConfigured()) return;
-    if (!indForm.my_wechat_name.trim() || !indForm.peer_wechat_name.trim()) {
-      toast.error('请填写我的微信和客户微信');
-      return;
-    }
-    const supabase = getSupabaseClient();
-    try {
-      const payload = {
-        source_guid: 'manual',
-        conversation_type: 'private' as ConversationType,
-        conversation_key: buildConversationKey(['private_name', 'manual', indForm.my_wechat_name, indForm.peer_wechat_name]),
-        my_wechat_id: null,
-        my_wechat_name: buildWechatDisplayName(indForm.my_wechat_name, indForm.my_wechat_nickname) || indForm.my_wechat_name.trim(),
-        peer_wechat_id: null,
-        peer_wechat_name: buildWechatDisplayName(indForm.peer_wechat_name, indForm.peer_wechat_nickname) || indForm.peer_wechat_name.trim(),
-        conversation_name: buildWechatDisplayName(indForm.peer_wechat_name, indForm.peer_wechat_nickname) || indForm.peer_wechat_name.trim(),
-        customer_id: indForm.customer_id.trim() || null,
-        primary_contact_id: indForm.primary_contact_id.trim() || null,
-        status: 'active'
-      };
-      const { error } = await supabase.from('crm_wx_conversation').upsert(payload, { onConflict: 'conversation_key' });
-      if (error) throw error;
-      setShowAddIndividual(false);
-      setIndForm({
-        my_wechat_name: '',
-        my_wechat_nickname: '',
-        peer_wechat_name: '',
-        peer_wechat_nickname: '',
-        customer_id: '',
-        customer_name: '',
-        primary_contact_id: '',
-        primary_contact_name: ''
-      });
-      setIndCustomerKeyword('');
-      setIndContactKeyword('');
-      setIndCustomerOptions([]);
-      setIndContactOptions([]);
-      await fetchChats();
-    } catch (error) {
-      console.error(error);
-      toast.error('个人会话落库失败，请确认已执行最新微信 schema');
-    }
-  };
-
-  const saveGroupToDb = async () => {
-    if (!isSupabaseConfigured()) return;
-    if (!grpForm.room_name.trim() && !grpForm.room_username.trim()) {
-      toast.error('请至少填写群ID或群名称');
-      return;
-    }
-    const supabase = getSupabaseClient();
-    try {
-      const groupKey = grpForm.room_username.trim() || grpForm.room_name.trim();
-      const payload = {
-        source_guid: 'manual',
-        conversation_type: 'group' as ConversationType,
-        conversation_key: buildConversationKey(['group', 'manual', groupKey]),
-        room_username: grpForm.room_username.trim() || null,
-        room_name: grpForm.room_name.trim() || null,
-        room_remark_name: grpForm.room_remark_name.trim() || null,
-        conversation_name: grpForm.room_remark_name.trim() || grpForm.room_name.trim() || grpForm.room_username.trim(),
-        customer_id: grpForm.customer_id.trim() || null,
-        status: 'active'
-      };
-      const { error } = await supabase.from('crm_wx_conversation').upsert(payload, { onConflict: 'conversation_key' });
-      if (error) throw error;
-      setShowAddGroup(false);
-      setGrpForm({ room_username: '', room_name: '', room_remark_name: '', customer_id: '', customer_name: '' });
-      setGrpCustomerKeyword('');
-      setGrpCustomerOptions([]);
-      setGrpCustomerDropdownOpen(false);
-      await fetchChats();
-    } catch (error) {
-      console.error(error);
-      toast.error('群聊会话落库失败，请确认已执行最新微信 schema');
-    }
-  };
-
-  const openBindModal = (mode: 'individual' | 'group', row: WxConversationRow) => {
-    const customerName = customersById[String(row.customer_id || '')]?.name || '';
-    const contactName = contactsById[String(row.primary_contact_id || '')]?.name || '';
-    setBindMode(mode);
-    setBindTargetId(Number(row.id));
-    setBindCustomerId(String(row.customer_id || ''));
-    setBindContactId(String(row.primary_contact_id || ''));
-    setBindCustomerKeyword(customerName);
-    setBindContactKeyword(contactName);
-    setBindCustomerOptions([]);
-    setBindContactOptions([]);
-    setBindCustomerDropdownOpen(false);
-    setBindContactDropdownOpen(false);
-    setShowBindModal(true);
-  };
-
-  const saveBinding = async () => {
-    if (!isSupabaseConfigured()) return;
-    if (!bindTargetId || !bindCustomerId.trim()) {
-      toast.error('请选择客户');
-      return;
-    }
-    try {
-      const supabase = getSupabaseClient();
-      const payload =
-        bindMode === 'individual'
-          ? { customer_id: bindCustomerId.trim(), primary_contact_id: bindContactId.trim() || null }
-          : { customer_id: bindCustomerId.trim(), primary_contact_id: null };
-      const { error } = await supabase.from('crm_wx_conversation').update(payload).eq('id', bindTargetId);
-      if (error) throw error;
-      setShowBindModal(false);
-      setBindCustomerKeyword('');
-      setBindContactKeyword('');
-      setBindCustomerOptions([]);
-      setBindContactOptions([]);
-      await fetchChats();
-      toast.success('绑定成功');
-    } catch (error) {
-      console.error(error);
-      toast.error('绑定失败，请确认会话表存在并且有写权限');
-    }
-  };
+  }, [showCreateSessionModal, selectedCustomerId, contactKeyword]);
 
   const filteredIndividuals = useMemo(
-    () =>
-      conversations
-        .filter((item) => item.conversation_type === 'private')
-        .filter((item) => {
-          const { myDisplayName, customerDisplayName } = getPrivateConversationDisplayNames(item);
-          return [
-            myDisplayName,
-            customerDisplayName,
-            customersById[String(item.customer_id || '')]?.name,
-            contactsById[String(item.primary_contact_id || '')]?.name
-          ]
-            .filter(Boolean)
-            .some((value) => String(value).includes(searchQuery));
-        }),
-    [conversations, contactsById, customersById, searchQuery]
+    () => senderInboxes.filter((item) =>
+      [
+        item.senderDisplayName,
+        item.senderWechatId,
+        item.lastMessagePreview,
+      ].filter(Boolean).some((value) => String(value).includes(searchQuery))
+    ),
+    [senderInboxes, searchQuery]
   );
 
   const filteredGroups = useMemo(
-    () =>
-      conversations
-        .filter((item) => item.conversation_type === 'group')
-        .filter((item) =>
-          [
-            item.room_username,
-            item.room_name,
-            item.conversation_name,
-            customersById[String(item.customer_id || '')]?.name
-          ]
-            .filter(Boolean)
-            .some((value) => String(value).includes(searchQuery))
-        ),
+    () => conversations.filter((item) =>
+      [item.room_username, item.room_name, item.conversation_name, customersById[String(item.customer_id || '')]?.name]
+        .filter(Boolean)
+        .some((value) => String(value).includes(searchQuery))
+    ),
     [conversations, customersById, searchQuery]
+  );
+
+  const selectedInbox = useMemo(
+    () => senderInboxes.find((item) => item.senderKey === selectedSenderKey) || null,
+    [senderInboxes, selectedSenderKey]
   );
 
   const selectedConversation = useMemo(
@@ -763,18 +502,79 @@ export default function SystemWechatQuery() {
     [conversations, selectedConversationId]
   );
 
-  const selectedPrivateDisplay = useMemo(
-    () => (selectedConversation?.conversation_type === 'private' ? getPrivateConversationDisplayNames(selectedConversation) : null),
-    [selectedConversation]
-  );
+  const selectedConversationTitle = activeTab === 'group'
+    ? selectedConversation?.room_name || selectedConversation?.conversation_name || selectedConversation?.room_username || '群聊会话'
+    : selectedInbox?.senderDisplayName || selectedInbox?.senderWechatId || '消息列表';
 
-  const selectedConversationTitle = selectedConversation?.conversation_type === 'group'
-    ? selectedConversation.room_name || selectedConversation.conversation_name || selectedConversation.room_username || '群聊会话'
-    : selectedPrivateDisplay?.customerDisplayName || selectedConversation?.conversation_name || '个人会话';
+  const selectedConversationSubtitle = activeTab === 'group'
+    ? `群聊会话 · ${selectedConversation?.room_username || '-'}`
+    : `发送人消息列表 · ${selectedInbox?.senderWechatId || selectedInbox?.senderDisplayName || '-'}`;
 
-  const selectedConversationSubtitle = selectedConversation?.conversation_type === 'group'
-    ? `群聊会话 · ${selectedConversation.room_username || '-'}`
-    : `个人会话 · ${selectedPrivateDisplay?.myDisplayName || '-'} / ${selectedPrivateDisplay?.customerDisplayName || '-'}`;
+  const resetCreateSessionModal = () => {
+    setShowCreateSessionModal(false);
+    setSessionTitle('');
+    setCustomerKeyword('');
+    setContactKeyword('');
+    setSelectedCustomerId('');
+    setSelectedCustomerName('');
+    setSelectedContactId('');
+    setSelectedContactName('');
+    setCustomerOptions([]);
+    setContactOptions([]);
+    setCustomerDropdownOpen(false);
+    setContactDropdownOpen(false);
+  };
+
+  const toggleMessageSelection = (messageId: string) => {
+    setSelectedMessageIds((prev) => prev.includes(messageId) ? prev.filter((id) => id !== messageId) : [...prev, messageId]);
+  };
+
+  const handleOpenSenderInbox = async (senderKey: string) => {
+    setSelectedSenderKey(senderKey);
+    setSelectedMessageIds([]);
+    setViewMode('detail');
+    await loadSenderMessages(senderKey, showOnlyUnarchived);
+  };
+
+  const handleOpenGroup = async (conversationId: number) => {
+    setSelectedConversationId(conversationId);
+    setViewMode('detail');
+    await loadGroupMessages(conversationId);
+  };
+
+  const handleCreateCustomerSession = async () => {
+    if (!selectedInbox) {
+      toast.error('缺少发送人消息列表');
+      return;
+    }
+    if (!selectedCustomerId) {
+      toast.error('请选择客户');
+      return;
+    }
+    if (selectedMessageIds.length === 0) {
+      toast.error('请至少选择一条消息');
+      return;
+    }
+    try {
+      await createCustomerMessageSessionFromSupabase({
+        customerId: selectedCustomerId,
+        contactId: selectedContactId || undefined,
+        senderKey: selectedInbox.senderKey,
+        senderWechatId: selectedInbox.senderWechatId,
+        senderDisplayName: selectedInbox.senderDisplayName,
+        title: sessionTitle,
+        messageIds: selectedMessageIds,
+      });
+      toast.success('客户会话创建成功');
+      resetCreateSessionModal();
+      setSelectedMessageIds([]);
+      await fetchChats();
+      await loadSenderMessages(selectedInbox.senderKey, showOnlyUnarchived);
+    } catch (error) {
+      console.error(error);
+      toast.error((error as Error)?.message || '创建客户会话失败');
+    }
+  };
 
   return (
     <div className="w-full max-w-full overflow-hidden bg-white rounded-2xl border border-gray-200 p-6 space-y-6 min-h-[500px]">
@@ -786,7 +586,7 @@ export default function SystemWechatQuery() {
                 <MessageSquare className="w-5 h-5 text-green-500" />
                 微信会话查询
               </h3>
-              <p className="text-sm text-gray-500 mt-1">统一查看 `crm_wx_*` 会话、手动绑定客户，并进入聊天记录详情。</p>
+              <p className="text-sm text-gray-500 mt-1">个人页按“我的微信”聚合为消息列表；可从消息中创建客户会话。群聊保持现状浏览。</p>
             </div>
           </div>
 
@@ -820,31 +620,14 @@ export default function SystemWechatQuery() {
 
           <div className="flex items-center justify-between">
             <div />
-            <div className="flex items-center gap-2">
-              <button
-                onClick={fetchChats}
-                disabled={loadingChats}
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs border border-gray-200 text-gray-700 rounded bg-white hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loadingChats ? 'animate-spin' : ''}`} />
-                刷新
-              </button>
-              {activeTab === 'individual' ? (
-                <button
-                  onClick={() => setShowAddIndividual(true)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs border border-green-200 text-green-700 rounded bg-green-50 hover:bg-green-100"
-                >
-                  <Plus className="w-3.5 h-3.5" /> 新增个人会话
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowAddGroup(true)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs border border-green-200 text-green-700 rounded bg-green-50 hover:bg-green-100"
-                >
-                  <Plus className="w-3.5 h-3.5" /> 新增群聊会话
-                </button>
-              )}
-            </div>
+            <button
+              onClick={fetchChats}
+              disabled={loadingChats}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs border border-gray-200 text-gray-700 rounded bg-white hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingChats ? 'animate-spin' : ''}`} />
+              刷新
+            </button>
           </div>
         </>
       ) : (
@@ -863,48 +646,67 @@ export default function SystemWechatQuery() {
                 <p className="text-sm text-gray-500 mt-1">{selectedConversationSubtitle}</p>
               </div>
             </div>
-            {selectedConversation && (
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  await fetchChats();
+                  if (activeTab === 'individual' && selectedSenderKey) {
+                    await loadSenderMessages(selectedSenderKey, showOnlyUnarchived);
+                  }
+                  if (activeTab === 'group' && selectedConversationId) {
+                    await loadGroupMessages(selectedConversationId);
+                  }
+                }}
+                disabled={loadingChats || loadingMessages}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs border border-gray-200 text-gray-700 rounded bg-white hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${(loadingChats || loadingMessages) ? 'animate-spin' : ''}`} />
+                刷新
+              </button>
+              {activeTab === 'individual' && (
                 <button
-                  onClick={async () => {
-                    await fetchChats();
-                    if (selectedConversationId) {
-                      await loadConversationMessages(selectedConversationId);
+                  onClick={() => {
+                    if (selectedMessageIds.length === 0) {
+                      toast.error('请先单选或多选消息');
+                      return;
                     }
+                    setSessionTitle(selectedInbox ? `${selectedInbox.senderDisplayName || selectedInbox.senderWechatId || selectedInbox.senderKey} 会话` : '');
+                    setShowCreateSessionModal(true);
                   }}
-                  disabled={loadingChats || loadingMessages}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs border border-gray-200 text-gray-700 rounded bg-white hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${(loadingChats || loadingMessages) ? 'animate-spin' : ''}`} />
-                  刷新
-                </button>
-                <button
-                  onClick={() => openBindModal(selectedConversation.conversation_type === 'group' ? 'group' : 'individual', selectedConversation)}
                   className="inline-flex items-center gap-2 px-3 py-1.5 text-xs border border-green-200 text-green-700 rounded bg-green-50 hover:bg-green-100"
                 >
-                  绑定客户
+                  <Save className="w-3.5 h-3.5" />
+                  创建客户会话
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-              <div className="text-xs text-gray-500">会话类型</div>
-              <div className="mt-2 text-sm font-semibold text-gray-900">{selectedConversation?.conversation_type === 'group' ? '群聊会话' : '个人会话'}</div>
+              <div className="text-xs text-gray-500">{activeTab === 'group' ? '会话类型' : '聚合维度'}</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">{activeTab === 'group' ? '群聊会话' : '我的微信'}</div>
             </div>
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-              <div className="text-xs text-gray-500">匹配客户</div>
-              <div className="mt-2 text-sm font-semibold text-gray-900">{customersById[String(selectedConversation?.customer_id || '')]?.name || '未绑定'}</div>
+              <div className="text-xs text-gray-500">{activeTab === 'group' ? '匹配客户' : '发送人标识'}</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">
+                {activeTab === 'group'
+                  ? customersById[String(selectedConversation?.customer_id || '')]?.name || '未绑定'
+                  : selectedInbox?.senderWechatId || selectedInbox?.senderDisplayName || '-'}
+              </div>
             </div>
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-              <div className="text-xs text-gray-500">消息数</div>
-              <div className="mt-2 text-sm font-semibold text-gray-900">{selectedConversation?.message_count || conversationMessages.length || 0}</div>
+              <div className="text-xs text-gray-500">{activeTab === 'group' ? '消息数' : '已归档 / 总消息'}</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">
+                {activeTab === 'group'
+                  ? selectedConversation?.message_count || groupMessages.length || 0
+                  : `${selectedInbox?.archivedMessageCount || 0} / ${selectedInbox?.messageCount || 0}`}
+              </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {selectedConversation?.conversation_type === 'group' ? (
+            {activeTab === 'group' ? (
               <>
                 <div className="rounded-xl border border-gray-200 p-4 space-y-2">
                   <div className="text-xs text-gray-500">群ID</div>
@@ -919,214 +721,24 @@ export default function SystemWechatQuery() {
               <>
                 <div className="rounded-xl border border-gray-200 p-4 space-y-2">
                   <div className="text-xs text-gray-500">我的微信</div>
-                  <div className="text-sm text-gray-900">{selectedPrivateDisplay?.myDisplayName || '-'}</div>
+                  <div className="text-sm text-gray-900">{selectedInbox?.senderDisplayName || '-'}</div>
                 </div>
                 <div className="rounded-xl border border-gray-200 p-4 space-y-2">
-                  <div className="text-xs text-gray-500">客户微信</div>
-                  <div className="text-sm text-gray-900">{selectedPrivateDisplay?.customerDisplayName || '-'}</div>
+                  <div className="text-xs text-gray-500">仅看未归档</div>
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-900">
+                    <input
+                      type="checkbox"
+                      checked={showOnlyUnarchived}
+                      onChange={(e) => {
+                        setShowOnlyUnarchived(e.target.checked);
+                        setSelectedMessageIds([]);
+                      }}
+                    />
+                    已开启时只显示还未创建客户会话的消息
+                  </label>
                 </div>
               </>
             )}
-          </div>
-        </div>
-      )}
-
-      {showAddIndividual && (
-        <div className="p-4 bg-green-50 border border-green-100 rounded-xl space-y-3">
-          <div className="text-sm font-bold text-green-800">新增个人会话</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">我的微信</label>
-              <input value={indForm.my_wechat_name} onChange={(e) => setIndForm({ ...indForm, my_wechat_name: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">我的微信昵称</label>
-              <input value={indForm.my_wechat_nickname} onChange={(e) => setIndForm({ ...indForm, my_wechat_nickname: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">客户微信</label>
-              <input value={indForm.peer_wechat_name} onChange={(e) => setIndForm({ ...indForm, peer_wechat_name: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">客户微信昵称</label>
-              <input value={indForm.peer_wechat_nickname} onChange={(e) => setIndForm({ ...indForm, peer_wechat_nickname: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">客户（可选）</label>
-              <div className="relative">
-                <input
-                  value={indCustomerKeyword}
-                  onFocus={() => setIndCustomerDropdownOpen(true)}
-                  onBlur={() => setTimeout(() => setIndCustomerDropdownOpen(false), 120)}
-                  onChange={(e) => {
-                    const nextKeyword = e.target.value;
-                    setIndCustomerKeyword(nextKeyword);
-                    setIndForm({
-                      ...indForm,
-                      customer_id: '',
-                      customer_name: '',
-                      primary_contact_id: '',
-                      primary_contact_name: ''
-                    });
-                    setIndContactKeyword('');
-                    setIndContactOptions([]);
-                  }}
-                  placeholder="搜索客户名称"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
-                />
-                {indCustomerDropdownOpen && indCustomerOptions.length > 0 && (
-                  <div className="absolute z-20 mt-1 w-full max-h-44 overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-                    {indCustomerOptions.map((option) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => {
-                          setIndForm({
-                            ...indForm,
-                            customer_id: option.id,
-                            customer_name: option.name,
-                            primary_contact_id: '',
-                            primary_contact_name: ''
-                          });
-                          setIndCustomerKeyword(option.name);
-                          setIndContactKeyword('');
-                          setIndContactOptions([]);
-                          setIndCustomerDropdownOpen(false);
-                        }}
-                        className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                      >
-                        {option.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {indForm.customer_name ? (
-                <div className="mt-1 text-xs text-gray-500">已选择：{indForm.customer_name}</div>
-              ) : (
-                <div className="mt-1 text-xs text-gray-400">可不选；若要选联系人请先选择客户</div>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">联系人（可选）</label>
-              <div className="relative">
-                <input
-                  value={indContactKeyword}
-                  disabled={!indForm.customer_id}
-                  onFocus={() => setIndContactDropdownOpen(true)}
-                  onBlur={() => setTimeout(() => setIndContactDropdownOpen(false), 120)}
-                  onChange={(e) => {
-                    const nextKeyword = e.target.value;
-                    setIndContactKeyword(nextKeyword);
-                    setIndForm({
-                      ...indForm,
-                      primary_contact_id: '',
-                      primary_contact_name: ''
-                    });
-                  }}
-                  placeholder={indForm.customer_id ? '搜索联系人名称' : '请先选择客户'}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white disabled:bg-gray-100 disabled:text-gray-400"
-                />
-                {indContactDropdownOpen && indForm.customer_id && indContactOptions.length > 0 && (
-                  <div className="absolute z-20 mt-1 w-full max-h-44 overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-                    {indContactOptions.map((option) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => {
-                          setIndForm({
-                            ...indForm,
-                            primary_contact_id: option.id,
-                            primary_contact_name: option.name
-                          });
-                          setIndContactKeyword(option.name);
-                          setIndContactDropdownOpen(false);
-                        }}
-                        className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                      >
-                        {option.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {indForm.primary_contact_name ? (
-                <div className="mt-1 text-xs text-gray-500">已选择：{indForm.primary_contact_name}</div>
-              ) : (
-                <div className="mt-1 text-xs text-gray-400">可不选</div>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={saveIndividualToDb} className="inline-flex items-center gap-2 px-3 py-1.5 text-xs bg-green-600 text-white rounded">
-              <Save className="w-3.5 h-3.5" /> 保存
-            </button>
-            <button onClick={() => setShowAddIndividual(false)} className="text-xs px-3 py-1.5 border border-gray-200 rounded bg-white">取消</button>
-          </div>
-        </div>
-      )}
-
-      {showAddGroup && (
-        <div className="p-4 bg-green-50 border border-green-100 rounded-xl space-y-3">
-          <div className="text-sm font-bold text-green-800">新增群聊会话</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">群ID</label>
-              <input value={grpForm.room_username} onChange={(e) => setGrpForm({ ...grpForm, room_username: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">群名称</label>
-              <input value={grpForm.room_name} onChange={(e) => setGrpForm({ ...grpForm, room_name: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">群备注名</label>
-              <input value={grpForm.room_remark_name} onChange={(e) => setGrpForm({ ...grpForm, room_remark_name: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">客户（可选）</label>
-              <div className="relative">
-                <input
-                  value={grpCustomerKeyword}
-                  onFocus={() => setGrpCustomerDropdownOpen(true)}
-                  onBlur={() => setTimeout(() => setGrpCustomerDropdownOpen(false), 120)}
-                  onChange={(e) => {
-                    setGrpCustomerKeyword(e.target.value);
-                    setGrpForm({ ...grpForm, customer_id: '', customer_name: '' });
-                  }}
-                  placeholder="搜索客户名称"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
-                />
-                {grpCustomerDropdownOpen && grpCustomerOptions.length > 0 && (
-                  <div className="absolute z-20 mt-1 w-full max-h-44 overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-                    {grpCustomerOptions.map((option) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => {
-                          setGrpForm({ ...grpForm, customer_id: option.id, customer_name: option.name });
-                          setGrpCustomerKeyword(option.name);
-                          setGrpCustomerDropdownOpen(false);
-                        }}
-                        className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                      >
-                        {option.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {grpForm.customer_name ? (
-                <div className="mt-1 text-xs text-gray-500">已选择：{grpForm.customer_name}</div>
-              ) : (
-                <div className="mt-1 text-xs text-gray-400">可不选</div>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={saveGroupToDb} className="inline-flex items-center gap-2 px-3 py-1.5 text-xs bg-green-600 text-white rounded">
-              <Save className="w-3.5 h-3.5" /> 保存
-            </button>
-            <button onClick={() => setShowAddGroup(false)} className="text-xs px-3 py-1.5 border border-gray-200 rounded bg-white">取消</button>
           </div>
         </div>
       )}
@@ -1139,9 +751,9 @@ export default function SystemWechatQuery() {
                 {activeTab === 'individual' ? (
                   <>
                     <th className="p-4 text-sm font-medium text-gray-500">我的微信</th>
-                    <th className="p-4 text-sm font-medium text-gray-500">客户微信</th>
-                    <th className="p-4 text-sm font-medium text-gray-500">匹配客户</th>
-                    <th className="p-4 text-sm font-medium text-gray-500">匹配联系人</th>
+                    <th className="p-4 text-sm font-medium text-gray-500">消息数</th>
+                    <th className="p-4 text-sm font-medium text-gray-500">最近消息</th>
+                    <th className="p-4 text-sm font-medium text-gray-500">已归档数</th>
                     <th className="p-4 text-sm font-medium text-gray-500">操作</th>
                   </>
                 ) : (
@@ -1159,41 +771,17 @@ export default function SystemWechatQuery() {
               {activeTab === 'individual' ? (
                 filteredIndividuals.length > 0 ? (
                   filteredIndividuals.map((chat) => {
-                    const { myDisplayName, customerDisplayName } = getPrivateConversationDisplayNames(chat);
                     return (
-                      <tr key={chat.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="p-4 text-sm text-gray-900">{myDisplayName}</td>
-                        <td className="p-4 text-sm text-gray-900">{customerDisplayName}</td>
-                      <td className="p-4">
-                        {chat.customer_id && customersById[String(chat.customer_id)] ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
-                            <Building2 className="w-3.5 h-3.5" />
-                            {customersById[String(chat.customer_id)].name}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-xs">未匹配</span>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        {chat.primary_contact_id && contactsById[String(chat.primary_contact_id)] ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-medium">
-                            <User className="w-3.5 h-3.5" />
-                            {contactsById[String(chat.primary_contact_id)].name}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-xs">未匹配</span>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => openConversation(Number(chat.id))} className="text-xs px-2 py-1 border border-blue-200 text-blue-700 rounded bg-white hover:bg-blue-50">
-                            进入会话
+                      <tr key={chat.senderKey} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="p-4 text-sm text-gray-900">{chat.senderDisplayName || chat.senderWechatId || '-'}</td>
+                        <td className="p-4 text-sm text-gray-900">{chat.messageCount}</td>
+                        <td className="p-4 text-sm text-gray-600 max-w-[360px] truncate">{chat.lastMessagePreview || '-'}</td>
+                        <td className="p-4 text-sm text-gray-900">{chat.archivedMessageCount}</td>
+                        <td className="p-4">
+                          <button onClick={() => handleOpenSenderInbox(chat.senderKey)} className="text-xs px-2 py-1 border border-blue-200 text-blue-700 rounded bg-white hover:bg-blue-50">
+                            进入消息列表
                           </button>
-                          <button onClick={() => openBindModal('individual', chat)} className="text-xs px-2 py-1 border border-green-200 text-green-700 rounded bg-white hover:bg-green-50">
-                            绑定客户
-                          </button>
-                        </div>
-                      </td>
+                        </td>
                       </tr>
                     );
                   })
@@ -1223,14 +811,9 @@ export default function SystemWechatQuery() {
                         )}
                       </td>
                       <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => openConversation(Number(group.id))} className="text-xs px-2 py-1 border border-blue-200 text-blue-700 rounded bg-white hover:bg-blue-50">
-                            进入会话
-                          </button>
-                          <button onClick={() => openBindModal('group', group)} className="text-xs px-2 py-1 border border-green-200 text-green-700 rounded bg-white hover:bg-green-50">
-                            绑定客户
-                          </button>
-                        </div>
+                        <button onClick={() => handleOpenGroup(Number(group.id))} className="text-xs px-2 py-1 border border-blue-200 text-blue-700 rounded bg-white hover:bg-blue-50">
+                          进入会话
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -1244,13 +827,142 @@ export default function SystemWechatQuery() {
       ) : (
         <div className="space-y-4 min-h-[500px]">
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-            按时间顺序展示当前会话消息，支持区分个人转发、群聊转发和群实时消息。
+            {activeTab === 'group'
+              ? '按时间顺序展示群聊消息。'
+              : '按时间顺序展示该“我的微信”下的全部个人消息；可单选或多选创建客户会话。'}
           </div>
+          {activeTab === 'individual' && senderMessages.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4">
+              <div className="text-sm text-gray-600">已选 {selectedMessageIds.length} 条消息</div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (selectedMessageIds.length === senderMessages.length) {
+                      setSelectedMessageIds([]);
+                    } else {
+                      setSelectedMessageIds(senderMessages.filter((item) => !item.archivedSessionId).map((item) => item.id));
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                >
+                  {selectedMessageIds.length === senderMessages.length ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+                  全选未归档
+                </button>
+                <button
+                  onClick={() => {
+                    if (selectedMessageIds.length === 0) {
+                      toast.error('请先选择消息');
+                      return;
+                    }
+                    setSessionTitle(selectedInbox ? `${selectedInbox.senderDisplayName || selectedInbox.senderWechatId || selectedInbox.senderKey} 会话` : '');
+                    setShowCreateSessionModal(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded border border-green-200 bg-green-50 px-3 py-1.5 text-xs text-green-700 hover:bg-green-100"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  创建客户会话
+                </button>
+              </div>
+            </div>
+          )}
           <div className="space-y-3">
             {loadingMessages ? (
               <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">加载消息中...</div>
-            ) : conversationMessages.length > 0 ? (
-              conversationMessages.map((message) => {
+            ) : activeTab === 'individual' ? (
+              senderMessages.length > 0 ? senderMessages.map((message) => {
+                const messageAttachment = buildAttachmentDescriptor({
+                  msgType: message.msgType,
+                  content: message.content,
+                  remoteMediaUrl: message.remoteMediaUrl
+                });
+                const quoteAttachment = buildAttachmentDescriptor({
+                  msgType: message.quoteMsgType,
+                  content: message.quoteContent,
+                  remoteMediaUrl: message.quoteRemoteMediaUrl,
+                  fileName: message.quoteFileName
+                });
+                const quoteText = normalizeText(message.quoteContent);
+                const quoteDescriptor: QuoteDescriptor | null = quoteAttachment
+                  ? {
+                      kind: quoteAttachment.kind,
+                      text: quoteText || '[引用消息]',
+                      attachment: quoteAttachment
+                    }
+                  : quoteText
+                    ? { kind: 'text', text: quoteText }
+                    : null;
+                const visibleContent = quoteDescriptor ? stripInlineQuoteSuffix(message.content) : normalizeText(message.content);
+                const shouldShowTextContent = !messageAttachment || !normalizeRemoteUrl(message.remoteMediaUrl);
+                const isSelected = selectedMessageIds.includes(message.id);
+                const isArchived = Boolean(message.archivedSessionId);
+
+                return (
+                  <div key={message.id} className={`rounded-2xl border p-4 bg-white ${isSelected ? 'border-green-400 ring-2 ring-green-100' : 'border-gray-200'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <button
+                          type="button"
+                          disabled={isArchived}
+                          onClick={() => toggleMessageSelection(message.id)}
+                          className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border ${isArchived ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-300' : isSelected ? 'border-green-500 bg-green-500 text-white' : 'border-gray-300 bg-white text-transparent'}`}
+                        >
+                          <CheckSquare className="h-3.5 w-3.5" />
+                        </button>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm font-semibold text-gray-900">
+                              {message.senderDisplayName || message.peerDisplayName || message.senderWechatId || '未知发送人'}
+                            </div>
+                            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">
+                              {translateOriginType(message.messageOriginType || 'unknown')}
+                            </span>
+                            {isArchived && (
+                              <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[11px] text-green-700">
+                                已归档到：{message.archivedSessionTitle || message.archivedSessionId}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-xs text-gray-400 whitespace-nowrap">{formatTime(message.sendTime)}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {quoteDescriptor ? (
+                      <div className="mt-3 rounded-xl border-l-4 border-gray-300 bg-gray-50 p-3">
+                        <div className="text-xs font-medium text-gray-500">被引用消息</div>
+                        {quoteDescriptor.kind === 'text' ? (
+                          <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">{quoteDescriptor.text}</div>
+                        ) : (
+                          <div className="mt-2 space-y-2">
+                            <MediaAttachmentCard attachment={quoteDescriptor.attachment} compact onPreviewImage={setPreviewAttachment} />
+                            {normalizeRemoteUrl(quoteDescriptor.attachment.url) && quoteDescriptor.text && quoteDescriptor.attachment.kind !== 'image' ? (
+                              <div className="whitespace-pre-wrap break-words text-xs leading-5 text-gray-500">{quoteDescriptor.text}</div>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+
+                    {messageAttachment ? (
+                      <div className="mt-3">
+                        <MediaAttachmentCard attachment={messageAttachment} onPreviewImage={setPreviewAttachment} />
+                      </div>
+                    ) : null}
+
+                    {shouldShowTextContent ? (
+                      <div className="mt-3 text-sm text-gray-700 whitespace-pre-wrap break-words leading-6">
+                        {visibleContent || '[空消息]'}
+                      </div>
+                    ) : visibleContent && visibleContent !== normalizeText(message.content) ? (
+                      <div className="mt-3 text-xs text-gray-500 whitespace-pre-wrap break-words leading-5">{visibleContent}</div>
+                    ) : null}
+                  </div>
+                );
+              }) : (
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">当前发送人暂无消息记录。</div>
+              )
+            ) : groupMessages.length > 0 ? (
+              groupMessages.map((message) => {
                 const messageAttachment = buildAttachmentDescriptor({
                   msgType: message.msg_type,
                   content: message.content,
@@ -1333,40 +1045,53 @@ export default function SystemWechatQuery() {
         </div>
       )}
 
-      {showBindModal && (
+      {showCreateSessionModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-2xl p-5 space-y-4">
-            <h4 className="text-base font-bold text-gray-900">{bindMode === 'individual' ? '绑定个人会话客户' : '绑定群聊会话客户'}</h4>
+            <h4 className="text-base font-bold text-gray-900">创建客户会话</h4>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">会话标题（可编辑）</label>
+              <input
+                value={sessionTitle}
+                onChange={(e) => setSessionTitle(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                placeholder="输入客户会话标题"
+              />
+            </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">客户（必填）</label>
               <div className="relative">
                 <input
-                  value={bindCustomerKeyword}
-                  onFocus={() => setBindCustomerDropdownOpen(true)}
-                  onBlur={() => setTimeout(() => setBindCustomerDropdownOpen(false), 120)}
+                  value={customerKeyword}
+                  onFocus={() => setCustomerDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setCustomerDropdownOpen(false), 120)}
                   onChange={(e) => {
-                    setBindCustomerKeyword(e.target.value);
-                    setBindCustomerId('');
-                    setBindContactId('');
-                    setBindContactKeyword('');
-                    setBindContactOptions([]);
+                    setCustomerKeyword(e.target.value);
+                    setSelectedCustomerId('');
+                    setSelectedCustomerName('');
+                    setSelectedContactId('');
+                    setSelectedContactName('');
+                    setContactKeyword('');
+                    setContactOptions([]);
                   }}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
                   placeholder="搜索客户名称"
                 />
-                {bindCustomerDropdownOpen && bindCustomerOptions.length > 0 && (
+                {customerDropdownOpen && customerOptions.length > 0 && (
                   <div className="absolute z-20 mt-1 w-full max-h-44 overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-                    {bindCustomerOptions.map((option) => (
+                    {customerOptions.map((option) => (
                       <button
                         key={option.id}
                         type="button"
                         onClick={() => {
-                          setBindCustomerId(option.id);
-                          setBindCustomerKeyword(option.name);
-                          setBindContactId('');
-                          setBindContactKeyword('');
-                          setBindContactOptions([]);
-                          setBindCustomerDropdownOpen(false);
+                          setSelectedCustomerId(option.id);
+                          setSelectedCustomerName(option.name);
+                          setCustomerKeyword(option.name);
+                          setSelectedContactId('');
+                          setSelectedContactName('');
+                          setContactKeyword('');
+                          setContactOptions([]);
+                          setCustomerDropdownOpen(false);
                         }}
                         className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
                       >
@@ -1376,47 +1101,49 @@ export default function SystemWechatQuery() {
                   </div>
                 )}
               </div>
+              {selectedCustomerName && <div className="mt-1 text-xs text-gray-500">已选择：{selectedCustomerName}</div>}
             </div>
-            {bindMode === 'individual' && (
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">联系人（可选）</label>
-                <div className="relative">
-                  <input
-                    value={bindContactKeyword}
-                    disabled={!bindCustomerId}
-                    onFocus={() => setBindContactDropdownOpen(true)}
-                    onBlur={() => setTimeout(() => setBindContactDropdownOpen(false), 120)}
-                    onChange={(e) => {
-                      setBindContactKeyword(e.target.value);
-                      setBindContactId('');
-                    }}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white disabled:bg-gray-100 disabled:text-gray-400"
-                    placeholder={bindCustomerId ? '搜索联系人名称' : '请先选择客户'}
-                  />
-                  {bindContactDropdownOpen && bindCustomerId && bindContactOptions.length > 0 && (
-                    <div className="absolute z-20 mt-1 w-full max-h-44 overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-                      {bindContactOptions.map((option) => (
-                        <button
-                          key={option.id}
-                          type="button"
-                          onClick={() => {
-                            setBindContactId(option.id);
-                            setBindContactKeyword(option.name);
-                            setBindContactDropdownOpen(false);
-                          }}
-                          className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                        >
-                          {option.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">联系人（可选）</label>
+              <div className="relative">
+                <input
+                  value={contactKeyword}
+                  disabled={!selectedCustomerId}
+                  onFocus={() => setContactDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setContactDropdownOpen(false), 120)}
+                  onChange={(e) => {
+                    setContactKeyword(e.target.value);
+                    setSelectedContactId('');
+                    setSelectedContactName('');
+                  }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white disabled:bg-gray-100 disabled:text-gray-400"
+                  placeholder={selectedCustomerId ? '搜索联系人名称' : '请先选择客户'}
+                />
+                {contactDropdownOpen && selectedCustomerId && contactOptions.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full max-h-44 overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+                    {contactOptions.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedContactId(option.id);
+                          setSelectedContactName(option.name);
+                          setContactKeyword(option.name);
+                          setContactDropdownOpen(false);
+                        }}
+                        className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                      >
+                        {option.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+              {selectedContactName && <div className="mt-1 text-xs text-gray-500">已选择：{selectedContactName}</div>}
+            </div>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowBindModal(false)} className="text-xs px-3 py-1.5 border border-gray-200 rounded bg-white">取消</button>
-              <button onClick={saveBinding} className="text-xs px-3 py-1.5 bg-green-600 text-white rounded">保存绑定</button>
+              <button onClick={resetCreateSessionModal} className="text-xs px-3 py-1.5 border border-gray-200 rounded bg-white">取消</button>
+              <button onClick={handleCreateCustomerSession} className="text-xs px-3 py-1.5 bg-green-600 text-white rounded">创建会话</button>
             </div>
           </div>
         </div>

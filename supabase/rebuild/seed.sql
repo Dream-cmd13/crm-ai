@@ -141,91 +141,163 @@ insert into public.crm_project(
 
 do $$
 begin
-  if to_regclass('public.crm_wechat_session') is not null then
-    insert into public.crm_wechat_session(id, my_wechat_id, peer_wechat_id, customer_id, contact_id) values
-      ('11111111-1111-1111-1111-111111111001', 'wx_sales_manager', 'wx_wangzong', 1, 'CON001'),
-      ('11111111-1111-1111-1111-111111111002', 'wx_sales_a', 'wx_ligong', 2, 'CON002')
-    on conflict (my_wechat_id, peer_wechat_id) do update
+  if to_regclass('public.crm_wx_conversation') is not null then
+    insert into public.crm_wx_conversation(
+      conversation_key, source_guid, conversation_type, conversation_identity_type,
+      my_wechat_id, my_wechat_name, peer_wechat_id, peer_wechat_name, peer_name_tokens,
+      conversation_name, customer_id, primary_contact_id, status,
+      last_message_at, last_message_preview, message_count
+    ) values
+      ('private:seed:wx_sales_manager', 'seed-guid-private-001', 'private', 'private_direct',
+       'wx_sales_manager', '销售经理', 'wx_wangzong', '王总', array['王总'],
+       '王总', '1', 'CON001', 'active',
+       now() - interval '10 minutes', '请先确认下周评审时间。', 6),
+      ('private:seed:wx_sales_a', 'seed-guid-private-002', 'private', 'private_direct',
+       'wx_sales_a', '业务员A', 'wx_ligong', '李工', array['李工'],
+       '李工', '2', 'CON002', 'active',
+       now() - interval '5 minutes', '认证资料今天会补齐。', 6),
+      ('group:seed:wx_grp_huadong_001', 'seed-guid-group-001', 'group', 'group',
+       'wx_sales_manager', '销售经理', null, null, array[]::text[],
+       '华东智造项目群', '1', null, 'active',
+       now() - interval '2 minutes', '今天同步试产节奏与风险清单。', 4)
+    on conflict (conversation_key) do update
     set
+      my_wechat_name = excluded.my_wechat_name,
+      peer_wechat_name = excluded.peer_wechat_name,
+      conversation_name = excluded.conversation_name,
       customer_id = excluded.customer_id,
-      contact_id = excluded.contact_id;
+      primary_contact_id = excluded.primary_contact_id,
+      last_message_at = excluded.last_message_at,
+      last_message_preview = excluded.last_message_preview,
+      message_count = excluded.message_count,
+      updated_at = now();
   end if;
 end
 $$;
 
 do $$
 begin
-  if to_regclass('public.crm_wechat_group') is not null then
-    insert into public.crm_wechat_group(id, group_id, group_name, customer_id) values
-      ('22222222-2222-2222-2222-222222222001', 'wx_grp_huadong_001', '华东智造项目群', 1),
-      ('22222222-2222-2222-2222-222222222002', 'wx_grp_nanfang_001', '南方设备技术群', 2)
-    on conflict (group_id) do update
+  if to_regclass('public.crm_wx_conversation_member') is not null then
+    insert into public.crm_wx_conversation_member(
+      conversation_id, wechat_id, display_name, member_type, contact_id, employee_id, is_internal
+    )
+    select c.id, member.wechat_id, member.display_name, member.member_type, member.contact_id, member.employee_id, member.is_internal
+    from public.crm_wx_conversation c
+    join (
+      values
+        ('group:seed:wx_grp_huadong_001', 'wx_sales_manager', '销售经理', 'employee', null, 'EMP002', true),
+        ('group:seed:wx_grp_huadong_001', 'wx_procurement_hd', '采购同事', 'external_unknown', null, null, false),
+        ('group:seed:wx_grp_huadong_001', 'wx_quality_team', '质量同事', 'external_unknown', null, null, false)
+    ) as member(conversation_key, wechat_id, display_name, member_type, contact_id, employee_id, is_internal)
+      on member.conversation_key = c.conversation_key
+    on conflict (conversation_id, wechat_id) do update
     set
-      group_name = excluded.group_name,
-      customer_id = excluded.customer_id;
+      display_name = excluded.display_name,
+      member_type = excluded.member_type,
+      contact_id = excluded.contact_id,
+      employee_id = excluded.employee_id,
+      is_internal = excluded.is_internal,
+      updated_at = now();
   end if;
 end
 $$;
 
 do $$
 begin
-  if to_regclass('public.crm_wechat_message') is not null then
-    insert into public.crm_wechat_message(session_id, sender_wechat_id, msg_type, content, send_time)
+  if to_regclass('public.crm_wx_message') is not null then
+    insert into public.crm_wx_message(
+      conversation_id, source_guid, message_scope, message_origin_type, raw_event_table, raw_event_dedupe_key,
+      raw_msg_id, sender_wechat_id, sender_display_name, receiver_wechat_id, receiver_display_name, peer_display_name,
+      msg_type, content, quote_content, quote_msg_type, send_time, remote_media_url
+    )
     select
-      case when mod(i, 2) = 1 then '11111111-1111-1111-1111-111111111001'::uuid else '11111111-1111-1111-1111-111111111002'::uuid end as session_id,
-      case
-        when mod(i, 4) = 1 then 'wx_sales_manager'
-        when mod(i, 4) = 2 then 'wx_wangzong'
-        when mod(i, 4) = 3 then 'wx_sales_a'
-        else 'wx_ligong'
-      end as sender_wechat_id,
-      'text' as msg_type,
-      case mod(i, 10)
-        when 0 then format('第%s轮沟通：请确认交付节奏和风险兜底方案。', i)
-        when 1 then format('第%s轮沟通：客户关注价格边界，请给TCO测算。', i)
-        when 2 then format('第%s轮沟通：请补充认证资料与测试计划。', i)
-        when 3 then format('第%s轮沟通：交期是否可以压缩到两周内？', i)
-        when 4 then format('第%s轮沟通：请同步替代料验证进度。', i)
-        when 5 then format('第%s轮沟通：样品反馈已回传，需优化插拔力。', i)
-        when 6 then format('第%s轮沟通：竞品报价已到，需给差异化话术。', i)
-        when 7 then format('第%s轮沟通：本周安排一次技术对齐会议。', i)
-        when 8 then format('第%s轮沟通：请确认批量导入窗口和备货策略。', i)
-        else format('第%s轮沟通：建议先小批试产再推进量产。', i)
-      end as content,
-      now() - interval '3 day' + (i || ' minutes')::interval as send_time
-    from generate_series(1, 100) as g(i);
+      c.id,
+      msg.source_guid,
+      msg.message_scope,
+      msg.message_origin_type,
+      msg.raw_event_table,
+      msg.raw_event_dedupe_key,
+      msg.raw_msg_id,
+      msg.sender_wechat_id,
+      msg.sender_display_name,
+      msg.receiver_wechat_id,
+      msg.receiver_display_name,
+      msg.peer_display_name,
+      msg.msg_type,
+      msg.content,
+      msg.quote_content,
+      msg.quote_msg_type,
+      msg.send_time,
+      msg.remote_media_url
+    from public.crm_wx_conversation c
+    join (
+      values
+        ('private:seed:wx_sales_manager', 'seed-guid-private-001', 'private', 'unknown', 'wechat_raw.wechat_private_message_events', 'seed-private-001', 'seed-msg-001', 'wx_sales_manager', '销售经理', 'wx_wangzong', '王总', '王总', 1, '王总您好，这批替代料我们今天完成了可靠性验证。', null, null, now() - interval '55 minutes', null),
+        ('private:seed:wx_sales_manager', 'seed-guid-private-001', 'private', 'unknown', 'wechat_raw.wechat_private_message_events', 'seed-private-002', 'seed-msg-002', 'wx_wangzong', '王总', 'wx_sales_manager', '销售经理', '王总', 1, '好的，那请先确认下周评审时间。', null, null, now() - interval '50 minutes', null),
+        ('private:seed:wx_sales_manager', 'seed-guid-private-001', 'private', 'private_forward', 'wechat_raw.wechat_private_message_events', 'seed-private-003', 'seed-msg-003', 'wx_sales_manager', '销售经理', 'wx_wangzong', '王总', '王总', 1, '我转发一条内部结论给你。', '内部建议先小批量导入，再安排量产验证。', 1, now() - interval '45 minutes', null),
+        ('private:seed:wx_sales_manager', 'seed-guid-private-001', 'private', 'unknown', 'wechat_raw.wechat_private_message_events', 'seed-private-004', 'seed-msg-004', 'wx_sales_manager', '销售经理', 'wx_wangzong', '王总', '王总', 3, '[图片] 样品测试报告截图', null, null, now() - interval '40 minutes', 'https://example.com/report.png'),
+        ('private:seed:wx_sales_a', 'seed-guid-private-002', 'private', 'unknown', 'wechat_raw.wechat_private_message_events', 'seed-private-005', 'seed-msg-005', 'wx_sales_a', '业务员A', 'wx_ligong', '李工', '李工', 1, '李工您好，认证资料今天会补齐。', null, null, now() - interval '35 minutes', null),
+        ('private:seed:wx_sales_a', 'seed-guid-private-002', 'private', 'unknown', 'wechat_raw.wechat_private_message_events', 'seed-private-006', 'seed-msg-006', 'wx_ligong', '李工', 'wx_sales_a', '业务员A', '李工', 1, '好的，重点把UL认证和耐温数据一起发我。', null, null, now() - interval '30 minutes', null),
+        ('group:seed:wx_grp_huadong_001', 'seed-guid-group-001', 'group', 'group_live', 'wechat_raw.wechat_group_message_events', 'seed-group-001', 'seed-gmsg-001', 'wx_sales_manager', '销售经理', null, null, '华东智造项目群', 1, '各位好，今天同步试产节奏和风险清单。', null, null, now() - interval '25 minutes', null),
+        ('group:seed:wx_grp_huadong_001', 'seed-guid-group-001', 'group', 'group_live', 'wechat_raw.wechat_group_message_events', 'seed-group-002', 'seed-gmsg-002', 'wx_procurement_hd', '采购同事', null, null, '华东智造项目群', 1, '请补充异常升级路径和责任人。', null, null, now() - interval '20 minutes', null)
+    ) as msg(
+      conversation_key, source_guid, message_scope, message_origin_type, raw_event_table, raw_event_dedupe_key,
+      raw_msg_id, sender_wechat_id, sender_display_name, receiver_wechat_id, receiver_display_name, peer_display_name,
+      msg_type, content, quote_content, quote_msg_type, send_time, remote_media_url
+    ) on msg.conversation_key = c.conversation_key
+    on conflict (raw_event_table, raw_event_dedupe_key) do update
+    set
+      content = excluded.content,
+      quote_content = excluded.quote_content,
+      quote_msg_type = excluded.quote_msg_type,
+      send_time = excluded.send_time,
+      remote_media_url = excluded.remote_media_url,
+      updated_at = now();
   end if;
 end
 $$;
 
 do $$
 begin
-  if to_regclass('public.crm_wechat_group_message') is not null then
-    insert into public.crm_wechat_group_message(group_id, sender_wechat_id, msg_type, content, send_time)
+  if to_regclass('public.crm_customer_message_session') is not null then
+    insert into public.crm_customer_message_session(
+      id, customer_id, contact_id, channel, source_sender_key, source_sender_wechat_id, source_sender_display_name,
+      title, message_count, last_message_at, last_message_preview, status
+    ) values
+      (
+        'CMS_SEED_001',
+        '1',
+        'CON001',
+        'wechat_private',
+        'wx_sales_manager',
+        'wx_sales_manager',
+        '销售经理',
+        '华东智造 - 销售经理 会话',
+        3,
+        now() - interval '40 minutes',
+        '我转发一条内部结论给你。',
+        'active'
+      )
+    on conflict (id) do update
+    set
+      contact_id = excluded.contact_id,
+      title = excluded.title,
+      message_count = excluded.message_count,
+      last_message_at = excluded.last_message_at,
+      last_message_preview = excluded.last_message_preview,
+      updated_at = now();
+
+    insert into public.crm_customer_message_session_item(session_id, wx_message_id, sort_order)
     select
-      case when mod(i, 2) = 1 then '22222222-2222-2222-2222-222222222001'::uuid else '22222222-2222-2222-2222-222222222002'::uuid end as group_id,
-      case
-        when mod(i, 5) = 0 then 'wx_sales_manager'
-        when mod(i, 5) = 1 then 'wx_procurement_hd'
-        when mod(i, 5) = 2 then 'wx_sales_a'
-        when mod(i, 5) = 3 then 'wx_ligong'
-        else 'wx_quality_team'
-      end as sender_wechat_id,
-      'text' as msg_type,
-      case mod(i, 10)
-        when 0 then format('群聊第%s条：今天同步试产节奏与里程碑。', i)
-        when 1 then format('群聊第%s条：请补充异常升级路径和责任人。', i)
-        when 2 then format('群聊第%s条：客户要求先验证耐温和振动指标。', i)
-        when 3 then format('群聊第%s条：请确认本周样品出货与签收时间。', i)
-        when 4 then format('群聊第%s条：竞品在价格上有优势，我们强调可靠性。', i)
-        when 5 then format('群聊第%s条：请更新供应链备货安全库存。', i)
-        when 6 then format('群聊第%s条：会议纪要已发，待各部门确认。', i)
-        when 7 then format('群聊第%s条：客户关注点转向交付一致性。', i)
-        when 8 then format('群聊第%s条：下周安排联合测试和问题复盘。', i)
-        else format('群聊第%s条：请在今天18点前反馈风险项。', i)
-      end as content,
-      now() - interval '2 day' + (i || ' minutes')::interval as send_time
-    from generate_series(1, 100) as g(i);
+      'CMS_SEED_001',
+      m.id,
+      row_number() over (order by m.send_time asc, m.id asc) - 1
+    from public.crm_wx_message m
+    join public.crm_wx_conversation c on c.id = m.conversation_id
+    where c.conversation_key = 'private:seed:wx_sales_manager'
+      and m.raw_event_dedupe_key in ('seed-private-001', 'seed-private-002', 'seed-private-003')
+    on conflict (session_id, wx_message_id) do update
+    set sort_order = excluded.sort_order;
   end if;
 end
 $$;
