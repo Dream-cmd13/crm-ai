@@ -1,0 +1,7 @@
+{
+  "name": "Remix: SalesFlow CRM AI v3.0",
+  "description": "An AI-powered CRM with automated workflows, customer ID management, and deep AI integration for sales optimization.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
