@@ -6,7 +6,7 @@
 
 | 值    | 描述       |
 | ---- | -------- |
-| 待处理  | 询盘待处理    |
+| 待处理  | 待处理      |
 | 已转线索 | 询盘已转化为线索 |
 | 关闭   | 询盘已关闭    |
 
@@ -375,7 +375,7 @@
 | 字段名           | 数据类型        | 约束                                            | 默认值    | 描述                                  |
 | ------------- | ----------- | --------------------------------------------- | ------ | ----------------------------------- |
 | id            | int         | not null unsigned auto\_increment primary key | <br /> | 主键                                  |
-| customer\_id  | text        | not null | <br /> | 客户ID                                |
+| customer\_id  | text        | not null                                      | <br /> | 客户ID                                |
 | member\_name  | text        | not null                                      | <br /> | 会员名称                                |
 | contact\_name | text        | <br />                                        | <br /> | 联系人                                 |
 | phone         | text        | <br />                                        | <br /> | 手机号                                 |
@@ -390,73 +390,73 @@
 
 ### crm\_customer\_contact (客户联系人表)
 
-| 字段名                     | 数据类型        | 约束                                                         | 默认值    | 描述      |
-| ----------------------- | ----------- | ---------------------------------------------------------- | ------ | ------- |
-| id                      | text        | primary key                                                | <br /> | 联系人ID   |
-| customer\_id            | text        | not null | <br /> | 客户ID    |
-| name                    | text        | not null                                                   | <br /> | 联系人姓名   |
-| position                | text        | <br />                                                     | <br /> | 职位      |
-| department              | text        | <br />                                                     | <br /> | 部门      |
-| phone                   | text        | <br />                                                     | <br /> | 电话      |
-| email                   | text        | <br />                                                     | <br /> | 邮箱      |
-| is\_primary             | boolean     | <br />                                                     | false  | 是否主要联系人 |
-| buying\_role            | text        | <br />                                                     | <br /> | 采购角色    |
-| buying\_mode            | text        | <br />                                                     | <br /> | 采购模式    |
-| appellation             | text        | <br />                                                     | <br /> | 称呼      |
-| wechat\_id              | text        | <br />                                                     | <br /> | 微信号     |
-| manager\_contact\_id    | text        | references crm\_customer\_contact(id) on delete set null   | <br /> | 经理联系人ID |
-| faction                 | text        | not null                                                   | ''     | 派系      |
-| attitude\_to\_us        | text        | not null                                                   | '中性评价' | 对我们的态度  |
-| attitude\_score         | int         | not null                                                   | 0      | 态度评分    |
-| role\_tag               | text        | not null                                                   | 'I'    | 角色标签    |
-| influence\_level        | int         | not null                                                   | 3      | 影响力等级   |
-| relation\_level         | int         | not null                                                   | 2      | 关系等级    |
-| graduation\_school      | text        | not null                                                   | ''     | 毕业学校    |
-| hometown                | text        | not null                                                   | ''     | 家乡      |
-| hobbies                 | text\[]     | not null                                                   | '{}'   | 爱好      |
-| family\_situation       | text        | not null                                                   | ''     | 家庭情况    |
-| personality             | text        | not null                                                   | ''     | 性格      |
-| preferences             | text        | not null                                                   | ''     | 偏好      |
-| key\_concerns           | text        | not null                                                   | ''     | 关键关注点   |
-| follow\_strategy        | text        | not null                                                   | ''     | 跟进策略    |
-| video\_channel\_profile | text        | not null                                                   | ''     | 视频号资料   |
-| douyin\_profile         | text        | not null                                                   | ''     | 抖音资料    |
-| xiaohongshu\_profile    | text        | not null                                                   | ''     | 小红书资料   |
-| social\_media\_behavior | text        | not null                                                   | ''     | 社交媒体行为  |
-| gender                  | text        | <br />                                                     | <br /> | 性别      |
-| office\_phone           | text        | <br />                                                     | <br /> | 办公电话    |
-| fax\_number             | text        | <br />                                                     | <br /> | 传真号码    |
-| is\_employed            | boolean     | <br />                                                     | <br /> | 是否在职    |
-| marital\_status         | text        | <br />                                                     | <br /> | 婚姻状况    |
-| birth\_date             | date        | <br />                                                     | <br /> | 出生日期    |
-| highest\_education      | text        | <br />                                                     | <br /> | 最高学历    |
-| native\_place           | text        | <br />                                                     | <br /> | 籍贯      |
-| religion                | text        | <br />                                                     | <br /> | 宗教信仰    |
-| entry\_date             | date        | <br />                                                     | <br /> | 入职日期    |
-| is\_key\_person         | boolean     | <br />                                                     | <br /> | 是否关键人物  |
-| created\_at             | timestamptz | not null                                                   | now()  | 创建时间    |
-| updated\_at             | timestamptz | not null                                                   | now()  | 更新时间    |
+| 字段名                     | 数据类型        | 约束                                                       | 默认值    | 描述      |
+| ----------------------- | ----------- | -------------------------------------------------------- | ------ | ------- |
+| id                      | text        | primary key                                              | <br /> | 联系人ID   |
+| customer\_id            | text        | not null                                                 | <br /> | 客户ID    |
+| name                    | text        | not null                                                 | <br /> | 联系人姓名   |
+| position                | text        | <br />                                                   | <br /> | 职位      |
+| department              | text        | <br />                                                   | <br /> | 部门      |
+| phone                   | text        | <br />                                                   | <br /> | 电话      |
+| email                   | text        | <br />                                                   | <br /> | 邮箱      |
+| is\_primary             | boolean     | <br />                                                   | false  | 是否主要联系人 |
+| buying\_role            | text        | <br />                                                   | <br /> | 采购角色    |
+| buying\_mode            | text        | <br />                                                   | <br /> | 采购模式    |
+| appellation             | text        | <br />                                                   | <br /> | 称呼      |
+| wechat\_id              | text        | <br />                                                   | <br /> | 微信号     |
+| manager\_contact\_id    | text        | references crm\_customer\_contact(id) on delete set null | <br /> | 经理联系人ID |
+| faction                 | text        | not null                                                 | ''     | 派系      |
+| attitude\_to\_us        | text        | not null                                                 | '中性评价' | 对我们的态度  |
+| attitude\_score         | int         | not null                                                 | 0      | 态度评分    |
+| role\_tag               | text        | not null                                                 | 'I'    | 角色标签    |
+| influence\_level        | int         | not null                                                 | 3      | 影响力等级   |
+| relation\_level         | int         | not null                                                 | 2      | 关系等级    |
+| graduation\_school      | text        | not null                                                 | ''     | 毕业学校    |
+| hometown                | text        | not null                                                 | ''     | 家乡      |
+| hobbies                 | text\[]     | not null                                                 | '{}'   | 爱好      |
+| family\_situation       | text        | not null                                                 | ''     | 家庭情况    |
+| personality             | text        | not null                                                 | ''     | 性格      |
+| preferences             | text        | not null                                                 | ''     | 偏好      |
+| key\_concerns           | text        | not null                                                 | ''     | 关键关注点   |
+| follow\_strategy        | text        | not null                                                 | ''     | 跟进策略    |
+| video\_channel\_profile | text        | not null                                                 | ''     | 视频号资料   |
+| douyin\_profile         | text        | not null                                                 | ''     | 抖音资料    |
+| xiaohongshu\_profile    | text        | not null                                                 | ''     | 小红书资料   |
+| social\_media\_behavior | text        | not null                                                 | ''     | 社交媒体行为  |
+| gender                  | text        | <br />                                                   | <br /> | 性别      |
+| office\_phone           | text        | <br />                                                   | <br /> | 办公电话    |
+| fax\_number             | text        | <br />                                                   | <br /> | 传真号码    |
+| is\_employed            | boolean     | <br />                                                   | <br /> | 是否在职    |
+| marital\_status         | text        | <br />                                                   | <br /> | 婚姻状况    |
+| birth\_date             | date        | <br />                                                   | <br /> | 出生日期    |
+| highest\_education      | text        | <br />                                                   | <br /> | 最高学历    |
+| native\_place           | text        | <br />                                                   | <br /> | 籍贯      |
+| religion                | text        | <br />                                                   | <br /> | 宗教信仰    |
+| entry\_date             | date        | <br />                                                   | <br /> | 入职日期    |
+| is\_key\_person         | boolean     | <br />                                                   | <br /> | 是否关键人物  |
+| created\_at             | timestamptz | not null                                                 | now()  | 创建时间    |
+| updated\_at             | timestamptz | not null                                                 | now()  | 更新时间    |
 
 ### crm\_customer\_persona (客户画像表)
 
-| 字段名                      | 数据类型        | 约束                                                         | 默认值    | 描述     |
-| ------------------------ | ----------- | ---------------------------------------------------------- | ------ | ------ |
-| id                       | text        | primary key                                                | <br /> | 画像ID   |
-| customer\_id             | text        | not null | <br /> | 客户ID   |
-| scale                    | text        | <br />                                                     | <br /> | 规模     |
-| main\_products           | text        | <br />                                                     | <br /> | 主要产品   |
-| org\_structure           | text        | <br />                                                     | <br /> | 组织结构   |
-| buying\_mode             | text        | <br />                                                     | <br /> | 采购模式   |
-| pain\_points             | text        | <br />                                                     | <br /> | 痛点     |
-| competitive\_supplier    | text        | <br />                                                     | <br /> | 竞争供应商  |
-| competitive\_preference  | text        | <br />                                                     | <br /> | 竞争偏好   |
-| unique\_needs            | text        | <br />                                                     | <br /> | 独特需求   |
-| rd\_requirements         | text        | <br />                                                     | <br /> | 研发需求   |
-| sample\_requirements     | text        | <br />                                                     | <br /> | 样品需求   |
-| production\_requirements | text        | <br />                                                     | <br /> | 生产需求   |
-| last\_updated            | date        | <br />                                                     | <br /> | 最后更新日期 |
-| created\_at              | timestamptz | not null                                                   | now()  | 创建时间   |
-| updated\_at              | timestamptz | not null                                                   | now()  | 更新时间   |
+| 字段名                      | 数据类型        | 约束          | 默认值    | 描述     |
+| ------------------------ | ----------- | ----------- | ------ | ------ |
+| id                       | text        | primary key | <br /> | 画像ID   |
+| customer\_id             | text        | not null    | <br /> | 客户ID   |
+| scale                    | text        | <br />      | <br /> | 规模     |
+| main\_products           | text        | <br />      | <br /> | 主要产品   |
+| org\_structure           | text        | <br />      | <br /> | 组织结构   |
+| buying\_mode             | text        | <br />      | <br /> | 采购模式   |
+| pain\_points             | text        | <br />      | <br /> | 痛点     |
+| competitive\_supplier    | text        | <br />      | <br /> | 竞争供应商  |
+| competitive\_preference  | text        | <br />      | <br /> | 竞争偏好   |
+| unique\_needs            | text        | <br />      | <br /> | 独特需求   |
+| rd\_requirements         | text        | <br />      | <br /> | 研发需求   |
+| sample\_requirements     | text        | <br />      | <br /> | 样品需求   |
+| production\_requirements | text        | <br />      | <br /> | 生产需求   |
+| last\_updated            | date        | <br />      | <br /> | 最后更新日期 |
+| created\_at              | timestamptz | not null    | now()  | 创建时间   |
+| updated\_at              | timestamptz | not null    | now()  | 更新时间   |
 
 ## 3. 销售流程
 
@@ -632,20 +632,20 @@
 
 ### crm\_communication\_log (沟通记录表)
 
-| 字段名             | 数据类型        | 约束                              | 默认值    | 描述    |
-| --------------- | ----------- | ------------------------------- | ------ | ----- |
-| id              | text        | primary key                     | <br /> | 日志ID  |
-| source\_id      | text        | <br />                          | <br /> | 来源ID  |
-| customer\_id    | text        | <br />                          | <br /> | 客户ID  |
-| date            | text        | <br />                          | <br /> | 日期    |
-| sender          | text        | <br />                          | <br /> | 发送者   |
-| content         | text        | <br />                          | <br /> | 内容    |
-| type            | text        | <br />                          | <br /> | 类型    |
-| attachment\_url | text        | <br />                          | <br /> | 附件URL |
-| duration        | int         | <br />                          | <br /> | 时长    |
-| source\_group   | text        | <br />                          | <br /> | 来源组   |
-| is\_summarized  | boolean     | <br />                          | false  | 是否已总结 |
-| created\_at     | timestamptz | not null                        | now()  | 创建时间  |
+| 字段名             | 数据类型        | 约束          | 默认值    | 描述    |
+| --------------- | ----------- | ----------- | ------ | ----- |
+| id              | text        | primary key | <br /> | 日志ID  |
+| source\_id      | text        | <br />      | <br /> | 来源ID  |
+| customer\_id    | text        | <br />      | <br /> | 客户ID  |
+| date            | text        | <br />      | <br /> | 日期    |
+| sender          | text        | <br />      | <br /> | 发送者   |
+| content         | text        | <br />      | <br /> | 内容    |
+| type            | text        | <br />      | <br /> | 类型    |
+| attachment\_url | text        | <br />      | <br /> | 附件URL |
+| duration        | int         | <br />      | <br /> | 时长    |
+| source\_group   | text        | <br />      | <br /> | 来源组   |
+| is\_summarized  | boolean     | <br />      | false  | 是否已总结 |
+| created\_at     | timestamptz | not null    | now()  | 创建时间  |
 
 ### crm\_task\_type (任务类型表)
 
@@ -727,31 +727,31 @@
 
 ### crm\_customer\_competitor (客户竞争对手表)
 
-| 字段名            | 数据类型        | 约束                                                         | 默认值    | 描述     |
-| -------------- | ----------- | ---------------------------------------------------------- | ------ | ------ |
-| id             | text        | primary key                                                | <br /> | 主键ID   |
-| customer\_id   | text        | not null | <br /> | 客户ID   |
-| competitor\_id | text        | not null references crm\_competitor(id) on delete cascade  | <br /> | 竞争对手ID |
-| threat\_level  | text        | <br />                                                     | <br /> | 威胁等级   |
-| notes          | text        | <br />                                                     | <br /> | 备注     |
-| created\_at    | timestamptz | not null                                                   | now()  | 创建时间   |
-| updated\_at    | timestamptz | not null                                                   | now()  | 更新时间   |
+| 字段名            | 数据类型        | 约束                                                        | 默认值    | 描述     |
+| -------------- | ----------- | --------------------------------------------------------- | ------ | ------ |
+| id             | text        | primary key                                               | <br /> | 主键ID   |
+| customer\_id   | text        | not null                                                  | <br /> | 客户ID   |
+| competitor\_id | text        | not null references crm\_competitor(id) on delete cascade | <br /> | 竞争对手ID |
+| threat\_level  | text        | <br />                                                    | <br /> | 威胁等级   |
+| notes          | text        | <br />                                                    | <br /> | 备注     |
+| created\_at    | timestamptz | not null                                                  | now()  | 创建时间   |
+| updated\_at    | timestamptz | not null                                                  | now()  | 更新时间   |
 
 ### crm\_customer\_focus\_swot (客户SWOT分析表)
 
-| 字段名             | 数据类型        | 约束                                                         | 默认值    | 描述    |
-| --------------- | ----------- | ---------------------------------------------------------- | ------ | ----- |
-| id              | text        | primary key                                                | <br /> | 主键ID  |
-| customer\_id    | text        | not null | <br /> | 客户ID  |
-| customer\_focus | text        | not null                                                   | ''     | 客户关注点 |
-| key\_contact    | text        | not null                                                   | ''     | 关键联系人 |
-| focus\_level    | int         | not null                                                   | 3      | 关注等级  |
-| our\_strengths  | jsonb       | not null                                                   | '\[]'  | 我们的优势 |
-| our\_weaknesses | jsonb       | not null                                                   | '\[]'  | 我们的劣势 |
-| ai\_script      | text        | not null                                                   | ''     | AI话术  |
-| sort\_order     | int         | not null                                                   | 0      | 排序顺序  |
-| created\_at     | timestamptz | not null                                                   | now()  | 创建时间  |
-| updated\_at     | timestamptz | not null                                                   | now()  | 更新时间  |
+| 字段名             | 数据类型        | 约束          | 默认值    | 描述    |
+| --------------- | ----------- | ----------- | ------ | ----- |
+| id              | text        | primary key | <br /> | 主键ID  |
+| customer\_id    | text        | not null    | <br /> | 客户ID  |
+| customer\_focus | text        | not null    | ''     | 客户关注点 |
+| key\_contact    | text        | not null    | ''     | 关键联系人 |
+| focus\_level    | int         | not null    | 3      | 关注等级  |
+| our\_strengths  | jsonb       | not null    | '\[]'  | 我们的优势 |
+| our\_weaknesses | jsonb       | not null    | '\[]'  | 我们的劣势 |
+| ai\_script      | text        | not null    | ''     | AI话术  |
+| sort\_order     | int         | not null    | 0      | 排序顺序  |
+| created\_at     | timestamptz | not null    | now()  | 创建时间  |
+| updated\_at     | timestamptz | not null    | now()  | 更新时间  |
 
 ### crm\_customer\_focus\_competitor (客户竞争对手聚焦表)
 
@@ -759,7 +759,7 @@
 | ---------------- | ----------- | -------------------------------------------------------------------- | ------ | ------ |
 | id               | text        | primary key                                                          | <br /> | 主键ID   |
 | focus\_id        | text        | not null references crm\_customer\_focus\_swot(id) on delete cascade | <br /> | 聚焦ID   |
-| customer\_id     | text        | not null | <br /> | 客户ID   |
+| customer\_id     | text        | not null                                                             | <br /> | 客户ID   |
 | competitor\_name | text        | not null                                                             | ''     | 竞争对手名称 |
 | strengths        | jsonb       | not null                                                             | '\[]'  | 优势     |
 | weaknesses       | jsonb       | not null                                                             | '\[]'  | 劣势     |
@@ -774,7 +774,7 @@
 | 字段名                        | 数据类型        | 约束                                                               | 默认值           | 描述     |
 | -------------------------- | ----------- | ---------------------------------------------------------------- | ------------- | ------ |
 | id                         | text        | primary key                                                      | <br />        | 主键ID   |
-| customer\_id               | text        | not null | <br />        | 客户ID   |
+| customer\_id               | text        | not null                                                         | <br />        | 客户ID   |
 | stakeholder\_id            | text        | not null references crm\_customer\_contact(id) on delete cascade | <br />        | 干系人ID  |
 | assessment\_date           | date        | not null                                                         | current\_date | 评估日期   |
 | need\_level\_score         | int         | <br />                                                           | <br />        | 需求等级评分 |
@@ -1096,21 +1096,21 @@
 
 ### crm\_purchase\_quotation (采购报价单表)
 
-| 字段名                 | 数据类型        | 约束                                                 | 默认值    | 描述     |
-| ------------------- | ----------- | -------------------------------------------------- | ------ | ------ |
-| id                  | integer     | generated by default as identity primary key       | <br /> | 主键ID   |
-| purchase\_quote\_no | text        | not null                                           | <br /> | 采购报价单号 |
-| project\_id         | integer     | references crm\_project(id) on delete set null     | <br /> | 项目ID   |
-| quote\_time         | timestamptz | <br />                                             | <br /> | 报价时间   |
-| supplier            | text        | <br />                                             | <br /> | 供应商    |
-| created\_by         | text        | <br />                                             | <br /> | 创建人    |
-| created\_at         | timestamptz | not null                                           | now()  | 创建时间   |
-| updated\_by         | text        | <br />                                             | <br /> | 更新人    |
-| updated\_at         | timestamptz | not null                                           | now()  | 更新时间   |
-| customer\_name      | text        | <br />                                             | <br /> | 客户名称   |
-| customer\_id        | text        | <br />                                             | <br /> | 客户ID   |
-| valid\_until        | date        | <br />                                             | <br /> | 有效期    |
-| <br />              | <br />      | check (id > 0)                                     | <br /> | ID正数约束 |
+| 字段名                 | 数据类型        | 约束                                             | 默认值    | 描述     |
+| ------------------- | ----------- | ---------------------------------------------- | ------ | ------ |
+| id                  | integer     | generated by default as identity primary key   | <br /> | 主键ID   |
+| purchase\_quote\_no | text        | not null                                       | <br /> | 采购报价单号 |
+| project\_id         | integer     | references crm\_project(id) on delete set null | <br /> | 项目ID   |
+| quote\_time         | timestamptz | <br />                                         | <br /> | 报价时间   |
+| supplier            | text        | <br />                                         | <br /> | 供应商    |
+| created\_by         | text        | <br />                                         | <br /> | 创建人    |
+| created\_at         | timestamptz | not null                                       | now()  | 创建时间   |
+| updated\_by         | text        | <br />                                         | <br /> | 更新人    |
+| updated\_at         | timestamptz | not null                                       | now()  | 更新时间   |
+| customer\_name      | text        | <br />                                         | <br /> | 客户名称   |
+| customer\_id        | text        | <br />                                         | <br /> | 客户ID   |
+| valid\_until        | date        | <br />                                         | <br /> | 有效期    |
+| <br />              | <br />      | check (id > 0)                                 | <br /> | ID正数约束 |
 
 ### crm\_purchase\_quotation\_item (采购报价单明细表)
 
