@@ -1,5 +1,4 @@
 import { TodoTask } from '../types';
-import { mockTodoTasks } from '../data';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
 const mapDbTaskToUi = (row: any): TodoTask => ({
@@ -47,7 +46,7 @@ const mapUiTaskToDb = (task: TodoTask, module = 'task_center') => ({
 });
 
 export const fetchTasksFromSupabase = async (module = 'task_center'): Promise<TodoTask[]> => {
-  if (!isSupabaseConfigured()) return mockTodoTasks;
+  if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from('crm_task').select('*').eq('module', module).order('create_date', { ascending: false });
   if (error) throw error;
@@ -55,7 +54,7 @@ export const fetchTasksFromSupabase = async (module = 'task_center'): Promise<To
 };
 
 export const saveTasksSnapshotToSupabase = async (tasks: TodoTask[], module = 'task_center') => {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const payload = tasks.map((task) => mapUiTaskToDb(task, module));
   if (payload.length === 0) return;
@@ -72,16 +71,7 @@ export const hasSopTaskForSource = async (
   const normalizedId = String(sourceId || '').trim();
   if (!normalizedType || !normalizedId) return false;
 
-  if (!isSupabaseConfigured()) {
-    return mockTodoTasks.some((task: any) => {
-      const isSameSource =
-        String(task?.sourceType || '').trim() === normalizedType &&
-        String(task?.sourceId || '').trim() === normalizedId;
-      if (!isSameSource) return false;
-      const aux = task?.auxiliaryData || {};
-      return Boolean(aux?.sopTemplateId) || /^SOP/i.test(String(task?.taskType || '')) || /^\[SOP\]/i.test(String(task?.title || ''));
-    });
-  }
+  if (!isSupabaseConfigured()) return false;
 
   const supabase = getSupabaseClient();
   const { data, error } = await supabase

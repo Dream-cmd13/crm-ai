@@ -1,5 +1,4 @@
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
-import { mockReturnOrders, mockSampleOrders, mockSalesQuotations } from '../data/sales';
 import { updateCustomerLastContactInSupabase } from './customerRepository';
 
 const mapItemToRow = (item: any, parentKey: string, parentId: string) => {
@@ -216,7 +215,7 @@ const saveWithItems = async (
 };
 
 export const fetchQuotationsFromSupabase = async (): Promise<any[]> => {
-  if (!isSupabaseConfigured()) return mockSalesQuotations as any[];
+  if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from('crm_quotation').select('*').order('created_at', { ascending: false });
   if (error) throw error;
@@ -242,7 +241,7 @@ export const fetchQuotationsFromSupabase = async (): Promise<any[]> => {
 };
 
 export const saveQuotationToSupabase = async (doc: any) => {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const id = doc.id || `QUO${Date.now()}`;
   await saveWithItems(
     'crm_quotation',
@@ -269,7 +268,7 @@ export const saveQuotationToSupabase = async (doc: any) => {
 };
 
 export const fetchSalesOrdersFromSupabase = async (): Promise<any[] | null> => {
-  if (!isSupabaseConfigured()) return null;
+  if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from('crm_sales_order').select('*').order('created_at', { ascending: false });
   if (error) throw error;
@@ -295,7 +294,7 @@ export const fetchSalesOrdersFromSupabase = async (): Promise<any[] | null> => {
 };
 
 export const saveSalesOrderToSupabase = async (doc: any) => {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const id = doc.id || `ORD${Date.now()}`;
   await saveWithItems(
     'crm_sales_order',
@@ -322,7 +321,7 @@ export const saveSalesOrderToSupabase = async (doc: any) => {
 };
 
 export const fetchSampleOrdersFromSupabase = async (): Promise<any[]> => {
-  if (!isSupabaseConfigured()) return mockSampleOrders as any[];
+  if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from('crm_sample_order').select('*').order('created_at', { ascending: false });
   if (error) throw error;
@@ -349,7 +348,7 @@ export const fetchSampleOrdersFromSupabase = async (): Promise<any[]> => {
 };
 
 export const saveSampleOrderToSupabase = async (doc: any) => {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const id = doc.id || `SAM${Date.now()}`;
   await saveWithItems(
     'crm_sample_order',
@@ -376,7 +375,7 @@ export const saveSampleOrderToSupabase = async (doc: any) => {
 };
 
 export const fetchReturnOrdersFromSupabase = async (): Promise<any[]> => {
-  if (!isSupabaseConfigured()) return mockReturnOrders as any[];
+  if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from('crm_return_order').select('*').order('created_at', { ascending: false });
   if (error) throw error;
@@ -408,7 +407,7 @@ export const fetchReturnOrdersFromSupabase = async (): Promise<any[]> => {
 };
 
 export const saveReturnOrderToSupabase = async (doc: any) => {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const id = doc.id || `RET${Date.now()}`;
   await saveWithItems(
     'crm_return_order',
@@ -446,7 +445,7 @@ const removeWithItems = async (
   parentKey: string,
   id: string
 ) => {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const { error: itemDeleteError } = await supabase.from(itemTable).delete().eq(parentKey, id);
   if (itemDeleteError) throw itemDeleteError;

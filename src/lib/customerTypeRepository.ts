@@ -1,5 +1,4 @@
 import { CustomerType } from '../types';
-import { mockCustomerTypes } from '../data';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
 const STORAGE_ID = '__customer_types__';
@@ -30,17 +29,17 @@ const parseTypes = (value: any): CustomerType[] => {
 };
 
 export const fetchCustomerTypesFromSupabase = async (): Promise<CustomerType[]> => {
-  if (!isSupabaseConfigured()) return mockCustomerTypes;
+  if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from('crm_ontology_object').select('description').eq('code', STORAGE_ID).limit(1);
   if (error) throw error;
   const raw = data?.[0]?.description;
   const parsed = parseTypes(raw);
-  return parsed.length > 0 ? parsed : mockCustomerTypes;
+  return parsed;
 };
 
 export const saveCustomerTypesToSupabase = async (types: CustomerType[]) => {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const payload = {
     id: STORAGE_ID,

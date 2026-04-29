@@ -1,15 +1,13 @@
 import { toast } from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, Edit2, Trash2, XCircle, Save } from 'lucide-react';
-import { mockCustomerTypes } from '../data';
 import { CustomerType } from '../types';
-import { loadLocalState, saveLocalState } from '../lib/localState';
 import { fetchCustomerTypesFromSupabase, saveCustomerTypesToSupabase } from '../lib/customerTypeRepository';
 
 import { confirmDialog } from '../lib/toastConfirm';
 
 export default function CustomerTypes() {
-  const [types, setTypes] = useState<CustomerType[]>(() => loadLocalState<CustomerType[]>('crm.customer_types', mockCustomerTypes));
+  const [types, setTypes] = useState<CustomerType[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [editingType, setEditingType] = useState<CustomerType | null>(null);
@@ -23,14 +21,10 @@ export default function CustomerTypes() {
   });
 
   useEffect(() => {
-    saveLocalState('crm.customer_types', types);
-  }, [types]);
-
-  useEffect(() => {
     const fetchRemote = async () => {
       try {
         const remote = await fetchCustomerTypesFromSupabase();
-        if (remote && remote.length > 0) setTypes(remote);
+        setTypes(remote || []);
       } catch (error) {
         console.error('Error fetching customer types:', error);
       }

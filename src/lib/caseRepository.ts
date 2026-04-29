@@ -1,5 +1,4 @@
 import { CustomerCase } from '../types';
-import { mockCustomerCases } from '../data/business';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
 const splitList = (value: string | null | undefined) =>
@@ -33,20 +32,19 @@ const mapDbCaseToUi = (row: any): CustomerCase => ({
 });
 
 export const fetchCasesFromSupabase = async (): Promise<CustomerCase[]> => {
-  if (!isSupabaseConfigured()) return mockCustomerCases;
+  if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from('crm_case_library').select('*').order('created_at', { ascending: false });
   if (error) {
-    // 兼容旧库未建 crm_case_library 的场景，避免阻断上层AI流程
-    if ((error as any)?.code === 'PGRST205') return mockCustomerCases;
+    if ((error as any)?.code === 'PGRST205') return [];
     throw error;
   }
   const cases = (data || []).map(mapDbCaseToUi);
-  return cases.length > 0 ? cases : mockCustomerCases;
+  return cases;
 };
 
 export const saveCaseToSupabase = async (caseItem: CustomerCase) => {
-  if (!isSupabaseConfigured()) return caseItem;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const id = caseItem.id || `CASE-${Date.now()}`;
   const payload = {
@@ -67,7 +65,7 @@ export const saveCaseToSupabase = async (caseItem: CustomerCase) => {
   };
   const { error } = await supabase.from('crm_case_library').upsert(payload, { onConflict: 'id' });
   if (error) {
-    if ((error as any)?.code === 'PGRST205') return { ...caseItem, id };
+    if ((error as any)?.code === 'PGRST205') throw new Error('crm_case_library 表不存在，请先完成数据库迁移');
     throw error;
   }
   return { ...caseItem, id };

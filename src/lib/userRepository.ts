@@ -1,9 +1,8 @@
 import { Department, User } from '../types';
-import { mockDepartments, mockUsers } from '../data';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
 export const fetchUsersFromSupabase = async (): Promise<User[]> => {
-  if (!isSupabaseConfigured()) return mockUsers;
+  if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from('ba_employeeinfo').select('*').order('created_at', { ascending: false });
   if (error) throw error;
@@ -24,13 +23,11 @@ export const fetchUsersFromSupabase = async (): Promise<User[]> => {
 };
 
 export const fetchDepartmentsFromSupabase = async (): Promise<Department[]> => {
-  // Departments are mostly hardcoded in UserManagement, but we can return mockDepartments for now
-  // as there is no specific department table in the provided schema.
-  return mockDepartments;
+  return [];
 };
 
 export const saveUserToSupabase = async (user: User) => {
-  if (!isSupabaseConfigured()) return user;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   
   const payload = {
@@ -51,7 +48,7 @@ export const saveUserToSupabase = async (user: User) => {
 };
 
 export const deleteUserFromSupabase = async (id: string) => {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const { error } = await supabase.from('ba_employeeinfo').delete().eq('id', id);
   if (error) throw error;

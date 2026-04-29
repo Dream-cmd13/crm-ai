@@ -6,7 +6,6 @@ import { cn } from '../lib/utils';
 import { callAiProxy } from '../lib/aiProxy';
 import { parseAiJson } from '../lib/aiJson';
 import DocumentDetail from '../components/DocumentDetail';
-import { mockOrders } from '../data';
 import { fetchSalesOrdersFromSupabase, saveSalesOrderToSupabase, deleteSalesOrderFromSupabase } from '../lib/documentRepository';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
 interface SalesOrdersProps {
@@ -18,7 +17,7 @@ interface SalesOrdersProps {
 
 export default function SalesOrders({ role, viewParams, navigateTo, goBack }: SalesOrdersProps) {
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
-  const [orders, setOrders] = useState<SalesOrder[]>(mockOrders);
+  const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 

@@ -1,5 +1,4 @@
 import { Project } from '../types';
-import { mockProjects } from '../data';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
 const PROJECT_STAGE_OPTIONS = ['需求阶段', '设计阶段', '报价阶段', '样品制作', '样品承认', '试产阶段', '重复试产', '量产阶段'] as const;
@@ -190,7 +189,7 @@ const mapUiProjectToDb = (project: Project) => ({
 });
 
 export const fetchProjectsFromSupabase = async (): Promise<Project[]> => {
-  if (!isSupabaseConfigured()) return mockProjects;
+  if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from('crm_project').select('*').order('created_at', { ascending: false });
   if (error) throw error;
@@ -208,7 +207,7 @@ export const fetchProjectByIdFromSupabase = async (id: string): Promise<Project 
 };
 
 export const saveProjectToSupabase = async (project: Project): Promise<Project> => {
-  if (!isSupabaseConfigured()) return { ...project, id: project.id || `PRJ${Date.now()}` };
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const payload = mapUiProjectToDb(project);
   const { data, error } = await supabase
@@ -221,7 +220,7 @@ export const saveProjectToSupabase = async (project: Project): Promise<Project> 
 };
 
 export const deleteProjectFromSupabase = async (projectId: string) => {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const id = String(projectId || '').trim();
   if (!id) return;
   const supabase = getSupabaseClient();

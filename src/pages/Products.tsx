@@ -2,10 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { Plus, Search, Filter, ChevronRight, ChevronDown, Edit2, Trash2, FolderTree, Settings, Loader2 } from 'lucide-react';
 import { ProductCategory, Product, CategoryAttribute, ProductSeries } from '../types';
-import { mockProductCategories, mockProducts } from '../data';
 import DetailModal from '../components/DetailModal';
 import { cn } from '../lib/utils';
-import { loadLocalState, saveLocalState } from '../lib/localState';
 import { fetchProductCategoriesFromSupabase, fetchProductsFromSupabase, fetchProductSeriesFromSupabase, saveProductToSupabase, deleteProductFromSupabase } from '../lib/productRepository';
 
 interface ProductsProps {
@@ -16,12 +14,8 @@ interface ProductsProps {
 }
 
 export default function Products({ viewParams }: ProductsProps) {
-  const [categories, setCategories] = useState<ProductCategory[]>(() =>
-    loadLocalState<ProductCategory[]>('crm.product_categories', mockProductCategories)
-  );
-  const [products, setProducts] = useState<Product[]>(() =>
-    loadLocalState<Product[]>('crm.products', mockProducts)
-  );
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,17 +31,13 @@ export default function Products({ viewParams }: ProductsProps) {
     fetchSeries();
   }, []);
 
-  useEffect(() => {
-    saveLocalState('crm.products', products);
-  }, [products]);
-
   const fetchCategories = async () => {
     try {
       const remote = await fetchProductCategoriesFromSupabase();
       setCategories(remote);
     } catch (err) {
       console.error('Error fetching categories:', err);
-      setCategories(loadLocalState<ProductCategory[]>('crm.product_categories', mockProductCategories));
+      setCategories([]);
     }
   };
 
@@ -58,7 +48,7 @@ export default function Products({ viewParams }: ProductsProps) {
       setProducts(remote);
     } catch (error) {
       console.error('Error fetching products:', error);
-      setProducts(loadLocalState<Product[]>('crm.products', mockProducts));
+      setProducts([]);
     } finally {
       setIsLoading(false);
     }

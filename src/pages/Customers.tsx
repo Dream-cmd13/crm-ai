@@ -4,14 +4,12 @@ import { Role, Customer, Contact, GroupChat, ChatMessage, TodoTask, CustomerPers
 import DetailModal from '../components/DetailModal';
 import { callAiProxy } from '../lib/aiProxy';
 import { differenceInDays } from 'date-fns';
-import { mockCustomers, mockGroupChats, mockPersonas, mockTodoTasks } from '../data';
 import { CustomerList } from '../components/customers/CustomerList';
 import { CustomerDetail } from '../components/customers/CustomerDetail';
 import { PersonaEditModal, ContactEditModal } from '../components/customers/CustomerModals';
 import PotentialCustomerList from '../components/customers/PotentialCustomerList';
 import QuickTaskModal from '../components/QuickTaskModal';
 import TaskDetailModal from '../components/TaskDetailModal';
-import { loadLocalState, saveLocalState } from '../lib/localState';
 import { fetchCustomersModuleDataFromSupabase, saveCustomersSnapshotToSupabase, savePersonasSnapshotToSupabase, saveVisitPlansSnapshotToSupabase, deleteCustomerFromSupabase, fetchCustomerCommunicationsFromSupabase, saveCustomerCommunicationToSupabase } from '../lib/customerRepository';
 import { convertPotentialCustomerToCustomerInSupabase, fetchPotentialCustomersFromSupabase } from '../lib/potentialCustomerRepository';
 import { saveCustomerContactToSupabase, fetchCustomerContactsFromSupabase } from '../lib/customerInteractionRepository';
@@ -36,17 +34,17 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
   const [filterLevel, setFilterLevel] = useState<string>('全部');
   const [filterIndustry, setFilterIndustry] = useState<string>('全部');
   const [filterOverdue, setFilterOverdue] = useState<boolean>(false);
-  const [customers, setCustomers] = useState<Customer[]>(() => loadLocalState<Customer[]>('crm.customers', mockCustomers));
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [isRemoteLoaded, setIsRemoteLoaded] = useState(false);
   const [potentialCustomers, setPotentialCustomers] = useState<PotentialCustomer[]>([]);
   const [potentialSearchTerm, setPotentialSearchTerm] = useState('');
   const [isPotentialLoading, setIsPotentialLoading] = useState(false);
   const [showWeChat, setShowWeChat] = useState(false);
   const [selectedChat, setSelectedChat] = useState<GroupChat | null>(null);
-  const [todoTasks, setTodoTasks] = useState<TodoTask[]>(() => loadLocalState<TodoTask[]>('crm.customer_todos', mockTodoTasks));
+  const [todoTasks, setTodoTasks] = useState<TodoTask[]>([]);
   const [isAddingContact, setIsAddingContact] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
-  const [personas, setPersonas] = useState<CustomerPersona[]>(() => loadLocalState<CustomerPersona[]>('crm.customer_personas', mockPersonas));
+  const [personas, setPersonas] = useState<CustomerPersona[]>([]);
   const [isUpdatingPersona, setIsUpdatingPersona] = useState(false);
   const [editingPersona, setEditingPersona] = useState<CustomerPersona | null>(null);
   const [analyzingContactId, setAnalyzingContactId] = useState<string | null>(null);
@@ -61,7 +59,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
     setIsAddingToDate(true);
   };
 
-  const [groupChats, setGroupChats] = useState<GroupChat[]>(() => loadLocalState<GroupChat[]>('crm.customer_group_chats', mockGroupChats));
+  const [groupChats, setGroupChats] = useState<GroupChat[]>([]);
   const [isSyncingChats, setIsSyncingChats] = useState(false);
   const [chatSubTab, setChatSubTab] = useState<'messages' | 'members'>('messages');
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -70,12 +68,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
     dueDate: '', title: ''
   });
   const [isAddingToDate, setIsAddingToDate] = useState(false);
-  const [followUpPlans, setFollowUpPlans] = useState<TodoTask[]>(() =>
-    loadLocalState<TodoTask[]>(
-      'crm.customer_followup_plans',
-      mockTodoTasks.filter(t => t.taskType === '客户激活任务' || t.sourceType === 'customer' || Boolean(t.associatedCustomerId))
-    )
-  );
+  const [followUpPlans, setFollowUpPlans] = useState<TodoTask[]>([]);
   const [newContact, setNewContact] = useState<Partial<Contact>>({
     name: '', position: '', phone: '', email: '', isPrimary: false, age: undefined, personality: '', appellation: '', decisionPower: '', familySituation: '', hometown: '', hobbies: [], attitudeToUs: '中性评价', faction: '', managerContactId: '', videoChannelProfile: '', douyinProfile: '', xiaohongshuProfile: '', socialMediaBehavior: ''
   });
@@ -144,6 +137,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
       setCustomers(remote.customers);
       setPersonas(remote.personas);
       setFollowUpPlans(remote.visitPlans);
+      setTodoTasks(remote.visitPlans);
     } catch (error) {
       console.error('Error fetching customers module data:', error);
     } finally {
@@ -173,26 +167,6 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
       refreshPotentialCustomers();
     }
   }, [listTab]);
-
-  useEffect(() => {
-    saveLocalState('crm.customers', customers);
-  }, [customers]);
-
-  useEffect(() => {
-    saveLocalState('crm.customer_todos', todoTasks);
-  }, [todoTasks]);
-
-  useEffect(() => {
-    saveLocalState('crm.customer_personas', personas);
-  }, [personas]);
-
-  useEffect(() => {
-    saveLocalState('crm.customer_group_chats', groupChats);
-  }, [groupChats]);
-
-  useEffect(() => {
-    saveLocalState('crm.customer_followup_plans', followUpPlans);
-  }, [followUpPlans]);
 
   useEffect(() => {
     if (!isRemoteLoaded) return; // 只有在远程数据加载完成后才保存
@@ -368,7 +342,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
         .filter(p => p.associatedCustomerId === selectedCustomer.id && p.status === '已完成')
         .map(p => `时间: ${p.completionTime}, 记录: ${p.completionNote || p.actualContent || p.description}`)
         .join('\n');
-      const personaInfo = mockPersonas.find(p => p.customerId === selectedCustomer.id);
+      const personaInfo = personas.find(p => p.customerId === selectedCustomer.id);
       const prompt = `
         You are an expert B2B sales advisor. Analyze the following customer contact, their company persona, and past visit records to generate actionable insights.
         Customer: ${selectedCustomer.name} (Industry: ${selectedCustomer.industry})
@@ -485,7 +459,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
 
   const handleSaveActual = () => {
     if (!recordingPlanId) return;
-    const customer = mockCustomers.find(c => c.id === editingCustomerId);
+    const customer = customers.find(c => c.id === editingCustomerId);
     setFollowUpPlans(followUpPlans.map(p => p.id === recordingPlanId ? { 
       ...p, 
       title: editingPlanContent, 

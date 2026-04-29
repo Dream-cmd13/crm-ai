@@ -4,7 +4,6 @@ import { Plus, Trash2, Package, Loader2 } from 'lucide-react';
 import { Role, SalesQuotation } from '../types';
 import { cn } from '../lib/utils';
 import DocumentDetail from '../components/DocumentDetail';
-import { mockQuotations } from '../data';
 import { deleteQuotationFromSupabase, fetchQuotationsFromSupabase, saveQuotationToSupabase } from '../lib/documentRepository';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
 
@@ -17,7 +16,7 @@ interface SalesQuotationsProps {
 
 export default function SalesQuotations({ role, viewParams, navigateTo, goBack }: SalesQuotationsProps) {
   const [selectedQuotation, setSelectedQuotation] = useState<SalesQuotation | null>(null);
-  const [quotations, setQuotations] = useState<SalesQuotation[]>(mockQuotations);
+  const [quotations, setQuotations] = useState<SalesQuotation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {

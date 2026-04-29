@@ -1,7 +1,6 @@
 import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, FolderTree, Edit2, Trash2, Settings, Users, Loader2 } from 'lucide-react';
-import { mockUsers } from '../data';
 import { cn } from '../lib/utils';
 import DetailModal from '../components/DetailModal';
 import { fetchUsersFromSupabase, saveUserToSupabase, deleteUserFromSupabase } from '../lib/userRepository';
@@ -23,7 +22,7 @@ export default function UserManagement() {
         setUsers(fetched);
       } catch (e) {
         console.error('Failed to fetch users', e);
-        setUsers(mockUsers);
+        setUsers([]);
       } finally {
         setLoading(false);
       }

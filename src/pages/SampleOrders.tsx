@@ -2,7 +2,6 @@ import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Trash2, Package, Loader2 } from 'lucide-react';
 import { Role, SampleOrder } from '../types';
-import { mockSampleOrders } from '../data';
 import { cn } from '../lib/utils';
 import DocumentDetail from '../components/DocumentDetail';
 import { deleteSampleOrderFromSupabase, fetchSampleOrdersFromSupabase, saveSampleOrderToSupabase } from '../lib/documentRepository';
@@ -29,7 +28,7 @@ export default function SampleOrders({ role, viewParams, navigateTo, goBack }: S
       setOrders(remote);
     } catch (error) {
       console.error('Error fetching sample orders:', error);
-      setOrders(mockSampleOrders);
+      setOrders([]);
     } finally {
       setLoading(false);
     }

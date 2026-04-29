@@ -2,7 +2,6 @@ import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Trash2, Package, Loader2 } from 'lucide-react';
 import { Role, ReturnOrder } from '../types';
-import { mockReturnOrders } from '../data';
 import { cn } from '../lib/utils';
 import DocumentDetail from '../components/DocumentDetail';
 import { deleteReturnOrderFromSupabase, fetchReturnOrdersFromSupabase, saveReturnOrderToSupabase } from '../lib/documentRepository';
@@ -33,7 +32,7 @@ export default function ReturnOrders({ role, viewParams, navigateTo, goBack }: R
       setOrders(remote);
     } catch (error) {
       console.error('Error fetching return orders:', error);
-      setOrders(mockReturnOrders);
+      setOrders([]);
     } finally {
       setIsLoading(false);
     }

@@ -1,4 +1,3 @@
-import { mockProductCategories, mockProducts } from '../data';
 import { Product, ProductCategory, ProductSeries } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
@@ -126,7 +125,7 @@ const mapUiProductToDb = (product: Product) => ({
 });
 
 export const fetchProductCategoriesFromSupabase = async (): Promise<ProductCategory[]> => {
-  if (!isSupabaseConfigured()) return mockProductCategories;
+  if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from('ba_cptype').select('*').order('created_at', { ascending: true });
   if (error) throw error;
@@ -135,7 +134,7 @@ export const fetchProductCategoriesFromSupabase = async (): Promise<ProductCateg
 };
 
 export const saveProductCategoryToSupabase = async (category: ProductCategory) => {
-  if (!isSupabaseConfigured()) return category;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const id = category.id || `CAT${Date.now()}`;
   const normalizedParentId = category.parentId && category.parentId !== id ? category.parentId : null;
@@ -155,7 +154,7 @@ export const saveProductCategoryToSupabase = async (category: ProductCategory) =
 };
 
 export const saveAllProductCategoriesToSupabase = async (categories: ProductCategory[]) => {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const flat = flattenCategories(categories);
   const validIds = new Set(flat.map((category) => category.id));
@@ -179,7 +178,7 @@ export const saveAllProductCategoriesToSupabase = async (categories: ProductCate
 };
 
 export const fetchProductsFromSupabase = async (): Promise<Product[]> => {
-  if (!isSupabaseConfigured()) return mockProducts;
+  if (!isSupabaseConfigured()) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from('ba_cpinfo').select('*').order('created_at', { ascending: false });
   if (error) throw error;
@@ -205,7 +204,7 @@ export const fetchProductSeriesFromSupabase = async (): Promise<ProductSeries[]>
 };
 
 export const saveProductSeriesToSupabase = async (series: ProductSeries) => {
-  if (!isSupabaseConfigured()) return { ...series, id: series.id || `SER${Date.now()}` };
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const payload = {
     id: series.id || `SER${Date.now()}`,
@@ -223,21 +222,21 @@ export const saveProductSeriesToSupabase = async (series: ProductSeries) => {
 };
 
 export const deleteProductSeriesFromSupabase = async (id: string) => {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const { error } = await supabase.from('crm_product_series').delete().eq('id', id);
   if (error) throw error;
 };
 
 export const deleteProductCategoryFromSupabase = async (id: string) => {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const { error } = await supabase.from('ba_cptype').delete().eq('id', id);
   if (error) throw error;
 };
 
 export const saveProductToSupabase = async (product: Product) => {
-  if (!isSupabaseConfigured()) return { ...product, id: product.id || `P${Date.now()}` };
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const payload = mapUiProductToDb(product);
   const normalizedId = toNullableInt(product.id);
@@ -255,7 +254,7 @@ export const saveProductToSupabase = async (product: Product) => {
 };
 
 export const deleteProductFromSupabase = async (id: string) => {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const { error } = await supabase.from('ba_cpinfo').delete().eq('id', id);
   if (error) throw error;
