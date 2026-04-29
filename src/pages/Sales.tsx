@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Loader2, Package } from 'lucide-react';
 import { Role, SalesQuotation, SalesOrder } from '../types';
-import { mockQuotations, mockOrders } from '../data';
 import { cn } from '../lib/utils';
 import DocumentDetail from '../components/DocumentDetail';
+import { fetchQuotationsFromSupabase, fetchSalesOrdersFromSupabase, saveQuotationToSupabase, saveSalesOrderToSupabase } from '../lib/documentRepository';
 
 interface SalesProps {
   role: Role;
@@ -25,12 +25,16 @@ export default function Sales({ role, viewParams, navigateTo, goBack }: SalesPro
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setQuotations(mockQuotations);
-      setOrders(mockOrders);
+      const [quotationRows, orderRows] = await Promise.all([
+        fetchQuotationsFromSupabase(),
+        fetchSalesOrdersFromSupabase()
+      ]);
+      setQuotations((quotationRows || []) as SalesQuotation[]);
+      setOrders((orderRows || []) as SalesOrder[]);
     } catch (error) {
       console.error('Error fetching sales data:', error);
+      setQuotations([]);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -64,22 +68,24 @@ export default function Sales({ role, viewParams, navigateTo, goBack }: SalesPro
     }
   }, [viewParams, quotations, orders]);
 
-  const handleSaveQuotation = (updatedData: SalesQuotation) => {
-    if (updatedData.id && quotations.find(q => q.id === updatedData.id)) {
-      setQuotations(quotations.map(q => q.id === updatedData.id ? updatedData : q));
-    } else {
-      setQuotations([{ ...updatedData, id: `QT${Date.now()}` }, ...quotations]);
+  const handleSaveQuotation = async (updatedData: SalesQuotation) => {
+    try {
+      await saveQuotationToSupabase(updatedData);
+      await fetchData();
+      setSelectedQuotation(null);
+    } catch (error) {
+      console.error('Error saving quotation:', error);
     }
-    setSelectedQuotation(null);
   };
 
-  const handleSaveOrder = (updatedData: SalesOrder) => {
-    if (updatedData.id && orders.find(o => o.id === updatedData.id)) {
-      setOrders(orders.map(o => o.id === updatedData.id ? updatedData : o));
-    } else {
-      setOrders([{ ...updatedData, id: `SO${Date.now()}` }, ...orders]);
+  const handleSaveOrder = async (updatedData: SalesOrder) => {
+    try {
+      await saveSalesOrderToSupabase(updatedData);
+      await fetchData();
+      setSelectedOrder(null);
+    } catch (error) {
+      console.error('Error saving sales order:', error);
     }
-    setSelectedOrder(null);
   };
 
   const handleCreateNew = () => {

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Role } from '../types';
-import { mockCustomerFeedbacks } from '../data';
 import { HeadphonesIcon, Search, Filter, MessageSquare, Phone, Mail, User, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
 
 interface FeedbackProps {
   role: Role;
@@ -10,10 +10,31 @@ interface FeedbackProps {
 export default function Feedback({ role }: FeedbackProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeStatus, setActiveStatus] = useState('全部');
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
 
   const statuses = ['全部', '待处理', '处理中', '已解决'];
 
-  const filteredFeedbacks = mockCustomerFeedbacks.filter(item => {
+  useEffect(() => {
+    const fetchFeedbacks = async () => {
+      if (!isSupabaseConfigured()) return;
+      try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+          .from('crm_system_config')
+          .select('value_json')
+          .eq('id', 'customer_feedbacks')
+          .limit(1);
+        if (error) throw error;
+        const raw = data?.[0]?.value_json;
+        setFeedbacks(Array.isArray(raw) ? raw : []);
+      } catch (error) {
+        console.error('Error fetching feedback list:', error);
+      }
+    };
+    fetchFeedbacks();
+  }, []);
+
+  const filteredFeedbacks = feedbacks.filter(item => {
     const matchesSearch = item.content.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           item.customerName?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = activeStatus === '全部' || item.status === activeStatus;

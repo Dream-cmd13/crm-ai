@@ -3,11 +3,11 @@ import { Users, Edit } from 'lucide-react';
 
 interface ProjectTeamProps {
   team: any;
-  mockUsers: any[];
+  users: any[];
   setIsEditingMembers: (v: boolean) => void;
 }
 
-export const ProjectTeam: React.FC<ProjectTeamProps> = ({ team, mockUsers, setIsEditingMembers }) => {
+export const ProjectTeam: React.FC<ProjectTeamProps> = ({ team, users, setIsEditingMembers }) => {
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-4">
@@ -24,7 +24,7 @@ export const ProjectTeam: React.FC<ProjectTeamProps> = ({ team, mockUsers, setIs
       </div>
       <div className="space-y-3">
         {Object.entries(team).map(([roleKey, value]) => {
-          const userName = mockUsers.find(u => u.id === value || u.name === value)?.name || value;
+          const userName = users.find(u => u.id === value || u.name === value)?.name || value;
           return (
             <div key={roleKey} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
               <span className="text-sm text-gray-500 capitalize">{

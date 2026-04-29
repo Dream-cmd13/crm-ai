@@ -16,15 +16,8 @@ interface SandboxTestModalProps {
   };
 }
 
-// Mocked real customers for sandbox
-const MOCK_CUSTOMERS = [
-  { id: 'C001', name: '大疆创新 (DJI)', type: 'strategic' },
-  { id: 'C002', name: '比亚迪 (BYD)', type: 'key' },
-  { id: 'C003', name: '宁德时代 (CATL)', type: 'normal' },
-];
-
 export const SandboxTestModal = ({ isOpen, onClose, promptTemplate, selectedContexts }: SandboxTestModalProps) => {
-  const [selectedCustomer, setSelectedCustomer] = useState(MOCK_CUSTOMERS[0].id);
+  const [selectedCustomer, setSelectedCustomer] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<string>('');
   const [modelId, setModelId] = useState('');
@@ -49,19 +42,18 @@ export const SandboxTestModal = ({ isOpen, onClose, promptTemplate, selectedCont
     setIsLoading(true);
     setResult('');
     try {
-      // Build mock context based on selection
-      let contextStr = `【沙盒测试环境 - 真实客户模拟】\n客户ID: ${selectedCustomer}\n`;
+      let contextStr = `【沙盒测试环境】\n客户ID: ${selectedCustomer || '未填写'}\n`;
       if (selectedContexts.customerPersona) {
-        contextStr += `[客户画像]\n- 规模: 大型企业\n- 痛点: 交付期不稳定，价格敏感\n- 购买模式: 困难模式\n\n`;
+        contextStr += `[客户画像]\n- 已启用上下文: customerPersona\n\n`;
       }
       if (selectedContexts.contactPersona) {
-        contextStr += `[联系人画像]\n- 姓名: 张工\n- 角色: 技术买家\n- 性格: 严谨，数据导向\n\n`;
+        contextStr += `[联系人画像]\n- 已启用上下文: contactPersona\n\n`;
       }
       if (selectedContexts.recentCommunications) {
-        contextStr += `[近期沟通记录]\n- 昨天: 询问了关于连接器的防水等级。\n- 上周: 要求寄送样品。\n\n`;
+        contextStr += `[近期沟通记录]\n- 已启用上下文: recentCommunications\n\n`;
       }
       if (selectedContexts.currentDocument) {
-        contextStr += `[当前单据信息]\n- 单据类型: 询盘\n- 状态: 跟进中\n\n`;
+        contextStr += `[当前单据信息]\n- 已启用上下文: currentDocument\n\n`;
       }
 
       const finalPrompt = `${contextStr}\n【执行目标】\n${promptTemplate}`;
@@ -93,16 +85,13 @@ export const SandboxTestModal = ({ isOpen, onClose, promptTemplate, selectedCont
           {/* Left Panel: Configuration */}
           <div className="w-1/3 border-r border-gray-200 p-4 bg-gray-50 flex flex-col gap-4 overflow-y-auto">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">带入真实客户测试</label>
-              <select 
+              <label className="block text-sm font-bold text-gray-700 mb-2">客户ID（可选）</label>
+              <input
                 value={selectedCustomer}
                 onChange={e => setSelectedCustomer(e.target.value)}
+                placeholder="输入要测试的客户ID"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-              >
-                {MOCK_CUSTOMERS.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              />
               <p className="text-[10px] text-gray-500 mt-1">沙盒环境强制执行 Read-Only 拦截，防止生产数据污染。</p>
             </div>
 

@@ -1,6 +1,5 @@
 import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
-import { mockProjects, mockQuotations, mockOrders, mockGroupChats, mockSampleOrders, mockReturnOrders, mockTasks, mockOpportunities, mockCommunications } from '../data';
 import { Plus, MessageCircle, ChevronRight } from 'lucide-react';
 import { callAiProxy } from '../lib/aiProxy';
 import { parseAiJson } from '../lib/aiJson';
@@ -12,6 +11,9 @@ import { ProjectList } from '../components/projects/ProjectList';
 import { ProjectDetail } from '../components/projects/ProjectDetail';
 import { fetchProjectByIdFromSupabase, fetchProjectsFromSupabase, saveProjectToSupabase, deleteProjectFromSupabase } from '../lib/projectRepository';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
+import { fetchQuotationsFromSupabase, fetchSalesOrdersFromSupabase, fetchSampleOrdersFromSupabase, fetchReturnOrdersFromSupabase } from '../lib/documentRepository';
+import { fetchUsersFromSupabase } from '../lib/userRepository';
+import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
 
 const PROJECT_STAGE_OPTIONS = ['需求阶段', '设计阶段', '报价阶段', '样品制作', '样品承认', '试产阶段', '重复试产', '量产阶段'];
 const PROJECT_PRODUCT_LINE_OPTIONS = ['接插件', '线束', '工业连接器', 'IO连接器', '电子电气', '其他'];
@@ -45,8 +47,8 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
   const [isAdding, setIsAdding] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [activeTab, setActiveTab] = useState<string>('本周项目');
-  const [projects, setProjects] = useState<Project[]>(mockProjects);
-  const [communications, setCommunications] = useState<CommunicationDetail[]>(mockCommunications);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [communications, setCommunications] = useState<CommunicationDetail[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [displayCount, setDisplayCount] = useState(20);
@@ -63,18 +65,35 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
   const [newTask, setNewTask] = useState({
     title: '', assignee: '', endTime: '', type: 'stage', stage: ''
   });
-  const [groupChats, setGroupChats] = useState<GroupChat[]>(mockGroupChats);
+  const [groupChats, setGroupChats] = useState<GroupChat[]>([]);
   const [selectedChat, setSelectedChat] = useState<GroupChat | null>(null);
   const [chatSubTab, setChatSubTab] = useState<'messages' | 'members'>('messages');
   const [isSyncingChats, setIsSyncingChats] = useState(false);
+  const [quotations, setQuotations] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [sampleOrders, setSampleOrders] = useState<any[]>([]);
+  const [returnOrders, setReturnOrders] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
 
   const processedParams = React.useRef<any>(null);
 
   useEffect(() => {
     const fetchRemote = async () => {
       try {
-        const remoteProjects = await fetchProjectsFromSupabase();
+        const [remoteProjects, remoteQuotations, remoteOrders, remoteSampleOrders, remoteReturnOrders, remoteUsers] = await Promise.all([
+          fetchProjectsFromSupabase(),
+          fetchQuotationsFromSupabase(),
+          fetchSalesOrdersFromSupabase(),
+          fetchSampleOrdersFromSupabase(),
+          fetchReturnOrdersFromSupabase(),
+          fetchUsersFromSupabase()
+        ]);
         setProjects(remoteProjects);
+        setQuotations(remoteQuotations || []);
+        setOrders(remoteOrders || []);
+        setSampleOrders(remoteSampleOrders || []);
+        setReturnOrders(remoteReturnOrders || []);
+        setUsers(remoteUsers || []);
       } catch (error) {
         console.error('Error fetching projects:', error);
       }
@@ -226,67 +245,83 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
           });
         }
       } else if (viewParams.action === 'new_from_opportunity') {
-        const sourceOpp = mockOpportunities.find(o => o.id === viewParams.sourceId);
-        const newProject: Project = {
-          id: `P${new Date().getFullYear()}${String(projects.length + 1).padStart(3, '0')}`,
-          projectName: sourceOpp ? `${sourceOpp.customerName}-定制项目` : '新项目 (来自商机)',
-          projectType: '研发型项目',
-          customerName: sourceOpp?.customerName || '待定',
-          customerId: sourceOpp?.customerId,
-          projectLevel: sourceOpp?.oppLevel || 'B级',
-          stage: '需求阶段',
-          productLine: (sourceOpp?.productLine as any) || '其他',
-          status: '跟进中',
-          oppSummary: sourceOpp?.oppSummary || '',
-          intentAmount: sourceOpp?.intentAmount || '0',
-          estimatedUsage: '',
-          customerAction: '找货寻料',
-          endProject: sourceOpp?.endProject || '',
-          productIndustry: (sourceOpp?.productIndustry as any) || undefined,
-          salesRep: sourceOpp?.salesRep || role,
-          productOwner: sourceOpp?.productOwner || '',
-          qualityOwner: '',
-          purchaser: '',
-          fae: '',
-          team: {
-            sales: sourceOpp?.salesRep || role,
-            pm: sourceOpp?.projectManager || '',
-            product: sourceOpp?.productOwner || '',
-            quality: '',
-            purchasing: '',
+        (async () => {
+          let sourceOpp: any = null;
+          if (isSupabaseConfigured() && viewParams.sourceId) {
+            try {
+              const supabase = getSupabaseClient();
+              const { data, error } = await supabase
+                .from('crm_opportunity')
+                .select('*')
+                .eq('id', viewParams.sourceId)
+                .limit(1);
+              if (error) throw error;
+              sourceOpp = data?.[0] || null;
+            } catch (error) {
+              console.error('Error fetching opportunity for new project:', error);
+            }
+          }
+          const newProject: Project = {
+            id: `P${new Date().getFullYear()}${String(projects.length + 1).padStart(3, '0')}`,
+            projectName: sourceOpp ? `${sourceOpp.customer_name}-定制项目` : '新项目 (来自商机)',
+            projectType: '研发型项目',
+            customerName: sourceOpp?.customer_name || '待定',
+            customerId: sourceOpp?.customer_id,
+            projectLevel: sourceOpp?.opp_level || 'B级',
+            stage: '需求阶段',
+            productLine: (sourceOpp?.product_line as any) || '其他',
+            status: '跟进中',
+            oppSummary: sourceOpp?.opp_summary || '',
+            intentAmount: String(sourceOpp?.intent_amount || '0'),
+            estimatedUsage: '',
+            customerAction: '找货寻料',
+            endProject: sourceOpp?.end_project || '',
+            productIndustry: (sourceOpp?.product_industry as any) || undefined,
+            salesRep: sourceOpp?.sales_rep || role,
+            productOwner: sourceOpp?.product_owner || '',
+            qualityOwner: '',
+            purchaser: '',
             fae: '',
-          },
-          wechatGroup: sourceOpp ? `${sourceOpp.customerName}-项目群` : '',
-          updateDate: new Date().toISOString().split('T')[0],
-          startDate: new Date().toISOString().split('T')[0],
-          endDate: '',
-          opportunityId: viewParams.sourceId,
-          leadId: sourceOpp?.leadId,
-          inquiryId: sourceOpp?.inquiryId,
-          attachments: sourceOpp?.attachments || [],
-          communicationDetails: sourceOpp?.communicationDetails || [],
-          notes: [],
-          isKeyProject: sourceOpp?.oppLevel === 'S级',
-          creatorId: currentUser?.id || 'EMP001',
-          creatorNo: currentUser?.employeeNo || 'E001',
-          creatorName: currentUser?.name || '系统管理员',
-          createDate: new Date().toISOString().split('T')[0],
-          requirements: [],
-          progress: [],
-          tasks: [],
-          samples: [],
-          purchasingQuotes: [],
-          quotations: [],
-          requirementChanges: [],
-        };
-        setProjects(prev => [newProject, ...prev]);
-        setSelectedProject(newProject);
-        setIsEditing(true);
-        saveProjectToSupabase(newProject)
-          .then((saved) => triggerAutoFlowsForCreate('project', saved, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined))
-          .catch((error) => {
-            console.error('Error saving new project:', error);
-          });
+            team: {
+              sales: sourceOpp?.sales_rep || role,
+              pm: sourceOpp?.project_manager || '',
+              product: sourceOpp?.product_owner || '',
+              quality: '',
+              purchasing: '',
+              fae: '',
+            },
+            wechatGroup: sourceOpp ? `${sourceOpp.customer_name}-项目群` : '',
+            updateDate: new Date().toISOString().split('T')[0],
+            startDate: new Date().toISOString().split('T')[0],
+            endDate: '',
+            opportunityId: viewParams.sourceId,
+            leadId: sourceOpp?.lead_id,
+            inquiryId: sourceOpp?.inquiry_id,
+            attachments: Array.isArray(sourceOpp?.attachments) ? sourceOpp.attachments : [],
+            communicationDetails: [],
+            notes: [],
+            isKeyProject: sourceOpp?.opp_level === 'S级',
+            creatorId: currentUser?.id || 'EMP001',
+            creatorNo: currentUser?.employeeNo || 'E001',
+            creatorName: currentUser?.name || '系统管理员',
+            createDate: new Date().toISOString().split('T')[0],
+            requirements: [],
+            progress: [],
+            tasks: [],
+            samples: [],
+            purchasingQuotes: [],
+            quotations: [],
+            requirementChanges: [],
+          };
+          setProjects(prev => [newProject, ...prev]);
+          setSelectedProject(newProject);
+          setIsEditing(true);
+          saveProjectToSupabase(newProject)
+            .then((saved) => triggerAutoFlowsForCreate('project', saved, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined))
+            .catch((error) => {
+              console.error('Error saving new project:', error);
+            });
+        })();
       }
     }
   }, [viewParams, projects, role]);
@@ -722,10 +757,11 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
           newTask={newTask}
           handleAddTask={handleAddTask}
           setIsEditingMembers={setIsEditingMembers}
-          mockQuotations={mockQuotations}
-          mockOrders={mockOrders}
-          mockSampleOrders={mockSampleOrders}
-          mockReturnOrders={mockReturnOrders}
+          users={users}
+          quotations={quotations}
+          orders={orders}
+          sampleOrders={sampleOrders}
+          returnOrders={returnOrders}
           newNote={newNote}
           setNewNote={setNewNote}
           handleAddNote={handleAddNote}

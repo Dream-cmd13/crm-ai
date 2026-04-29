@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Role } from '../types';
-import { mockPerformanceMetrics } from '../data';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { Trophy, Target, TrendingUp, AlertCircle, Award } from 'lucide-react';
+import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
 
 interface PerformanceProps {
   role: Role;
@@ -10,9 +10,34 @@ interface PerformanceProps {
 
 export default function Performance({ role }: PerformanceProps) {
   const [selectedPeriod, setSelectedPeriod] = useState('2026-03');
-  
-  // Filter metrics based on role (in a real app, this would be more sophisticated)
-  const myMetrics = mockPerformanceMetrics[0];
+  const [myMetrics, setMyMetrics] = useState<any>({
+    score: 0,
+    metrics: {
+      delivery: { label: '交付达成率', value: 0, target: 100 },
+      quality: { label: '质量达成率', value: 0, target: 100 },
+      response: { label: '响应及时率', value: 0, target: 100 },
+      collaboration: { label: '协同效率', value: 0, target: 100 }
+    }
+  });
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      if (!isSupabaseConfigured()) return;
+      try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+          .from('crm_system_config')
+          .select('value_json')
+          .eq('id', 'performance_metrics')
+          .limit(1);
+        if (error) throw error;
+        const raw = data?.[0]?.value_json;
+        if (Array.isArray(raw) && raw[0]) setMyMetrics(raw[0]);
+      } catch (error) {
+        console.error('Error fetching performance metrics:', error);
+      }
+    };
+    fetchMetrics();
+  }, []);
 
   const radarData = Object.keys(myMetrics.metrics).map(key => {
     const metric = myMetrics.metrics[key];

@@ -6,15 +6,15 @@ interface RelatedRecordsProps {
   opportunityId?: string;
   leadId?: string;
   inquiryId?: string;
-  mockQuotations: any[];
-  mockOrders: any[];
-  mockSampleOrders: any[];
-  mockReturnOrders: any[];
+  quotations: any[];
+  orders: any[];
+  sampleOrders: any[];
+  returnOrders: any[];
   onNavigateTo: (view: string, params?: any) => void;
 }
 
 export const RelatedRecords: React.FC<RelatedRecordsProps> = ({ 
-  projectId, opportunityId, leadId, inquiryId, mockQuotations, mockOrders, mockSampleOrders, mockReturnOrders, onNavigateTo 
+  projectId, opportunityId, leadId, inquiryId, quotations, orders, sampleOrders, returnOrders, onNavigateTo 
 }) => {
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-6">
@@ -49,9 +49,9 @@ export const RelatedRecords: React.FC<RelatedRecordsProps> = ({
           </div>
         )}
         <div>
-          <p className="text-xs text-gray-500 mb-2">报价单 ({mockQuotations.filter(q => q.projectId === projectId).length})</p>
+          <p className="text-xs text-gray-500 mb-2">报价单 ({quotations.filter(q => q.projectId === projectId).length})</p>
           <div className="space-y-2">
-            {mockQuotations.filter(q => q.projectId === projectId).map(q => (
+            {quotations.filter(q => q.projectId === projectId).map(q => (
               <div key={q.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm">
                 <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => onNavigateTo('sales', { tab: 'quotations', id: q.id })}>{q.quoteNo}</span>
                 <span className="text-gray-500">¥{q.totalAmount.toLocaleString()}</span>
@@ -60,9 +60,9 @@ export const RelatedRecords: React.FC<RelatedRecordsProps> = ({
           </div>
         </div>
         <div>
-          <p className="text-xs text-gray-500 mb-2">订单 ({mockOrders.filter(o => o.projectId === projectId).length})</p>
+          <p className="text-xs text-gray-500 mb-2">订单 ({orders.filter(o => o.projectId === projectId).length})</p>
           <div className="space-y-2">
-            {mockOrders.filter(o => o.projectId === projectId).map(o => (
+            {orders.filter(o => o.projectId === projectId).map(o => (
               <div key={o.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm">
                 <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => onNavigateTo('sales', { tab: 'orders', id: o.id })}>{o.orderNo}</span>
                 <span className="text-gray-500">¥{o.totalAmount.toLocaleString()}</span>
@@ -71,9 +71,9 @@ export const RelatedRecords: React.FC<RelatedRecordsProps> = ({
           </div>
         </div>
         <div>
-          <p className="text-xs text-gray-500 mb-2">样品单 ({mockSampleOrders.filter(o => o.projectId === projectId).length})</p>
+          <p className="text-xs text-gray-500 mb-2">样品单 ({sampleOrders.filter(o => o.projectId === projectId).length})</p>
           <div className="space-y-2">
-            {mockSampleOrders.filter(o => o.projectId === projectId).map(o => (
+            {sampleOrders.filter(o => o.projectId === projectId).map(o => (
               <div key={o.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm">
                 <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => onNavigateTo('sample-orders', o.id)}>{o.sampleNo}</span>
                 <span className="text-gray-500">¥{o.totalAmount.toLocaleString()}</span>
@@ -82,9 +82,9 @@ export const RelatedRecords: React.FC<RelatedRecordsProps> = ({
           </div>
         </div>
         <div>
-          <p className="text-xs text-gray-500 mb-2">退货客诉单 ({mockReturnOrders.filter(o => o.projectId === projectId).length})</p>
+          <p className="text-xs text-gray-500 mb-2">退货客诉单 ({returnOrders.filter(o => o.projectId === projectId).length})</p>
           <div className="space-y-2">
-            {mockReturnOrders.filter(o => o.projectId === projectId).map(o => (
+            {returnOrders.filter(o => o.projectId === projectId).map(o => (
               <div key={o.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm">
                 <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => onNavigateTo('return-orders', o.id)}>{o.returnNo}</span>
                 <span className="text-gray-500">{o.status}</span>

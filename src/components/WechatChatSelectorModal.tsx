@@ -16,22 +16,11 @@ export default function WechatChatSelectorModal({ mode, customerId, contacts, on
   const [chats, setChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Mock data
-  const mockIndividual = [
-    { id: 'c1', my_wechat_id: 'sales_1', peer_wechat_id: 'client_1', last_msg: '你好，关于那批货...' },
-    { id: 'c2', my_wechat_id: 'sales_1', peer_wechat_id: 'client_2', last_msg: '收到，谢谢！' },
-  ];
-  
-  const mockGroup = [
-    { id: 'g1', group_id: 'wx_grp_1', group_name: '项目沟通群A', member_count: 5 },
-    { id: 'g2', group_id: 'wx_grp_2', group_name: '技术支持群B', member_count: 8 },
-  ];
-
   useEffect(() => {
     const fetchChats = async () => {
       setLoading(true);
       if (!isSupabaseConfigured()) {
-        setChats(mode === 'individual' ? mockIndividual : mockGroup);
+        setChats([]);
         setLoading(false);
         return;
       }

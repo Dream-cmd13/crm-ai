@@ -3,7 +3,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Filter, ChevronRight, FileText, Loader2, Sparkles, Send, Edit2, Save, X, RefreshCw, AlertTriangle, Mail, MessageSquare, Link, Users, Briefcase, Target } from 'lucide-react';
 import { Role, Opportunity, CommunicationDetail, GroupChat, TodoTask, Customer, User, FileAttachment } from '../types';
 import { initialObjects } from '../data/ontologyData';
-import { mockOpportunities, mockCommunications, mockLeads, mockInquiries, mockBusinessCustomers, mockPersonas, mockGroupChats, mockTasks } from '../data';
 import ManageMembersModal from '../components/ManageMembersModal';
 import QuickTaskModal from '../components/QuickTaskModal';
 import TaskDetailModal from '../components/TaskDetailModal';
@@ -76,11 +75,11 @@ interface OpportunitiesProps {
 }
 
 export default function Opportunities({ role, currentUser, viewParams, navigateTo, goBack }: OpportunitiesProps) {
-  const [opportunities, setOpportunities] = useState<Opportunity[]>(mockOpportunities);
-  const [communications, setCommunications] = useState<CommunicationDetail[]>(mockCommunications);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [communications, setCommunications] = useState<CommunicationDetail[]>([]);
   const [regeneratingNodes, setRegeneratingNodes] = useState<Record<string, boolean>>({});
-  const [groupChats, setGroupChats] = useState<GroupChat[]>(mockGroupChats);
-  const [customers, setCustomers] = useState<Customer[]>(mockBusinessCustomers);
+  const [groupChats, setGroupChats] = useState<GroupChat[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedChat, setSelectedChat] = useState<GroupChat | null>(null);
   const [isManagingMembers, setIsManagingMembers] = useState(false);
   const [isSyncingChats, setIsSyncingChats] = useState(false);
@@ -89,8 +88,8 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   const [contacts, setContacts] = useState<any[]>([]);
 
   
-  const [tasks, setTasks] = useState<TodoTask[]>(mockTasks);
-  const [personas, setPersonas] = useState(mockPersonas);
+  const [tasks, setTasks] = useState<TodoTask[]>([]);
+  const [personas, setPersonas] = useState<any[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskData, setNewTaskData] = useState<any>(null);
@@ -216,41 +215,57 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
           })();
         }
       } else if (viewParams.action === 'new_from_lead') {
-        const sourceLead = mockLeads.find(l => l.id === viewParams.sourceId);
-        const newOpp: Opportunity = {
-          id: `O${new Date().getFullYear()}${String(opportunities.length + 1).padStart(3, '0')}`,
-          leadId: viewParams.sourceId,
-          inquiryId: sourceLead?.inquiryId,
-          customerName: sourceLead?.customerName || '待定',
-          oppDate: new Date().toISOString().split('T')[0],
-          status: '未跟进',
-          oppSummary: sourceLead?.customerAction ? `来自线索: ${sourceLead.customerAction}` : '新商机 (来自线索)',
-          productLine: normalizeOpportunityProductLine(sourceLead?.productCategory),
-          salesRep: role,
-          projectManager: '',
-          productOwner: '',
-          oppLevel: 'B级',
-          intentAmount: '0',
-          associatedProject: '',
-          endCustomer: '',
-          endProject: '',
-          applicationScenario: '',
-          estimatedUsage: '',
-          estimatedMassProductionDate: '',
-          salesType: '新客户',
-          productIndustry: sourceLead?.industry || '',
-          productSeries: sourceLead?.productSeries || '',
-          customerId: sourceLead?.customerId || `CUST-${Date.now()}`,
-          customerType: sourceLead?.customerType || (sourceLead?.customerId ? '老客户' : '新客户'),
-          completeness: 10,
-          creatorId: 'U001',
-          creatorNo: '001',
-          creatorName: role,
-          createDate: new Date().toISOString().split('T')[0],
-          attachments: sourceLead?.attachments || [],
-        };
-        setOpportunities(prev => [newOpp, ...prev]);
-        setSelectedOpp(newOpp);
+        (async () => {
+          let sourceLead: any = null;
+          if (isSupabaseConfigured() && viewParams.sourceId) {
+            try {
+              const supabase = getSupabaseClient();
+              const { data, error } = await supabase
+                .from('crm_lead')
+                .select('*')
+                .eq('id', viewParams.sourceId)
+                .limit(1);
+              if (error) throw error;
+              sourceLead = data?.[0] || null;
+            } catch (error) {
+              console.error('Error fetching lead for new opportunity:', error);
+            }
+          }
+          const newOpp: Opportunity = {
+            id: `O${new Date().getFullYear()}${String(opportunities.length + 1).padStart(3, '0')}`,
+            leadId: viewParams.sourceId,
+            inquiryId: sourceLead?.inquiry_id,
+            customerName: sourceLead?.customer_name || '待定',
+            oppDate: new Date().toISOString().split('T')[0],
+            status: '未跟进',
+            oppSummary: sourceLead?.customer_action ? `来自线索: ${sourceLead.customer_action}` : '新商机 (来自线索)',
+            productLine: normalizeOpportunityProductLine(sourceLead?.product_category),
+            salesRep: role,
+            projectManager: '',
+            productOwner: '',
+            oppLevel: 'B级',
+            intentAmount: '0',
+            associatedProject: '',
+            endCustomer: '',
+            endProject: '',
+            applicationScenario: '',
+            estimatedUsage: '',
+            estimatedMassProductionDate: '',
+            salesType: '新客户',
+            productIndustry: sourceLead?.industry || '',
+            productSeries: sourceLead?.product_series || '',
+            customerId: sourceLead?.customer_id || `CUST-${Date.now()}`,
+            customerType: sourceLead?.customer_type || (sourceLead?.customer_id ? '老客户' : '新客户'),
+            completeness: 10,
+            creatorId: 'U001',
+            creatorNo: '001',
+            creatorName: role,
+            createDate: new Date().toISOString().split('T')[0],
+            attachments: parseAttachments(sourceLead?.attachments),
+          };
+          setOpportunities(prev => [newOpp, ...prev]);
+          setSelectedOpp(newOpp);
+        })();
       }
     }
   }, [viewParams, opportunities, role]);
@@ -266,6 +281,10 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
 
   const handleSave = async (data: any) => {
     try {
+      if (!isSupabaseConfigured()) {
+        toast.error('未配置 Supabase，无法保存商机数据');
+        return;
+      }
       const today = new Date().toISOString().split('T')[0];
       const normalizedStatus = normalizeOpportunityStatus(data.status);
       const cleanCustomerName = String(data.customerName || '').trim();
@@ -311,46 +330,29 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
         attachments: Array.isArray(data.attachments) ? data.attachments : [],
         updated_at: new Date().toISOString()
       };
-      if (isSupabaseConfigured()) {
-        const { data: savedRows, error } = await upsertOpportunityWithSchemaFallback(dbData);
-        if (error) throw error;
-        if (savedRows && savedRows.length > 0) {
-          const savedOpp = mapDbOppToUi(savedRows[0]);
-          if (isAdding) {
-            setOpportunities([savedOpp, ...opportunities]);
-            setIsAdding(false);
-            triggerAutoFlowsForCreate('opportunity', savedOpp, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined).catch((error) => {
-              console.error('Error triggering opportunity workflow:', error);
+      const { data: savedRows, error } = await upsertOpportunityWithSchemaFallback(dbData);
+      if (error) throw error;
+      if (savedRows && savedRows.length > 0) {
+        const savedOpp = mapDbOppToUi(savedRows[0]);
+        if (isAdding) {
+          setOpportunities([savedOpp, ...opportunities]);
+          setIsAdding(false);
+          triggerAutoFlowsForCreate('opportunity', savedOpp, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined).catch((error) => {
+            console.error('Error triggering opportunity workflow:', error);
+          });
+        } else {
+          setOpportunities(opportunities.map(o => o.id === savedOpp.id ? savedOpp : o));
+          setSelectedOpp(savedOpp);
+            triggerAutoFlowsForCreate(
+              'opportunity',
+              savedOpp,
+              currentUser ? { id: currentUser.id, name: currentUser.name } : undefined,
+              { event: 'save', previousRecord: selectedOpp || {} }
+            ).catch((error) => {
+              console.error('Error triggering opportunity workflow on save:', error);
             });
-          } else {
-            setOpportunities(opportunities.map(o => o.id === savedOpp.id ? savedOpp : o));
-            setSelectedOpp(savedOpp);
-              triggerAutoFlowsForCreate(
-                'opportunity',
-                savedOpp,
-                currentUser ? { id: currentUser.id, name: currentUser.name } : undefined,
-                { event: 'save', previousRecord: selectedOpp || {} }
-              ).catch((error) => {
-                console.error('Error triggering opportunity workflow on save:', error);
-              });
-            setIsEditing(false);
-          }
+          setIsEditing(false);
         }
-        return;
-      }
-
-      if (isAdding) {
-        const newOpp = { ...data, customerId: dbData.customer_id, customerType: dbData.customer_type, id: dbData.id, attachments: dbData.attachments };
-        setOpportunities([newOpp, ...opportunities]);
-        setIsAdding(false);
-        triggerAutoFlowsForCreate('opportunity', newOpp, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined).catch((error) => {
-          console.error('Error triggering opportunity workflow:', error);
-        });
-      } else {
-        const updatedData = { ...data, customerId: dbData.customer_id, customerType: dbData.customer_type, attachments: dbData.attachments };
-        setOpportunities(opportunities.map(o => o.id === data.id ? updatedData : o));
-        setSelectedOpp(updatedData);
-        setIsEditing(false);
       }
     } catch (error) {
       console.error('Error saving opportunity:', error);

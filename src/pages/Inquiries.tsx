@@ -4,7 +4,6 @@ import { Plus, Search, Filter, Target, ChevronRight, FileText, Sparkles, Externa
 import { Role, Inquiry, TodoTask, CommunicationDetail, GroupChat, User, FileAttachment } from '../types';
 import DetailModal from '../components/DetailModal';
 import ReservedButtons from '../components/ReservedButtons';
-import { mockInquiries, mockPersonas, mockTasks, mockCommunications, mockGroupChats } from '../data';
 import { cn } from '../lib/utils';
 import { callAiProxy } from '../lib/aiProxy';
 import { parseAiJson } from '../lib/aiJson';
@@ -50,12 +49,7 @@ interface InquiriesProps {
 }
 
 export default function Inquiries({ role, currentUser, viewParams, navigateTo, goBack }: InquiriesProps) {
-  const [inquiries, setInquiries] = useState<Inquiry[]>(
-    mockInquiries.map((inq) => ({
-      ...inq,
-      status: ((inq.status as any) === '未转化' ? '关闭' : inq.status) as Inquiry['status']
-    }))
-  );
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -66,11 +60,11 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState<'flow'>('flow');
-  const [tasks, setTasks] = useState<TodoTask[]>(mockTasks);
-  const [communications, setCommunications] = useState<CommunicationDetail[]>(mockCommunications);
-  const [personas, setPersonas] = useState(mockPersonas);
+  const [tasks, setTasks] = useState<TodoTask[]>([]);
+  const [communications, setCommunications] = useState<CommunicationDetail[]>([]);
+  const [personas, setPersonas] = useState<any[]>([]);
   const [regeneratingNodes, setRegeneratingNodes] = useState<Record<string, boolean>>({});
-  const [groupChats, setGroupChats] = useState<GroupChat[]>(mockGroupChats);
+  const [groupChats, setGroupChats] = useState<GroupChat[]>([]);
   const [selectedChat, setSelectedChat] = useState<GroupChat | null>(null);
   const [isManagingMembers, setIsManagingMembers] = useState(false);
   const [isSyncingChats, setIsSyncingChats] = useState(false);
@@ -195,6 +189,10 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     const isNew = isAdding;
     const id = isNew ? `XP${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(2, 12)}` : selectedInquiry?.id;
     const today = new Date().toISOString().split('T')[0];
+    if (!isSupabaseConfigured()) {
+      toast.error('未配置 Supabase，无法保存询盘数据');
+      return;
+    }
     
     let customerId = data.customerId;
     if (!customerId && data.companyName) {
@@ -256,81 +254,16 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
         }
         throw error;
       };
-      if (isSupabaseConfigured()) {
-        const { data: savedData } = await upsertInquiryWithCompat(dbData);
-        if (savedData && savedData.length > 0) {
-          // 某些前端字段（如买家角色/购买模式/意向得分）在不同数据库版本下可能不存在列，
-          // 这里优先使用本次表单输入，保证编辑后页面即时生效。
-          const savedInquiry = {
-            ...mapDbInquiryToUi(savedData[0]),
-            buyerRole: data.buyerRole,
-            buyingMode: data.buyingMode,
-            intentScore: data.intentScore
-          } as Inquiry;
-          if (isNew) {
-            setInquiries([savedInquiry, ...inquiries]);
-            setIsAdding(false);
-            triggerAutoFlowsForCreate('inquiry', savedInquiry, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined).catch((error) => {
-              console.error('Error triggering inquiry workflow:', error);
-            });
-          } else {
-            setInquiries(inquiries.map(i => i.id === savedInquiry.id ? savedInquiry : i));
-            setSelectedInquiry(savedInquiry);
-            triggerAutoFlowsForCreate(
-              'inquiry',
-              savedInquiry,
-              currentUser ? { id: currentUser.id, name: currentUser.name } : undefined,
-              { event: 'save', previousRecord: selectedInquiry || {} }
-            ).catch((error) => {
-              console.error('Error triggering inquiry workflow on save:', error);
-            });
-            setIsEditing(false);
-          }
-        }
-        return;
-      }
-
-      const savedData = [dbData];
-      const error = null;
-
-      if (error) {
-        console.error('Error saving inquiry:', error);
-        return;
-      }
-
+      const { data: savedData } = await upsertInquiryWithCompat(dbData);
       if (savedData && savedData.length > 0) {
-        const dbInq = savedData[0];
-        const savedInquiry: Inquiry = {
-          id: dbInq.id,
-          customerId,
-          date: dbInq.create_date || today,
-          companyName: dbInq.company_name || data.companyName,
-          customerName: dbInq.customer_name || data.customerName,
-          contact: dbInq.contact,
-          sourceChannel: dbInq.source_channel || data.sourceChannel,
-          category: dbInq.category,
-          productSeries: dbInq.product_series || data.productSeries,
-          province: dbInq.province,
-          situation: dbInq.situation,
-          customerInquiry: dbInq.customer_inquiry || data.customerInquiry,
-          status: dbInq.status as any,
-          unconvertReason: dbInq.unconvert_reason,
-          unconvertedTime: dbInq.unconverted_time || data.unconvertedTime,
-          notes: dbInq.notes,
-          associatedLead: dbInq.associated_lead,
-          attachments: parseAttachments((dbInq as any).attachments || data.attachments),
-          creatorId: dbInq.creator_id || 'system',
-          creatorNo: isNew ? 'system' : selectedInquiry?.creatorNo || 'system',
-          creatorName: dbInq.creator_name || role,
-          creator: dbInq.creator_name || role,
-          createDate: dbInq.create_date || today,
-          updater: dbInq.updater,
-          updateDate: dbInq.update_date,
+        // 某些前端字段（如买家角色/购买模式/意向得分）在不同数据库版本下可能不存在列，
+        // 这里优先使用本次表单输入，保证编辑后页面即时生效。
+        const savedInquiry = {
+          ...mapDbInquiryToUi(savedData[0]),
           buyerRole: data.buyerRole,
           buyingMode: data.buyingMode,
-          intentScore: data.intentScore,
-          aiAnalysis: isNew ? undefined : selectedInquiry?.aiAnalysis
-        };
+          intentScore: data.intentScore
+        } as Inquiry;
 
         if (isNew) {
           setInquiries([savedInquiry, ...inquiries]);
@@ -365,6 +298,9 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   const [closingInquiry, setClosingInquiry] = useState<Inquiry | null>(null);
 
   const persistInquiryStatusUpdate = async (inquiry: Inquiry, patch: Partial<Inquiry>) => {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase 未配置');
+    }
     const today = new Date().toISOString().split('T')[0];
     const dbData = {
       id: inquiry.id,
@@ -393,44 +329,32 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       updated_at: new Date().toISOString()
     };
 
-    if (isSupabaseConfigured()) {
-      const supabase = getSupabaseClient();
-      const runUpsert = (row: Record<string, any>) =>
-        supabase
-          .from('crm_inquiry')
-          .upsert(row, { onConflict: 'id' })
-          .select('*');
-      let { data, error } = await runUpsert(dbData);
-      if (error) {
-        const message = String((error as any)?.message || '');
-        const details = String((error as any)?.details || '');
-        const isMissingProductSeries =
-          (error as any)?.code === 'PGRST204' ||
-          /product_series/i.test(message) ||
-          /product_series/i.test(details);
-        if (!isMissingProductSeries) throw error;
-        const fallback = { ...dbData };
-        delete (fallback as any).product_series;
-        const retry = await runUpsert(fallback);
-        if (retry.error) throw retry.error;
-        data = retry.data;
-      }
-      if (data && data.length > 0) {
-        const updatedInquiry = mapDbInquiryToUi(data[0]);
-        setInquiries((prev) => prev.map((i) => (i.id === updatedInquiry.id ? updatedInquiry : i)));
-        setSelectedInquiry((prev) => (prev?.id === updatedInquiry.id ? updatedInquiry : prev));
-      }
-      return;
+    const supabase = getSupabaseClient();
+    const runUpsert = (row: Record<string, any>) =>
+      supabase
+        .from('crm_inquiry')
+        .upsert(row, { onConflict: 'id' })
+        .select('*');
+    let { data, error } = await runUpsert(dbData);
+    if (error) {
+      const message = String((error as any)?.message || '');
+      const details = String((error as any)?.details || '');
+      const isMissingProductSeries =
+        (error as any)?.code === 'PGRST204' ||
+        /product_series/i.test(message) ||
+        /product_series/i.test(details);
+      if (!isMissingProductSeries) throw error;
+      const fallback = { ...dbData };
+      delete (fallback as any).product_series;
+      const retry = await runUpsert(fallback);
+      if (retry.error) throw retry.error;
+      data = retry.data;
     }
-
-    const updatedInquiry: Inquiry = {
-      ...inquiry,
-      ...patch,
-      updater: role,
-      updateDate: today
-    };
-    setInquiries((prev) => prev.map((i) => (i.id === updatedInquiry.id ? updatedInquiry : i)));
-    setSelectedInquiry((prev) => (prev?.id === updatedInquiry.id ? updatedInquiry : prev));
+    if (data && data.length > 0) {
+      const updatedInquiry = mapDbInquiryToUi(data[0]);
+      setInquiries((prev) => prev.map((i) => (i.id === updatedInquiry.id ? updatedInquiry : i)));
+      setSelectedInquiry((prev) => (prev?.id === updatedInquiry.id ? updatedInquiry : prev));
+    }
   };
 
   const handleOpenCloseInquiry = (inquiry: Inquiry) => {

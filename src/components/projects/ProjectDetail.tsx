@@ -13,7 +13,6 @@ import TaskDetailModal from '../TaskDetailModal';
 import { ProjectTeam } from './ProjectTeam';
 import { RelatedRecords } from './RelatedRecords';
 import { ProjectNotes } from './ProjectNotes';
-import { mockTasks, mockUsers, mockGroupChats } from '../../data';
 import { ManageMembersModal } from '../customers/CustomerModals';
 import DetailModal from '../DetailModal';
 import { cn } from '../../lib/utils';
@@ -35,10 +34,11 @@ interface ProjectDetailProps {
   newTask: any;
   handleAddTask: () => void;
   setIsEditingMembers: (v: boolean) => void;
-  mockQuotations: any[];
-  mockOrders: any[];
-  mockSampleOrders: any[];
-  mockReturnOrders: any[];
+  users: any[];
+  quotations: any[];
+  orders: any[];
+  sampleOrders: any[];
+  returnOrders: any[];
   newNote: string;
   setNewNote: (v: string) => void;
   handleAddNote: () => void;
@@ -60,7 +60,7 @@ export const ProjectDetail = ({
   selectedProject, role, onBack, onEdit, onNavigateTo,
   getProjectFlowNodes, getProjectStages, normalizeStage,
   expandedStages, toggleStage, setIsAddingTask, setNewTask, isAddingTask, newTask, handleAddTask,
-  setIsEditingMembers, mockQuotations, mockOrders, mockSampleOrders, mockReturnOrders,
+  setIsEditingMembers, users, quotations, orders, sampleOrders, returnOrders,
   newNote, setNewNote, handleAddNote,
   isAnalyzing, onAIAnalysis, onRegenerateAI,
   communications, onAddCommunication,
@@ -68,7 +68,7 @@ export const ProjectDetail = ({
   isSyncingChats, handleSyncChats
 }: ProjectDetailProps) => {
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
-  const [tasks, setTasks] = React.useState<TodoTask[]>(mockTasks);
+  const [tasks, setTasks] = React.useState<TodoTask[]>([]);
   const [activeTab, setActiveTab] = React.useState<'info' | 'flow'>('info');
   const [activeDetailTab, setActiveDetailTab] = React.useState<'flow' | 'design_versions' | 'customer_resources'>('flow');
   const [isManagingMembers, setIsManagingMembers] = React.useState(false);
@@ -575,7 +575,7 @@ export const ProjectDetail = ({
         <div className="space-y-6">
           <ProjectTeam 
             team={selectedProject.team}
-            mockUsers={mockUsers}
+            users={users}
             setIsEditingMembers={setIsEditingMembers}
           />
 
@@ -584,10 +584,10 @@ export const ProjectDetail = ({
             opportunityId={selectedProject.opportunityId}
             leadId={selectedProject.leadId}
             inquiryId={selectedProject.inquiryId}
-            mockQuotations={mockQuotations}
-            mockOrders={mockOrders}
-            mockSampleOrders={mockSampleOrders}
-            mockReturnOrders={mockReturnOrders}
+            quotations={quotations}
+            orders={orders}
+            sampleOrders={sampleOrders}
+            returnOrders={returnOrders}
             onNavigateTo={onNavigateTo}
           />
 

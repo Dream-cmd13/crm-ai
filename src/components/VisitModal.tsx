@@ -33,9 +33,7 @@ export default function VisitModal({ isOpen, onClose, contact, customer, onSave 
         Customer: ${customer.name} (Industry: ${customer.industry})
         Contact: ${contact.name} (${contact.position})
         Contact Persona: Age ${contact.age || 'Unknown'}, Personality: ${contact.personality || 'Unknown'}, Decision Power: ${contact.decisionPower || 'Unknown'}.
-        
-        Consider recent mock context: The customer recently inquired about new 5G router antennas.
-        
+
         Provide a concise, actionable visit plan including:
         1. Recommended topics of conversation.
         2. Products to highlight.
@@ -54,18 +52,18 @@ export default function VisitModal({ isOpen, onClose, contact, customer, onSave 
   const handleProcessAudio = async () => {
     setIsProcessingAudio(true);
     try {
-      // Simulate audio uploading and processing delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const transcript = String(visitObjective || '').trim();
+      if (!transcript) {
+        setVisitSummary('请先输入拜访录音转写内容，再执行AI整理。');
+        setAudioProcessed(false);
+        return;
+      }
       const prompt = `
-        You are an AI sales assistant. I am providing a mock transcript of a sales visit with ${contact.name} from ${customer.name}.
-        
-        Mock Transcript:
-        "Sales: Hello ${contact.name}, thanks for meeting. How are the new 5G routers working out?
-        Customer: They are good, but we need a waterproof connector for the outdoor units.
-        Sales: We have the IP68 series. I can send you the datasheet and some samples.
-        Customer: Great. Send the samples by next Tuesday. Also, what's the pricing for 10k units?
-        Sales: I will get our Solution Agent to prepare a quotation for you by tomorrow."
-        
+        You are an AI sales assistant. I am providing a transcript of a sales visit with ${contact.name} from ${customer.name}.
+
+        Transcript:
+        "${transcript}"
+
         Based on this transcript, extract and generate the following in JSON format:
         {
           "summary": "A concise summary of the visit (what was discussed).",
@@ -120,7 +118,7 @@ export default function VisitModal({ isOpen, onClose, contact, customer, onSave 
                 ) : audioProcessed ? (
                   <><CheckCircle2 className="w-4 h-4" /> 已完成</>
                 ) : (
-                  <><Upload className="w-4 h-4" /> 模拟上传录音</>
+                  <><Upload className="w-4 h-4" /> 执行AI整理</>
                 )}
               </button>
             </div>

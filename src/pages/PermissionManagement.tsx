@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Shield, Users, Lock, Database, Plus, Search, Edit2, Trash2 } from 'lucide-react';
-import { mockUsers } from '../data';
 import { cn } from '../lib/utils';
 import { fetchPermissionSnapshotFromSupabase, savePermissionSnapshotToSupabase } from '../lib/permissionRepository';
+import { fetchUsersFromSupabase } from '../lib/userRepository';
 
 export default function PermissionManagement() {
   const [activeTab, setActiveTab] = useState<'roles' | 'individual' | 'data'>('roles');
@@ -32,6 +32,7 @@ export default function PermissionManagement() {
 
   const [selectedRoleId, setSelectedRoleId] = useState<string>('admin');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [users, setUsers] = useState<any[]>([]);
 
   const [roles, setRoles] = useState(() => [
     { id: 'admin', name: '管理员', permissions: modules.flatMap(m => actions.map(a => `${m.id}_${a.id}`)) },
@@ -49,11 +50,15 @@ export default function PermissionManagement() {
   useEffect(() => {
     const fetchRemote = async () => {
       try {
-        const remote = await fetchPermissionSnapshotFromSupabase();
+        const [remote, remoteUsers] = await Promise.all([
+          fetchPermissionSnapshotFromSupabase(),
+          fetchUsersFromSupabase()
+        ]);
         if (remote) {
           setRoles(remote.roles || []);
           setUserPermissions(remote.userPermissions || {});
         }
+        setUsers(remoteUsers || []);
       } catch (error) {
         console.error('Error fetching permission snapshot:', error);
       }
@@ -71,7 +76,7 @@ export default function PermissionManagement() {
   }, [roles, userPermissions]);
 
   const selectedRole = roles.find(r => r.id === selectedRoleId);
-  const selectedUser = mockUsers.find(u => u.id === selectedUserId);
+  const selectedUser = users.find(u => u.id === selectedUserId);
 
   const toggleRolePermission = (roleId: string, permissionId: string) => {
     setRoles(prev => prev.map(r => {
@@ -270,7 +275,7 @@ export default function PermissionManagement() {
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {mockUsers.filter(u => u.name.includes(searchTerm)).map(user => (
+              {users.filter(u => u.name.includes(searchTerm)).map(user => (
                 <button
                   key={user.id}
                   onClick={() => setSelectedUserId(user.id)}

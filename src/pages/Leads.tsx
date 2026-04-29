@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter, Target, ChevronRight, FileText, Sparkles, ExternalLink, Loader2, MessageSquare, Link, Users } from 'lucide-react';
 import { Role, Lead, CommunicationDetail, GroupChat, TodoTask, User, FileAttachment } from '../types';
 import { initialObjects } from '../data/ontologyData';
-import { mockLeads, mockCommunications, mockInquiries, mockPersonas, mockGroupChats, mockTasks } from '../data';
 import ManageMembersModal from '../components/ManageMembersModal';
 import QuickTaskModal from '../components/QuickTaskModal';
 import TaskDetailModal from '../components/TaskDetailModal';
@@ -62,10 +61,10 @@ interface LeadsProps {
 }
 
 export default function Leads({ role, currentUser, viewParams, navigateTo, goBack }: LeadsProps) {
-  const [leads, setLeads] = useState<Lead[]>(mockLeads);
-  const [communications, setCommunications] = useState<CommunicationDetail[]>(mockCommunications);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [communications, setCommunications] = useState<CommunicationDetail[]>([]);
   const [regeneratingNodes, setRegeneratingNodes] = useState<Record<string, boolean>>({});
-  const [groupChats, setGroupChats] = useState<GroupChat[]>(mockGroupChats);
+  const [groupChats, setGroupChats] = useState<GroupChat[]>([]);
   const [selectedChat, setSelectedChat] = useState<GroupChat | null>(null);
   const [isManagingMembers, setIsManagingMembers] = useState(false);
   const [isSyncingChats, setIsSyncingChats] = useState(false);
@@ -88,8 +87,8 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
   const [isEditingAnalysis, setIsEditingAnalysis] = useState(false);
   const [editedAnalysis, setEditedAnalysis] = useState<any>(null);
   const [activeDetailTab, setActiveDetailTab] = useState<'flow'>('flow');
-  const [tasks, setTasks] = useState<TodoTask[]>(mockTasks);
-  const [personas, setPersonas] = useState(mockPersonas);
+  const [tasks, setTasks] = useState<TodoTask[]>([]);
+  const [personas, setPersonas] = useState<any[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskData, setNewTaskData] = useState<any>(null);
@@ -204,37 +203,53 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           })();
         }
       } else if (viewParams.action === 'new_from_inquiry') {
-        const sourceInquiry = mockInquiries.find(i => i.id === viewParams.sourceId);
-        const newLead: Lead = {
-          id: `L${new Date().getFullYear()}${String(leads.length + 1).padStart(3, '0')}`,
-          inquiryId: viewParams.sourceId,
-          customerName: sourceInquiry?.companyName || '待定',
-          name: sourceInquiry?.customerName || '',
-          phone: sourceInquiry?.contact || '',
-          customerAction: '找货寻料',
-          industry: sourceInquiry?.category || '',
-          status: '未跟进',
-          assignee: role,
-          entryTime: new Date().toISOString().split('T')[0],
-          channelPlatform: sourceInquiry?.sourceChannel || '',
-          source: '在线',
-          productCategory: sourceInquiry?.category || '',
-          productSeries: sourceInquiry?.productSeries || '',
-          customerId: sourceInquiry?.customerId || `CUST-${Date.now()}`,
-          customerType: sourceInquiry?.customerId ? '老客户' : '新客户',
-          sourceStatus: '客服',
-          creator: role,
-          createDate: new Date().toISOString().split('T')[0],
-          creatorId: 'U001',
-          creatorNo: '001',
-          creatorName: role,
-          buyerRole: sourceInquiry?.buyerRole,
-          buyingMode: sourceInquiry?.buyingMode,
-          intentScore: sourceInquiry?.intentScore,
-          attachments: sourceInquiry?.attachments || [],
-        };
-        setLeads(prev => [newLead, ...prev]);
-        setSelectedLead(newLead);
+        (async () => {
+          let sourceInquiry: any = null;
+          if (isSupabaseConfigured() && viewParams.sourceId) {
+            try {
+              const supabase = getSupabaseClient();
+              const { data, error } = await supabase
+                .from('crm_inquiry')
+                .select('*')
+                .eq('id', viewParams.sourceId)
+                .limit(1);
+              if (error) throw error;
+              sourceInquiry = data?.[0] || null;
+            } catch (error) {
+              console.error('Error fetching inquiry for new lead:', error);
+            }
+          }
+          const newLead: Lead = {
+            id: `L${new Date().getFullYear()}${String(leads.length + 1).padStart(3, '0')}`,
+            inquiryId: viewParams.sourceId,
+            customerName: sourceInquiry?.company_name || '待定',
+            name: sourceInquiry?.customer_name || '',
+            phone: sourceInquiry?.contact || '',
+            customerAction: '找货寻料',
+            industry: sourceInquiry?.category || '',
+            status: '未跟进',
+            assignee: role,
+            entryTime: new Date().toISOString().split('T')[0],
+            channelPlatform: sourceInquiry?.source_channel || '',
+            source: '在线',
+            productCategory: sourceInquiry?.category || '',
+            productSeries: sourceInquiry?.product_series || '',
+            customerId: sourceInquiry?.customer_id || `CUST-${Date.now()}`,
+            customerType: sourceInquiry?.customer_id ? '老客户' : '新客户',
+            sourceStatus: '客服',
+            creator: role,
+            createDate: new Date().toISOString().split('T')[0],
+            creatorId: 'U001',
+            creatorNo: '001',
+            creatorName: role,
+            buyerRole: sourceInquiry?.buyer_role,
+            buyingMode: sourceInquiry?.buying_mode,
+            intentScore: sourceInquiry?.intent_score,
+            attachments: parseAttachments(sourceInquiry?.attachments),
+          };
+          setLeads(prev => [newLead, ...prev]);
+          setSelectedLead(newLead);
+        })();
       }
     }
   }, [viewParams, leads, role]);
@@ -251,6 +266,10 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
   const handleSave = async (data: any) => {
     const today = new Date().toISOString().split('T')[0];
     const normalizedStatus = normalizeLeadStatus(data.status);
+    if (!isSupabaseConfigured()) {
+      toast.error('未配置 Supabase，无法保存线索数据');
+      return;
+    }
     if (isAdding) {
       try {
         let customerId = data.customerId;
@@ -296,39 +315,10 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           updated_at: new Date().toISOString()
         };
 
-        if (isSupabaseConfigured()) {
-          const { data: insertedData, error } = await upsertLeadWithSchemaFallback(dbData);
-          if (error) throw error;
-          if (insertedData && insertedData.length > 0) {
-            const newLead = mapDbLeadToUi(insertedData[0]);
-            setLeads([newLead, ...leads]);
-            triggerAutoFlowsForCreate('lead', newLead, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined).catch((error) => {
-              console.error('Error triggering lead workflow:', error);
-            });
-          }
-          setIsAdding(false);
-          return;
-        }
-
-        const insertedData = [{ ...dbData, id: dbData.id, created_at: new Date().toISOString() }];
-        const error = null;
-
-        if (error) {
-          console.error('Error adding lead:', error);
-          return;
-        }
-
+        const { data: insertedData, error } = await upsertLeadWithSchemaFallback(dbData);
+        if (error) throw error;
         if (insertedData && insertedData.length > 0) {
-          const dbLead = insertedData[0];
-          const newLead: Lead = mapDbLeadToUi({
-            ...dbLead,
-            customer_id: customerId,
-            customer_type: customerType,
-            customer_name: dbLead.customer_name,
-            source: dbLead.source_type || (dbLead as any).source,
-            assignee: dbLead.assignee,
-            attachments: parseAttachments((dbLead as any).attachments || data.attachments)
-          });
+          const newLead = mapDbLeadToUi(insertedData[0]);
           setLeads([newLead, ...leads]);
           triggerAutoFlowsForCreate('lead', newLead, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined).catch((error) => {
             console.error('Error triggering lead workflow:', error);
@@ -381,48 +371,10 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           create_date: data.createDate || selectedLead.createDate || today,
           updated_at: new Date().toISOString(),
         };
-        if (isSupabaseConfigured()) {
-          const { data: updatedData, error } = await upsertLeadWithSchemaFallback(dbData);
-          if (error) throw error;
-          if (updatedData && updatedData.length > 0) {
-            const updatedLead = mapDbLeadToUi(updatedData[0]);
-            setLeads(leads.map(l => l.id === updatedLead.id ? updatedLead : l));
-            setSelectedLead(updatedLead);
-            triggerAutoFlowsForCreate(
-              'lead',
-              updatedLead,
-              currentUser ? { id: currentUser.id, name: currentUser.name } : undefined,
-              { event: 'save', previousRecord: selectedLead || {} }
-            ).catch((error) => {
-              console.error('Error triggering lead workflow on save:', error);
-            });
-          }
-          setIsEditing(false);
-          return;
-        }
-
-        const updatedData = [{ ...dbData, id: selectedLead.id }];
-        const error = null;
-
-        if (error) {
-          console.error('Error updating lead:', error);
-          return;
-        }
-
+        const { data: updatedData, error } = await upsertLeadWithSchemaFallback(dbData);
+        if (error) throw error;
         if (updatedData && updatedData.length > 0) {
-          const dbLead = updatedData[0];
-          const updatedLead: Lead = {
-            ...mapDbLeadToUi({
-              ...dbLead,
-              customer_id: customerId,
-              customer_type: dbLead.customer_type || customerType
-            }),
-            ...selectedLead,
-            ...data,
-            customerId,
-            customerType: dbLead.customer_type || customerType,
-            attachments: parseAttachments((dbLead as any).attachments || data.attachments)
-          };
+          const updatedLead = mapDbLeadToUi(updatedData[0]);
           setLeads(leads.map(l => l.id === updatedLead.id ? updatedLead : l));
           setSelectedLead(updatedLead);
           triggerAutoFlowsForCreate(

@@ -160,14 +160,7 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
 
   const hasWorkflow = moduleCode && ['INQUIRY', 'LEAD', 'OPPORTUNITY', 'PROJECT', 'TASK'].includes(moduleCode) && !isEditing;
 
-  // Mock workflow data for demonstration
-  const mockWorkflowSteps = [
-    { id: '1', name: '提交申请', status: 'completed' as const, assignee: '张三', time: '2024-03-15 10:00' },
-    { id: '2', name: '部门审核', status: 'completed' as const, assignee: '李四', time: '2024-03-15 14:30' },
-    { id: '3', name: '财务复核', status: 'current' as const, assignee: '王五' },
-    { id: '4', name: '总经理审批', status: 'pending' as const },
-    { id: '5', name: '归档', status: 'pending' as const },
-  ];
+  const workflowSteps: any[] = [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -432,7 +425,7 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
 
         {hasWorkflow && (
           <div className="w-80 border-l border-gray-100 bg-gray-50/50 p-6 overflow-y-auto shrink-0">
-            <WorkflowProgress steps={mockWorkflowSteps} />
+            <WorkflowProgress steps={workflowSteps} />
           </div>
         )}
       </div>

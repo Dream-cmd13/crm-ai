@@ -1,7 +1,6 @@
 import { toast } from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import { Save, AlertCircle, Plus, Sparkles, XCircle, Edit2, Trash2, Cpu, Layers, ArrowRightLeft, Bell, Activity, Loader2 } from 'lucide-react';
-import { mockUsers, mockTaskTypes } from '../data';
 import { TaskType } from '../types';
 import { cn } from '../lib/utils';
 import { fetchLlmConfigFromSupabase, saveLlmConfigToSupabase } from '../lib/llmConfigRepository';
@@ -13,6 +12,7 @@ import { fetchChatAssistConfigFromSupabase, saveChatAssistConfigToSupabase, defa
 
 import CustomerTypes from './CustomerTypes';
 import SystemWechatQuery from '../components/SystemWechatQuery';
+import { fetchUsersFromSupabase, saveUserToSupabase, deleteUserFromSupabase } from '../lib/userRepository';
 
 import { confirmDialog } from '../lib/toastConfirm';
 
@@ -38,7 +38,7 @@ const normalizeTaskTypes = (input: TaskType[]): TaskType[] => {
 export default function SystemSettings({ role, viewParams, navigateTo, goBack }: SystemSettingsProps) {
   const initialTab = ['task-types', 'llm', 'pushdown', 'wechat', 'customer-types'].includes(viewParams?.tab) ? viewParams.tab : 'task-types';
   const [activeTab, setActiveTab] = useState<'task-types' | 'llm' | 'pushdown' | 'wechat' | 'chat-assist' | 'customer-types'>(initialTab as any);
-  const [taskTypes, setTaskTypes] = useState<TaskType[]>(() => normalizeTaskTypes(mockTaskTypes));
+  const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
   const [isAddingTaskType, setIsAddingTaskType] = useState(false);
   const [editingTaskType, setEditingTaskType] = useState<TaskType | null>(null);
   const [newTaskType, setNewTaskType] = useState<Partial<TaskType>>({ name: '', defaultHours: 24 });
@@ -62,10 +62,10 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
     });
   }, []);
   useEffect(() => {
-    fetchTaskTypeConfigFromSupabase(mockTaskTypes as TaskType[])
+    fetchTaskTypeConfigFromSupabase([])
       .then((remoteTaskTypes) => {
         const hasActivation = remoteTaskTypes.some((t) => String(t.name).trim() === '客户激活任务');
-        const merged = hasActivation ? remoteTaskTypes : [...remoteTaskTypes, ...(mockTaskTypes.filter((t) => t.name === '客户激活任务'))];
+        const merged = hasActivation ? remoteTaskTypes : [...remoteTaskTypes, { id: 'CUSTOMER_ACTIVATION', name: '客户激活任务', defaultHours: 24 } as TaskType];
         setTaskTypes(normalizeTaskTypes(merged));
       })
       .catch((error) => {
@@ -85,7 +85,7 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
   }, []);
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
-  const [users, setUsers] = useState(mockUsers);
+  const [users, setUsers] = useState<any[]>([]);
   const [newUser, setNewUser] = useState({
     name: '',
     username: '',
@@ -103,6 +103,13 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
       .then((cfg) => setChatAssistConfig(cfg))
       .catch((error) => {
         console.error('Error fetching chat assist config:', error);
+      });
+  }, []);
+  useEffect(() => {
+    fetchUsersFromSupabase()
+      .then((remoteUsers) => setUsers(remoteUsers || []))
+      .catch((error) => {
+        console.error('Error fetching users:', error);
       });
   }, []);
 
@@ -337,8 +344,14 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
                             </button>
                             <button 
                               onClick={async () => {
-                              if (await confirmDialog(`确定要删除用户 ${user.name} 吗？`)) {
-                                  setUsers(users.filter(u => u.id !== user.id));
+                                if (await confirmDialog(`确定要删除用户 ${user.name} 吗？`)) {
+                                  try {
+                                    await deleteUserFromSupabase(user.id);
+                                    setUsers(users.filter(u => u.id !== user.id));
+                                  } catch (error) {
+                                    console.error('Error deleting user:', error);
+                                    toast.error('删除用户失败');
+                                  }
                                 }
                               }}
                               className="p-1 text-gray-400 hover:text-red-600 transition-colors"
@@ -426,14 +439,29 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
                     <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
                       <button onClick={() => setIsAddingUser(false)} className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">取消</button>
                       <button 
-                        onClick={() => {
-                          if (editingUser) {
-                            setUsers(users.map(u => u.id === editingUser.id ? { ...u, ...newUser, department_id: newUser.department, employeeNo: newUser.no } : u));
-                          } else {
-                            const id = `U${users.length + 1}`;
-                            setUsers([...users, { id, ent_name: 'test', ...newUser, department_id: newUser.department, employeeNo: newUser.no }]);
+                        onClick={async () => {
+                          try {
+                            const payload = {
+                              id: editingUser?.id,
+                              ent_name: editingUser?.ent_name || 'crm',
+                              username: newUser.username,
+                              name: newUser.name,
+                              role: newUser.role,
+                              roles: [newUser.role],
+                              department_id: newUser.department,
+                              employeeNo: newUser.no,
+                              dataPermissions: { customerVisibility: 'all' as const }
+                            };
+                            const saved = await saveUserToSupabase(payload as any);
+                            setUsers((prev) => {
+                              if (editingUser) return prev.map((u) => u.id === editingUser.id ? { ...u, ...saved } : u);
+                              return [saved, ...prev];
+                            });
+                            setIsAddingUser(false);
+                          } catch (error) {
+                            console.error('Error saving user:', error);
+                            toast.error('保存用户失败');
                           }
-                          setIsAddingUser(false);
                         }}
                         className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
                       >
@@ -1083,14 +1111,29 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
                     取消
                   </button>
                   <button 
-                    onClick={() => {
-                      if (editingUser) {
-                        setUsers(users.map(u => u.id === editingUser.id ? { ...u, ...newUser, department_id: newUser.department, employeeNo: newUser.no } : u));
-                      } else {
-                        const id = `U${users.length + 1}`;
-                        setUsers([...users, { id, ent_name: 'test', ...newUser, department_id: newUser.department, employeeNo: newUser.no }]);
+                    onClick={async () => {
+                      try {
+                        const payload = {
+                          id: editingUser?.id,
+                          ent_name: editingUser?.ent_name || 'crm',
+                          username: newUser.username,
+                          name: newUser.name,
+                          role: newUser.role,
+                          roles: [newUser.role],
+                          department_id: newUser.department,
+                          employeeNo: newUser.no,
+                          dataPermissions: { customerVisibility: 'all' as const }
+                        };
+                        const saved = await saveUserToSupabase(payload as any);
+                        setUsers((prev) => {
+                          if (editingUser) return prev.map((u) => u.id === editingUser.id ? { ...u, ...saved } : u);
+                          return [saved, ...prev];
+                        });
+                        setIsAddingUser(false);
+                      } catch (error) {
+                        console.error('Error saving user:', error);
+                        toast.error('保存用户失败');
                       }
-                      setIsAddingUser(false);
                     }}
                     className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
                   >
