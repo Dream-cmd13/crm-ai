@@ -744,8 +744,8 @@ export default function TaskDetailModal({ isOpen, onClose, task, navigateTo, onC
                         <button 
                           type="button"
                           onClick={() => {
-                            const mockSpeech = "客户对我们的新产品很感兴趣，希望下周能安排一次详细的产品演示。";
-                            setCompletionNote(prev => prev ? prev + '\n' + mockSpeech : mockSpeech);
+                            const demoSpeech = "客户对我们的新产品很感兴趣，希望下周能安排一次详细的产品演示。";
+                            setCompletionNote(prev => prev ? prev + '\n' + demoSpeech : demoSpeech);
                           }}
                           className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700"
                         >
