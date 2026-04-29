@@ -1,35 +1,33 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Role } from './types';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import TodoCenter from './pages/TodoCenter';
-import Inquiries from './pages/Inquiries';
-import Leads from './pages/Leads';
-import Opportunities from './pages/Opportunities';
-import Projects from './pages/Projects';
-import Customers from './pages/Customers';
-import CustomerVisitCalendar from './pages/CustomerVisitCalendar';
-import SalesQuotations from './pages/SalesQuotations';
-import SalesOrders from './pages/SalesOrders';
-import Products from './pages/Products';
-import SampleOrders from './pages/SampleOrders';
-import ReturnOrders from './pages/ReturnOrders';
-import SystemSettings from './pages/SystemSettings';
-import UserManagement from './pages/UserManagement';
-import CustomerTypes from './pages/CustomerTypes';
-import CaseLibraryPage from './pages/CaseLibraryPage';
-import ArchitectureSettings from './pages/ArchitectureSettings';
 import { fetchLlmConfigFromSupabase } from './lib/llmConfigRepository';
 import { fetchUsersFromSupabase } from './lib/userRepository';
 import { User } from './types';
 import { Toaster } from 'react-hot-toast';
 
-import PermissionManagement from './pages/PermissionManagement';
-import { Shield } from 'lucide-react';
-
-import ProductCategories from './pages/ProductCategories';
-import CustomerStrategy from './pages/CustomerStrategy';
-import CompetitorLibrary from './pages/CompetitorLibrary';
+const TodoCenter = lazy(() => import('./pages/TodoCenter'));
+const Inquiries = lazy(() => import('./pages/Inquiries'));
+const Leads = lazy(() => import('./pages/Leads'));
+const Opportunities = lazy(() => import('./pages/Opportunities'));
+const Projects = lazy(() => import('./pages/Projects'));
+const Customers = lazy(() => import('./pages/Customers'));
+const CustomerVisitCalendar = lazy(() => import('./pages/CustomerVisitCalendar'));
+const SalesQuotations = lazy(() => import('./pages/SalesQuotations'));
+const SalesOrders = lazy(() => import('./pages/SalesOrders'));
+const Products = lazy(() => import('./pages/Products'));
+const ProductCategories = lazy(() => import('./pages/ProductCategories'));
+const SampleOrders = lazy(() => import('./pages/SampleOrders'));
+const ReturnOrders = lazy(() => import('./pages/ReturnOrders'));
+const SystemSettings = lazy(() => import('./pages/SystemSettings'));
+const ArchitectureSettings = lazy(() => import('./pages/ArchitectureSettings'));
+const PermissionManagement = lazy(() => import('./pages/PermissionManagement'));
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+const CustomerTypes = lazy(() => import('./pages/CustomerTypes'));
+const CaseLibraryPage = lazy(() => import('./pages/CaseLibraryPage'));
+const CustomerStrategy = lazy(() => import('./pages/CustomerStrategy'));
+const CompetitorLibrary = lazy(() => import('./pages/CompetitorLibrary'));
 
 type OpenTab = {
   key: string;
@@ -177,6 +175,8 @@ export default function App() {
     }
   };
 
+  const pageLoadingFallback = <div className="p-4 text-sm text-gray-500">页面加载中...</div>;
+
   return (
     <div className="flex h-screen bg-gray-50 text-gray-900 font-sans overflow-hidden">
       <Sidebar 
@@ -204,7 +204,9 @@ export default function App() {
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-3 md:p-4">
           {openTabs.map((tab) => (
             <div key={tab.key} className={tab.key === activeTabKey ? 'block' : 'hidden'}>
-              {renderView(tab.view, tab.params)}
+              <Suspense fallback={pageLoadingFallback}>
+                {renderView(tab.view, tab.params)}
+              </Suspense>
             </div>
           ))}
         </main>
