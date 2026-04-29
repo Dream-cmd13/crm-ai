@@ -591,6 +591,25 @@ export const updateCustomerLastVisitDateInSupabase = async (customerId: string, 
   if (error) throw error;
 };
 
+export const resolveCustomerDbIdFromSupabase = async (customerId: string): Promise<number | null> => {
+  const id = String(customerId || '').trim();
+  if (!id) return null;
+  if (!isSupabaseConfigured()) return null;
+  if (!Number.isNaN(Number(id))) return Number(id);
+
+  const customerNumber = toCustomerNumber(id);
+  if (!customerNumber) return null;
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('ba_manucustinfo')
+    .select('id')
+    .eq('customer_number', customerNumber)
+    .maybeSingle();
+  if (error) throw error;
+  return typeof data?.id === 'number' ? data.id : null;
+};
+
 export const updateCustomerLastContactInSupabase = async (
   customerId: string,
   action: string,

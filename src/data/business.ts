@@ -1,4 +1,4 @@
-import { Inquiry, Lead, Opportunity, Project, CommunicationDetail, Customer, CustomerCase } from '../types';
+import { Inquiry, Lead, Opportunity, Project, CommunicationDetail, Customer, CustomerCase, CustomerPersona, CustomerFeedback } from '../types';
 
 export const mockCommunications: CommunicationDetail[] = [
   { id: 'C1', date: '2026-03-17 10:00', sender: '陈工 (大疆)', content: '您好，我们正在寻找一款用于新一代云台的高柔性排线，需要支持在-40度环境下工作。', type: 'wechat', sourceId: 'INQ-20260317-001' },
@@ -58,6 +58,61 @@ export const mockBusinessCustomers: Customer[] = [
     leadIds: ['LEAD-20260317-001'],
     opportunityIds: ['OPP-20260317-001'],
     projectIds: ['PROJ-20260317-001']
+  }
+];
+
+// Historical alias kept for pages still importing mockCustomers from ../data
+export const mockCustomers: Customer[] = mockBusinessCustomers;
+
+export const mockPersonas: CustomerPersona[] = [
+  {
+    id: 'PER-20260317-001',
+    customerId: 'CUST-001',
+    scale: '大型制造企业',
+    mainProducts: '无人机整机与核心模组',
+    orgStructure: '研发主导，采购与质量协同决策',
+    buyingMode: '增长模式',
+    painPoints: '低温工况下排线脆裂、交期与一致性风险',
+    competitiveLandscape: {
+      supplier: '多家连接器与线束供应商并行',
+      preference: '优先稳定交付与快速技术响应'
+    },
+    uniqueNeeds: '高弯折寿命、极寒环境可靠性、快速试样',
+    rdRequirements: '支持极寒材料验证与结构协同设计',
+    sampleRequirements: '7-10天内样品交付并附测试报告',
+    productionRequirements: '量产一致性与批次追溯能力',
+    lastUpdated: '2026-03-18'
+  }
+];
+
+export const mockCustomerFeedbacks: CustomerFeedback[] = [
+  {
+    id: 'FDB-20260320-001',
+    customerName: '大疆创新',
+    content: '首批样品低温弯折测试通过，但希望进一步缩短二次打样周期。',
+    source: '微信',
+    status: '处理中',
+    projectId: 'PROJ-20260317-001',
+    department: '研发中心',
+    assignee: '张三',
+    creatorId: 'U1',
+    creatorNo: 'E001',
+    creatorName: '张三',
+    createDate: '2026-03-20'
+  },
+  {
+    id: 'FDB-20260322-002',
+    customerName: '大疆创新',
+    content: '希望报价单增加不同年采购量下的阶梯价格。',
+    source: '邮件',
+    status: '待处理',
+    projectId: 'PROJ-20260317-001',
+    department: '销售一组',
+    assignee: '李四',
+    creatorId: 'U1',
+    creatorNo: 'E001',
+    creatorName: '张三',
+    createDate: '2026-03-22'
   }
 ];
 

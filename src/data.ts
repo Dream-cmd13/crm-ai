@@ -1,6 +1,5 @@
 export * from './data/ai';
 export * from './data/tasks';
-export * from './data/customers';
 export * from './data/wechat';
 export * from './data/org';
 export * from './data/sales';
