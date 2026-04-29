@@ -1341,46 +1341,209 @@ create policy p_open_delete on public.{table_name} for delete to anon, authentic
 
 这意味着所有表对所有用户都是完全开放的，无需额外认证。
 
-### crm\_wechat\_session (微信会话表)
+### wechat\_raw.wechat\_group\_message\_events（原始微信群消息事件）
 
-| 字段名              | 数据类型        | 约束          | 默认值                          | 描述     |
-| ---------------- | ----------- | ----------- | ---------------------------- | ------ |
-| id               | uuid        | primary key | gen\_random\_uuid()          | 会话ID   |
-| my\_wechat\_id   | text        | not null    | <br />                       | 我的微信ID |
-| peer\_wechat\_id | text        | not null    | <br />                       | 对方微信ID |
-| customer\_id     | text        | <br />      | <br />                       | 客户ID   |
-| contact\_id      | text        | <br />      | <br />                       | 联系人ID  |
-| created\_at      | timestamptz | not null    | timezone('utc'::text, now()) | 创建时间   |
+| 字段名                     | 数据类型        | 约束               | 默认值  | 描述          |
+| ----------------------- | ----------- | ---------------- | ---- | ----------- |
+| id                      | bigserial   | primary key      | <br /> | 主键          |
+| dedupe\_key             | text        | not null unique  | <br /> | 去重键         |
+| guid                    | text        | not null         | <br /> | 设备/会话标识     |
+| notify\_type            | integer     | not null         | <br /> | 回调类型        |
+| event\_time             | timestamptz | <br />           | <br /> | 事件时间        |
+| seq                     | bigint      | <br />           | <br /> | 消息序号        |
+| msg\_id                 | text        | <br />           | <br /> | 原始消息ID      |
+| sender                  | text        | <br />           | <br /> | 发送人微信ID     |
+| sender\_name            | text        | <br />           | <br /> | 发送人昵称       |
+| receiver                | text        | <br />           | <br /> | 接收方         |
+| roomid                  | text        | not null         | <br /> | 群ID          |
+| sendtime                | timestamptz | <br />           | <br /> | 发送时间        |
+| content\_type           | integer     | <br />           | <br /> | 内容类型        |
+| msg\_type               | integer     | <br />           | <br /> | 消息类型        |
+| content                 | text        | <br />           | <br /> | 文本内容        |
+| payload                 | jsonb       | not null         | <br /> | 原始完整载荷      |
+| local\_media\_path      | text        | <br />           | <br /> | 本地媒体路径      |
+| remote\_media\_url      | text        | <br />           | <br /> | 远端媒体URL     |
+| voice\_trans\_text      | text        | <br />           | <br /> | 语音转文字内容     |
+| sender\_display\_name   | text        | <br />           | <br /> | 发送人展示名      |
+| sender\_alias           | text        | <br />           | <br /> | 发送人备注名      |
+| room\_name              | text        | <br />           | <br /> | 群名          |
+| room\_remark\_name      | text        | <br />           | <br /> | 群备注名        |
+| created\_at             | timestamptz | not null         | now() | 创建时间        |
+| updated\_at             | timestamptz | not null         | now() | 更新时间        |
 
-### crm\_wechat\_message (微信消息表)
+### wechat\_raw.wechat\_private\_message\_events（原始私聊消息事件）
 
-| 字段名                | 数据类型        | 约束                                                    | 默认值                          | 描述      |
-| ------------------ | ----------- | ----------------------------------------------------- | ---------------------------- | ------- |
-| id                 | uuid        | primary key                                           | gen\_random\_uuid()          | 消息ID    |
-| session\_id        | uuid        | references crm\_wechat\_session(id) on delete cascade | <br />                       | 会话ID    |
-| sender\_wechat\_id | text        | not null                                              | <br />                       | 发送方微信ID |
-| msg\_type          | text        | <br />                                                | 'text'                       | 消息类型    |
-| content            | text        | not null                                              | <br />                       | 消息内容    |
-| send\_time         | timestamptz | not null                                              | timezone('utc'::text, now()) | 发送时间    |
+| 字段名                     | 数据类型        | 约束               | 默认值  | 描述          |
+| ----------------------- | ----------- | ---------------- | ---- | ----------- |
+| id                      | bigserial   | primary key      | <br /> | 主键          |
+| dedupe\_key             | text        | not null unique  | <br /> | 去重键         |
+| guid                    | text        | not null         | <br /> | 设备/会话标识     |
+| notify\_type            | integer     | not null         | <br /> | 回调类型        |
+| event\_time             | timestamptz | <br />           | <br /> | 事件时间        |
+| seq                     | bigint      | <br />           | <br /> | 消息序号        |
+| msg\_id                 | text        | <br />           | <br /> | 原始消息ID      |
+| sender                  | text        | <br />           | <br /> | 发送人微信ID     |
+| sender\_name            | text        | <br />           | <br /> | 发送人昵称       |
+| receiver                | text        | <br />           | <br /> | 接收方微信ID     |
+| roomid                  | text        | not null         | '0'  | 会话房间ID(私聊固定) |
+| sendtime                | timestamptz | <br />           | <br /> | 发送时间        |
+| content\_type           | integer     | <br />           | <br /> | 内容类型        |
+| msg\_type               | integer     | <br />           | <br /> | 消息类型        |
+| content                 | text        | <br />           | <br /> | 文本内容        |
+| payload                 | jsonb       | not null         | <br /> | 原始完整载荷      |
+| local\_media\_path      | text        | <br />           | <br /> | 本地媒体路径      |
+| remote\_media\_url      | text        | <br />           | <br /> | 远端媒体URL     |
+| voice\_trans\_text      | text        | <br />           | <br /> | 语音转文字内容     |
+| sender\_display\_name   | text        | <br />           | <br /> | 发送人展示名      |
+| sender\_alias           | text        | <br />           | <br /> | 发送人备注名      |
+| receiver\_display\_name | text        | <br />           | <br /> | 接收人展示名      |
+| peer\_display\_name     | text        | <br />           | <br /> | 对端展示名       |
+| created\_at             | timestamptz | not null         | now() | 创建时间        |
+| updated\_at             | timestamptz | not null         | now() | 更新时间        |
 
-### crm\_wechat\_group (微信群表)
+### crm\_wx\_conversation（微信会话聚合表）
 
-| 字段名          | 数据类型        | 约束              | 默认值                          | 描述   |
-| ------------ | ----------- | --------------- | ---------------------------- | ---- |
-| id           | uuid        | primary key     | gen\_random\_uuid()          | 群ID  |
-| group\_id    | text        | not null unique | <br />                       | 群ID  |
-| group\_name  | text        | not null        | <br />                       | 群名称  |
-| customer\_id | text        | <br />          | <br />                       | 客户ID |
-| created\_at  | timestamptz | not null        | timezone('utc'::text, now()) | 创建时间 |
+| 字段名                          | 数据类型        | 约束                                                 | 默认值              | 描述                 |
+| ---------------------------- | ----------- | -------------------------------------------------- | ---------------- | ------------------ |
+| id                           | bigint      | primary key                                        | identity         | 会话ID               |
+| conversation\_key            | text        | not null unique                                    | <br />           | 会话唯一键              |
+| source\_guid                 | text        | not null                                           | <br />           | 来源GUID             |
+| conversation\_type           | text        | not null check(private/group)                      | <br />           | 会话类型               |
+| conversation\_identity\_type | text        | not null check(group/private\_direct/...)          | 'private\_direct' | 会话身份类型             |
+| is\_internal\_chat           | boolean     | not null                                           | false            | 是否内部会话             |
+| forward\_batch\_key          | text        | <br />                                             | <br />           | 转发批次键              |
+| my\_wechat\_id               | text        | <br />                                             | <br />           | 我方微信ID             |
+| my\_wechat\_name             | text        | <br />                                             | <br />           | 我方微信名              |
+| peer\_wechat\_id             | text        | <br />                                             | <br />           | 对端微信ID             |
+| peer\_wechat\_name           | text        | <br />                                             | <br />           | 对端微信名              |
+| peer\_name\_tokens           | text[]      | not null                                           | '{}'             | 对端名称分词             |
+| room\_username               | text        | <br />                                             | <br />           | 群房间ID              |
+| conversation\_name           | text        | <br />                                             | <br />           | 会话名称               |
+| room\_name                   | text        | <br />                                             | <br />           | 群名称                |
+| room\_remark\_name           | text        | <br />                                             | <br />           | 群备注名               |
+| customer\_id                 | text        | <br />                                             | <br />           | 关联客户ID             |
+| primary\_contact\_id         | text        | <br />                                             | <br />           | 关联主联系人ID           |
+| owner\_employee\_id          | text        | <br />                                             | <br />           | 归属员工ID             |
+| status                       | text        | not null check(active/archived)                    | 'active'         | 会话状态               |
+| last\_message\_id            | bigint      | <br />                                             | <br />           | 最后消息ID             |
+| last\_message\_at            | timestamptz | <br />                                             | <br />           | 最后消息时间             |
+| last\_message\_preview       | text        | <br />                                             | <br />           | 最后消息预览             |
+| message\_count               | integer     | not null                                           | 0                | 消息计数               |
+| last\_member\_sync\_version  | bigint      | not null                                           | 0                | 成员同步版本             |
+| last\_member\_synced\_at     | timestamptz | <br />                                             | <br />           | 最近成员同步时间           |
+| created\_at                  | timestamptz | not null                                           | now()            | 创建时间               |
+| updated\_at                  | timestamptz | not null                                           | now()            | 更新时间               |
 
-### crm\_wechat\_group\_message (微信群消息表)
+### crm\_wx\_message（微信消息投影表）
 
-| 字段名                | 数据类型        | 约束                                                  | 默认值                          | 描述      |
-| ------------------ | ----------- | --------------------------------------------------- | ---------------------------- | ------- |
-| id                 | uuid        | primary key                                         | gen\_random\_uuid()          | 消息ID    |
-| group\_id          | uuid        | references crm\_wechat\_group(id) on delete cascade | <br />                       | 群ID     |
-| sender\_wechat\_id | text        | not null                                            | <br />                       | 发送方微信ID |
-| msg\_type          | text        | <br />                                              | 'text'                       | 消息类型    |
-| content            | text        | not null                                            | <br />                       | 消息内容    |
-| send\_time         | timestamptz | not null                                            | timezone('utc'::text, now()) | 发送时间    |
+| 字段名                    | 数据类型        | 约束                                                                                | 默认值      | 描述                 |
+| ---------------------- | ----------- | --------------------------------------------------------------------------------- | -------- | ------------------ |
+| id                     | bigint      | primary key                                                                       | identity | 消息ID               |
+| conversation\_id       | bigint      | not null references crm\_wx\_conversation(id) on delete cascade                  | <br />   | 会话ID               |
+| source\_guid           | text        | not null                                                                          | <br />   | 来源GUID             |
+| message\_scope         | text        | not null check(private/group)                                                     | <br />   | 消息范围               |
+| message\_origin\_type  | text        | not null check(private\_forward/group\_forward/group\_live/unknown)              | 'unknown' | 消息来源类型             |
+| raw\_event\_table      | text        | not null check(wechat\_raw.wechat\_private\_message\_events / wechat\_raw.wechat\_group\_message\_events / wework\_*) | <br />   | 源事件表               |
+| raw\_event\_dedupe\_key | text       | not null                                                                          | <br />   | 源事件去重键             |
+| raw\_msg\_id           | text        | <br />                                                                            | <br />   | 源消息ID              |
+| sender\_wechat\_id     | text        | <br />                                                                            | <br />   | 发送方微信ID            |
+| sender\_display\_name  | text        | <br />                                                                            | <br />   | 发送方展示名             |
+| sender\_alias          | text        | <br />                                                                            | <br />   | 发送方备注名             |
+| receiver\_wechat\_id   | text        | <br />                                                                            | <br />   | 接收方微信ID            |
+| receiver\_display\_name | text       | <br />                                                                            | <br />   | 接收方展示名             |
+| peer\_display\_name    | text        | <br />                                                                            | <br />   | 对端展示名              |
+| forward\_batch\_key    | text        | <br />                                                                            | <br />   | 转发批次键              |
+| room\_username         | text        | <br />                                                                            | <br />   | 群房间ID              |
+| room\_name             | text        | <br />                                                                            | <br />   | 群名称                |
+| room\_remark\_name     | text        | <br />                                                                            | <br />   | 群备注名               |
+| msg\_type              | integer     | <br />                                                                            | <br />   | 消息类型               |
+| content                | text        | <br />                                                                            | <br />   | 消息内容               |
+| quote\_content         | text        | <br />                                                                            | <br />   | 引用内容               |
+| quote\_msg\_type       | integer     | <br />                                                                            | <br />   | 引用消息类型             |
+| quote\_remote\_media\_url | text     | <br />                                                                            | <br />   | 引用媒体URL            |
+| quote\_file\_name      | text        | <br />                                                                            | <br />   | 引用文件名              |
+| send\_time             | timestamptz | <br />                                                                            | <br />   | 发送时间               |
+| remote\_media\_url     | text        | <br />                                                                            | <br />   | 远端媒体URL            |
+| local\_media\_path     | text        | <br />                                                                            | <br />   | 本地媒体路径             |
+| voice\_trans\_text     | text        | <br />                                                                            | <br />   | 语音转文字内容            |
+| created\_at            | timestamptz | not null                                                                          | now()    | 创建时间               |
+| updated\_at            | timestamptz | not null                                                                          | now()    | 更新时间               |
+| 唯一约束                  | <br />      | unique(raw\_event\_table, raw\_event\_dedupe\_key)                               | <br />   | 防止同源消息重复投影         |
+
+### crm\_wx\_conversation\_member（会话成员表）
+
+| 字段名             | 数据类型        | 约束                                                                 | 默认值               | 描述        |
+| --------------- | ----------- | ------------------------------------------------------------------ | ----------------- | --------- |
+| id              | bigint      | primary key                                                        | identity          | 主键        |
+| conversation\_id | bigint      | not null references crm\_wx\_conversation(id) on delete cascade   | <br />            | 会话ID      |
+| wechat\_id      | text        | not null                                                           | <br />            | 微信ID      |
+| display\_name   | text        | <br />                                                             | <br />            | 展示名       |
+| member\_type    | text        | not null check(customer\_contact/employee/external\_unknown)      | 'external\_unknown' | 成员类型      |
+| contact\_id     | text        | <br />                                                             | <br />            | 联系人ID     |
+| employee\_id    | text        | <br />                                                             | <br />            | 员工ID      |
+| is\_internal    | boolean     | not null                                                           | false             | 是否内部成员    |
+| created\_at     | timestamptz | not null                                                           | now()             | 创建时间      |
+| updated\_at     | timestamptz | not null                                                           | now()             | 更新时间      |
+| 唯一约束           | <br />      | unique(conversation\_id, wechat\_id)                              | <br />            | 防止同会话重复成员 |
+
+### crm\_customer\_message\_session（客户消息会话）
+
+| 字段名                        | 数据类型        | 约束                               | 默认值            | 描述        |
+| -------------------------- | ----------- | -------------------------------- | -------------- | --------- |
+| id                         | text        | primary key                      | <br />         | 会话ID      |
+| customer\_id               | text        | not null                         | <br />         | 客户ID      |
+| contact\_id                | text        | <br />                           | <br />         | 联系人ID     |
+| channel                    | text        | not null check(wechat\_private) | 'wechat\_private' | 渠道类型      |
+| source\_sender\_key        | text        | not null                         | <br />         | 来源发送方唯一键  |
+| source\_sender\_wechat\_id | text        | <br />                           | <br />         | 来源发送方微信ID |
+| source\_sender\_display\_name | text     | <br />                           | <br />         | 来源发送方名称   |
+| title                      | text        | not null                         | <br />         | 会话标题      |
+| message\_count             | integer     | not null                         | 0              | 消息数       |
+| last\_message\_at          | timestamptz | <br />                           | <br />         | 最后消息时间    |
+| last\_message\_preview     | text        | <br />                           | <br />         | 最后消息预览    |
+| status                     | text        | not null check(active/archived) | 'active'       | 状态        |
+| created\_at                | timestamptz | not null                         | now()          | 创建时间      |
+| updated\_at                | timestamptz | not null                         | now()          | 更新时间      |
+
+### crm\_customer\_message\_session\_item（客户消息会话明细）
+
+| 字段名           | 数据类型        | 约束                                                                            | 默认值    | 描述      |
+| ------------- | ----------- | ----------------------------------------------------------------------------- | ------ | ------- |
+| id            | bigint      | primary key                                                                   | identity | 主键      |
+| session\_id   | text        | not null references crm\_customer\_message\_session(id) on delete cascade    | <br /> | 会话ID    |
+| wx\_message\_id | bigint    | not null references crm\_wx\_message(id) on delete cascade                    | <br /> | 微信消息ID  |
+| sort\_order   | integer     | not null                                                                      | 0      | 排序      |
+| created\_at   | timestamptz | not null                                                                      | now()  | 创建时间    |
+| 唯一约束         | <br />      | unique(session\_id, wx\_message\_id), unique(wx\_message\_id)                | <br /> | 关系唯一性   |
+
+### crm\_wx\_projection\_jobs（微信投影任务队列表）
+
+| 字段名                    | 数据类型        | 约束                                                  | 默认值      | 描述        |
+| ---------------------- | ----------- | --------------------------------------------------- | -------- | --------- |
+| id                     | bigint      | primary key                                         | identity | 主键        |
+| dedupe\_key            | text        | not null unique                                     | <br />   | 去重键       |
+| source\_guid           | text        | not null                                            | <br />   | 来源GUID    |
+| raw\_event\_table      | text        | not null                                            | <br />   | 源事件表      |
+| raw\_event\_dedupe\_key | text       | not null                                            | <br />   | 源事件去重键    |
+| job\_type              | text        | not null check(project\_message)                    | <br />   | 任务类型      |
+| status                 | text        | not null check(pending/processing/retrying/success/failed) | 'pending' | 任务状态      |
+| attempt\_count         | integer     | not null                                            | 0        | 重试次数      |
+| next\_retry\_at        | timestamptz | <br />                                              | <br />   | 下次重试时间    |
+| last\_error            | text        | <br />                                              | <br />   | 最后错误      |
+| processing\_started\_at | timestamptz | <br />                                             | <br />   | 处理开始时间    |
+| completed\_at          | timestamptz | <br />                                              | <br />   | 完成时间      |
+| created\_at            | timestamptz | not null                                            | now()    | 创建时间      |
+| updated\_at            | timestamptz | not null                                            | now()    | 更新时间      |
+
+### crm\_wx\_sender\_inbox\_v（发送方收件箱视图）
+
+| 字段名                    | 数据类型    | 描述            |
+| ---------------------- | ------- | ------------- |
+| sender\_key            | text    | 发送方唯一键        |
+| sender\_wechat\_id     | text    | 发送方微信ID       |
+| sender\_display\_name  | text    | 发送方展示名        |
+| message\_count         | integer | 消息总数          |
+| last\_message\_at      | timestamptz | 最后消息时间      |
+| last\_message\_preview | text    | 最后消息预览        |
+| archived\_message\_count | integer | 已归档消息数      |
 

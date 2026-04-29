@@ -133,77 +133,101 @@ insert into public.crm_project(
 
 do $$
 begin
-  if to_regclass('public.crm_wechat_session') is not null then
-    insert into public.crm_wechat_session(id, my_wechat_id, peer_wechat_id, customer_id, contact_id) values
-      ('11111111-1111-1111-1111-111111111001', 'wx_sales_manager', 'wx_wangzong', 1, 'CON001'),
-      ('11111111-1111-1111-1111-111111111002', 'wx_sales_a', 'wx_ligong', 2, 'CON002')
-    on conflict (my_wechat_id, peer_wechat_id) do update
+  if to_regclass('public.crm_wx_conversation') is not null then
+    insert into public.crm_wx_conversation(
+      conversation_key, source_guid, conversation_type, conversation_identity_type, is_internal_chat,
+      my_wechat_id, my_wechat_name, peer_wechat_id, peer_wechat_name, room_username, conversation_name,
+      room_name, room_remark_name, customer_id, primary_contact_id, owner_employee_id, status
+    ) values
+      ('private:wx_sales_manager:wx_wangzong', 'wx_guid_001', 'private', 'private_direct', false, 'wx_sales_manager', '销售经理', 'wx_wangzong', '王总', null, '王总私聊', null, null, '1', 'CON001', 'EMP002', 'active'),
+      ('private:wx_sales_a:wx_ligong', 'wx_guid_001', 'private', 'private_direct', false, 'wx_sales_a', '业务员A', 'wx_ligong', '李工', null, '李工私聊', null, null, '2', 'CON002', 'EMP003', 'active'),
+      ('group:wx_grp_huadong_001', 'wx_guid_001', 'group', 'group', false, null, null, null, null, 'wx_grp_huadong_001', '华东智造项目群', '华东智造项目群', '华东项目群', '1', 'CON001', 'EMP002', 'active'),
+      ('group:wx_grp_nanfang_001', 'wx_guid_001', 'group', 'group', false, null, null, null, null, 'wx_grp_nanfang_001', '南方设备技术群', '南方设备技术群', '南方技术群', '2', 'CON002', 'EMP003', 'active')
+    on conflict (conversation_key) do update
     set
       customer_id = excluded.customer_id,
-      contact_id = excluded.contact_id;
+      primary_contact_id = excluded.primary_contact_id,
+      owner_employee_id = excluded.owner_employee_id,
+      conversation_name = excluded.conversation_name,
+      room_name = excluded.room_name,
+      room_remark_name = excluded.room_remark_name,
+      updated_at = now();
   end if;
 end
 $$;
 
 do $$
 begin
-  if to_regclass('public.crm_wechat_group') is not null then
-    insert into public.crm_wechat_group(id, group_id, group_name, customer_id) values
-      ('22222222-2222-2222-2222-222222222001', 'wx_grp_huadong_001', '华东智造项目群', 1),
-      ('22222222-2222-2222-2222-222222222002', 'wx_grp_nanfang_001', '南方设备技术群', 2)
-    on conflict (group_id) do update
-    set
-      group_name = excluded.group_name,
-      customer_id = excluded.customer_id;
-  end if;
-end
-$$;
-
-do $$
-begin
-  if to_regclass('public.crm_wechat_message') is not null then
-    insert into public.crm_wechat_message(session_id, sender_wechat_id, msg_type, content, send_time)
+  if to_regclass('public.crm_wx_message') is not null then
+    insert into public.crm_wx_message(
+      conversation_id, source_guid, message_scope, message_origin_type, raw_event_table, raw_event_dedupe_key,
+      raw_msg_id, sender_wechat_id, sender_display_name, receiver_wechat_id, msg_type, content, send_time
+    )
     select
-      case when mod(i, 2) = 1 then '11111111-1111-1111-1111-111111111001'::uuid else '11111111-1111-1111-1111-111111111002'::uuid end as session_id,
-      case
-        when mod(i, 4) = 1 then 'wx_sales_manager'
-        when mod(i, 4) = 2 then 'wx_wangzong'
-        when mod(i, 4) = 3 then 'wx_sales_a'
-        else 'wx_ligong'
-      end as sender_wechat_id,
-      'text' as msg_type,
-      case mod(i, 10)
-        when 0 then format('第%s轮沟通：请确认交付节奏和风险兜底方案。', i)
-        when 1 then format('第%s轮沟通：客户关注价格边界，请给TCO测算。', i)
-        when 2 then format('第%s轮沟通：请补充认证资料与测试计划。', i)
-        when 3 then format('第%s轮沟通：交期是否可以压缩到两周内？', i)
-        when 4 then format('第%s轮沟通：请同步替代料验证进度。', i)
-        when 5 then format('第%s轮沟通：样品反馈已回传，需优化插拔力。', i)
-        when 6 then format('第%s轮沟通：竞品报价已到，需给差异化话术。', i)
-        when 7 then format('第%s轮沟通：本周安排一次技术对齐会议。', i)
-        when 8 then format('第%s轮沟通：请确认批量导入窗口和备货策略。', i)
-        else format('第%s轮沟通：建议先小批试产再推进量产。', i)
-      end as content,
-      now() - interval '3 day' + (i || ' minutes')::interval as send_time
-    from generate_series(1, 100) as g(i);
+      c.id,
+      c.source_guid,
+      'private',
+      'private_forward',
+      'wechat_raw.wechat_private_message_events',
+      format('seed-private-%s', i),
+      format('seed-private-msg-%s', i),
+      case when mod(i, 2) = 1 then c.my_wechat_id else c.peer_wechat_id end,
+      case when mod(i, 2) = 1 then c.my_wechat_name else c.peer_wechat_name end,
+      case when mod(i, 2) = 1 then c.peer_wechat_id else c.my_wechat_id end,
+      1,
+      case mod(i, 5)
+        when 0 then format('私聊第%s条：请确认交付节奏和风险兜底方案。', i)
+        when 1 then format('私聊第%s条：客户关注价格边界，请给TCO测算。', i)
+        when 2 then format('私聊第%s条：请补充认证资料与测试计划。', i)
+        when 3 then format('私聊第%s条：交期是否可以压缩到两周内？', i)
+        else format('私聊第%s条：建议先小批试产再推进量产。', i)
+      end,
+      now() - interval '3 day' + (i || ' minutes')::interval
+    from generate_series(1, 100) as g(i)
+    cross join lateral (
+      select id, source_guid, my_wechat_id, my_wechat_name, peer_wechat_id, peer_wechat_name
+      from public.crm_wx_conversation
+      where conversation_key = case when mod(i, 2) = 1 then 'private:wx_sales_manager:wx_wangzong' else 'private:wx_sales_a:wx_ligong' end
+      limit 1
+    ) c
+    on conflict (raw_event_table, raw_event_dedupe_key) do nothing;
   end if;
 end
 $$;
 
 do $$
 begin
-  if to_regclass('public.crm_wechat_group_message') is not null then
-    insert into public.crm_wechat_group_message(group_id, sender_wechat_id, msg_type, content, send_time)
+  if to_regclass('public.crm_wx_message') is not null then
+    insert into public.crm_wx_message(
+      conversation_id, source_guid, message_scope, message_origin_type, raw_event_table, raw_event_dedupe_key,
+      raw_msg_id, sender_wechat_id, sender_display_name, room_username, room_name, room_remark_name, msg_type, content, send_time
+    )
     select
-      case when mod(i, 2) = 1 then '22222222-2222-2222-2222-222222222001'::uuid else '22222222-2222-2222-2222-222222222002'::uuid end as group_id,
+      c.id,
+      c.source_guid,
+      'group',
+      'group_live',
+      'wechat_raw.wechat_group_message_events',
+      format('seed-group-%s', i),
+      format('seed-group-msg-%s', i),
       case
         when mod(i, 5) = 0 then 'wx_sales_manager'
         when mod(i, 5) = 1 then 'wx_procurement_hd'
         when mod(i, 5) = 2 then 'wx_sales_a'
         when mod(i, 5) = 3 then 'wx_ligong'
         else 'wx_quality_team'
-      end as sender_wechat_id,
-      'text' as msg_type,
+      end,
+      case
+        when mod(i, 5) = 0 then '销售经理'
+        when mod(i, 5) = 1 then '采购同事'
+        when mod(i, 5) = 2 then '业务员A'
+        when mod(i, 5) = 3 then '李工'
+        else '质量团队'
+      end,
+      c.room_username,
+      c.room_name,
+      c.room_remark_name,
+      1,
       case mod(i, 10)
         when 0 then format('群聊第%s条：今天同步试产节奏与里程碑。', i)
         when 1 then format('群聊第%s条：请补充异常升级路径和责任人。', i)
@@ -215,9 +239,16 @@ begin
         when 7 then format('群聊第%s条：客户关注点转向交付一致性。', i)
         when 8 then format('群聊第%s条：下周安排联合测试和问题复盘。', i)
         else format('群聊第%s条：请在今天18点前反馈风险项。', i)
-      end as content,
-      now() - interval '2 day' + (i || ' minutes')::interval as send_time
-    from generate_series(1, 100) as g(i);
+      end,
+      now() - interval '2 day' + (i || ' minutes')::interval
+    from generate_series(1, 100) as g(i)
+    cross join lateral (
+      select id, source_guid, room_username, room_name, room_remark_name
+      from public.crm_wx_conversation
+      where conversation_key = case when mod(i, 2) = 1 then 'group:wx_grp_huadong_001' else 'group:wx_grp_nanfang_001' end
+      limit 1
+    ) c
+    on conflict (raw_event_table, raw_event_dedupe_key) do nothing;
   end if;
 end
 $$;
