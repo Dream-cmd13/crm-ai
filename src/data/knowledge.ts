@@ -1,3 +1,3 @@
 import { KnowledgeItem } from '../types';
 
-export const mockKnowledgeItems: KnowledgeItem[] = [];
+export const initialKnowledgeItems: KnowledgeItem[] = [];

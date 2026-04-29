@@ -1,3 +1,3 @@
 import { PerformanceMetric } from '../types';
 
-export const mockPerformanceMetrics: PerformanceMetric[] = [];
+export const initialPerformanceMetrics: PerformanceMetric[] = [];

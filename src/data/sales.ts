@@ -1,13 +1,13 @@
 import { SampleOrder, ReturnOrder, SalesQuotation, SalesOrder } from '../types';
 
-export const mockSampleOrders: SampleOrder[] = [];
+export const initialSampleOrders: SampleOrder[] = [];
 
-export const mockReturnOrders: ReturnOrder[] = [];
+export const initialReturnOrders: ReturnOrder[] = [];
 
-export const mockSalesQuotations: SalesQuotation[] = [];
+export const initialSalesQuotations: SalesQuotation[] = [];
 
-export const mockQuotations = mockSalesQuotations;
+export const initialQuotations = initialSalesQuotations;
 
-export const mockSalesOrders: SalesOrder[] = [];
+export const initialSalesOrders: SalesOrder[] = [];
 
-export const mockOrders = mockSalesOrders;
+export const initialOrders = initialSalesOrders;

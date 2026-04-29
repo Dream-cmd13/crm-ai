@@ -1,7 +1,7 @@
 import { AIAgent, AIAgentLog, WorkOntologyNode } from '../types';
 
-export const mockAIAgentLogs: AIAgentLog[] = [];
+export const initialAIAgentLogs: AIAgentLog[] = [];
 
-export const mockWorkOntology: WorkOntologyNode[] = [];
+export const initialWorkOntology: WorkOntologyNode[] = [];
 
-export const mockAIAgents: AIAgent[] = [];
+export const initialAIAgents: AIAgent[] = [];

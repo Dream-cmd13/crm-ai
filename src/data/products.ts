@@ -1,5 +1,5 @@
 import { Product, ProductCategory } from '../types';
 
-export const mockProductCategories: ProductCategory[] = [];
+export const initialProductCategories: ProductCategory[] = [];
 
-export const mockProducts: Product[] = [];
+export const initialProducts: Product[] = [];

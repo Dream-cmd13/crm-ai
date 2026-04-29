@@ -2,7 +2,7 @@ import { toast } from 'react-hot-toast';
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { X, Building2, Briefcase, User, Calendar, Clock, AlertCircle, CheckCircle2, FileText, Bot, Mic, Image as ImageIcon, GitBranch, Target, History, Share2, Layers, ArrowUpRight } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { mockTaskTypes, mockTodoTasks } from '../data';
+import { initialTaskTypes, initialTodoTasks } from '../data';
 import { callAiProxy } from '../lib/aiProxy';
 import { fetchCustomerCommunicationsFromSupabase } from '../lib/customerRepository';
 import { parseAiJson } from '../lib/aiJson';
@@ -66,7 +66,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, navigateTo, onC
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const taskTypeConfig = useMemo(() => {
-    return mockTaskTypes.find(t => t.name === task?.taskType) || {
+    return initialTaskTypes.find(t => t.name === task?.taskType) || {
       completionConfig: {
         requireCompletionTime: true,
         requireCompletionEffect: true,
@@ -77,7 +77,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, navigateTo, onC
 
   const parentTask = useMemo(() => {
     if (!task?.parentId) return null;
-    return mockTodoTasks.find(t => t.id === task.parentId);
+    return initialTodoTasks.find(t => t.id === task.parentId);
   }, [task?.parentId]);
   const effectiveAuxiliaryEntries = useMemo(() => {
     const raw = task?.auxiliaryData || {};

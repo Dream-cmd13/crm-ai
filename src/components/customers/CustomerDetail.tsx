@@ -3,7 +3,7 @@ import { ChevronLeft, Users, Link as LinkIcon, ListTodo, Target, MessageSquare, 
 import { Customer, Contact, GroupChat, TodoTask, CustomerPersona, CommunicationDetail } from '../../types';
 import ReservedButtons from '../ReservedButtons';
 import { cn } from '../../lib/utils';
-import { mockInquiries, mockLeads, mockOpportunities, mockProjects, mockQuotations, mockOrders, mockSampleOrders, mockReturnOrders, mockUsers } from '../../data';
+import { initialInquiries, initialLeads, initialOpportunities, initialProjects, initialQuotations, initialOrders, initialSampleOrders, initialReturnOrders, initialUsers } from '../../data';
 import CommunicationLog from '../CommunicationLog';
 import CustomerPersonaPanel from '../CustomerPersonaPanel';
 import SwotMatrixPanel from '../SwotMatrixPanel';
@@ -72,19 +72,19 @@ export const CustomerDetail = ({
 
   const relatedInquiryIds = [
     ...(selectedCustomer.inquiryIds || []),
-    ...mockInquiries.filter(i => i.companyName === selectedCustomer.name).map(i => i.id)
+    ...initialInquiries.filter(i => i.companyName === selectedCustomer.name).map(i => i.id)
   ];
   const relatedLeadIds = [
     ...(selectedCustomer.leadIds || []),
-    ...mockLeads.filter(l => l.customerName === selectedCustomer.name).map(l => l.id)
+    ...initialLeads.filter(l => l.customerName === selectedCustomer.name).map(l => l.id)
   ];
   const relatedOppIds = [
     ...(selectedCustomer.opportunityIds || []),
-    ...mockOpportunities.filter(o => o.customerName === selectedCustomer.name).map(o => o.id)
+    ...initialOpportunities.filter(o => o.customerName === selectedCustomer.name).map(o => o.id)
   ];
   const relatedProjectIds = [
     ...(selectedCustomer.projectIds || []),
-    ...mockProjects.filter(p => p.customerName === selectedCustomer.name).map(p => p.id)
+    ...initialProjects.filter(p => p.customerName === selectedCustomer.name).map(p => p.id)
   ];
   const allRelatedIds = Array.from(new Set([...relatedInquiryIds, ...relatedLeadIds, ...relatedOppIds, ...relatedProjectIds]));
   const customerTasks = Array.from(new Map(
@@ -344,7 +344,7 @@ export const CustomerDetail = ({
           communications={communications}
           onAddCommunication={onAddCommunication}
           contacts={(selectedCustomer.contacts || []).map((c: any) => ({ id: c.id, name: c.name, position: c.position, wechatId: c.wechatId }))}
-          employees={mockUsers.map((u: any) => ({ id: u.id, name: u.name, role: u.role }))}
+          employees={initialUsers.map((u: any) => ({ id: u.id, name: u.name, role: u.role }))}
           groupChats={[]}
           onManageMembers={(chat) => setSelectedChat(chat)}
         />
@@ -409,9 +409,9 @@ export const CustomerDetail = ({
             </div>
 
             <div>
-              <p className="text-xs text-gray-500 mb-2">报价单 ({mockQuotations.filter(q => q.customerName === selectedCustomer.name).length})</p>
+              <p className="text-xs text-gray-500 mb-2">报价单 ({initialQuotations.filter(q => q.customerName === selectedCustomer.name).length})</p>
               <div className="space-y-2">
-                {mockQuotations.filter(q => q.customerName === selectedCustomer.name).map(q => (
+                {initialQuotations.filter(q => q.customerName === selectedCustomer.name).map(q => (
                   <div key={q.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm">
                     <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => navigateTo?.('quotations', q.id)}>{q.quoteNo || q.id}</span>
                     <span className="text-gray-500">¥{Number(q.totalAmount || 0).toLocaleString()}</span>
@@ -420,9 +420,9 @@ export const CustomerDetail = ({
               </div>
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-2">订单 ({mockOrders.filter(o => o.customerName === selectedCustomer.name).length})</p>
+              <p className="text-xs text-gray-500 mb-2">订单 ({initialOrders.filter(o => o.customerName === selectedCustomer.name).length})</p>
               <div className="space-y-2">
-                {mockOrders.filter(o => o.customerName === selectedCustomer.name).map(o => (
+                {initialOrders.filter(o => o.customerName === selectedCustomer.name).map(o => (
                   <div key={o.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm">
                     <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => navigateTo?.('sales', o.id)}>{o.orderNo || o.id}</span>
                     <span className="text-gray-500">¥{Number(o.totalAmount || 0).toLocaleString()}</span>

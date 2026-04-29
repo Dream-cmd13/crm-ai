@@ -1,22 +1,22 @@
 import { Inquiry, Lead, Opportunity, Project, CommunicationDetail, Customer, CustomerCase, CustomerPersona, CustomerFeedback } from '../types';
 
-export const mockCommunications: CommunicationDetail[] = [];
+export const initialCommunications: CommunicationDetail[] = [];
 
-export const mockBusinessCustomers: Customer[] = [];
+export const initialBusinessCustomers: Customer[] = [];
 
-// Historical alias kept for pages still importing mockCustomers from ../data
-export const mockCustomers: Customer[] = mockBusinessCustomers;
+// Historical alias kept for pages still importing initialCustomers from ../data
+export const initialCustomers: Customer[] = initialBusinessCustomers;
 
-export const mockPersonas: CustomerPersona[] = [];
+export const initialPersonas: CustomerPersona[] = [];
 
-export const mockCustomerFeedbacks: CustomerFeedback[] = [];
+export const initialCustomerFeedbacks: CustomerFeedback[] = [];
 
-export const mockInquiries: Inquiry[] = [];
+export const initialInquiries: Inquiry[] = [];
 
-export const mockLeads: Lead[] = [];
+export const initialLeads: Lead[] = [];
 
-export const mockOpportunities: Opportunity[] = [];
+export const initialOpportunities: Opportunity[] = [];
 
-export const mockCustomerCases: CustomerCase[] = [];
+export const initialCustomerCases: CustomerCase[] = [];
 
-export const mockProjects: Project[] = [];
+export const initialProjects: Project[] = [];

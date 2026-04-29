@@ -1,13 +1,13 @@
 import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Save, CheckCircle, RotateCcw, History, Sparkles, Loader2, RefreshCw, ArrowRightLeft } from 'lucide-react';
-import { mockBusinessCustomers, mockProjects, mockProducts } from '../data';
+import { initialBusinessCustomers, initialProjects, initialProducts } from '../data';
 import { DocumentItem, ChangeRecord, TodoTask } from '../types';
 import ReservedButtons from './ReservedButtons';
 import ProcessingFlow, { ProcessingNode } from './ProcessingFlow';
 import QuickTaskModal from './QuickTaskModal';
 import TaskDetailModal from './TaskDetailModal';
-import { mockTasks } from '../data';
+import { initialTasks } from '../data';
 import { cn } from '../lib/utils';
 
 import SelectionModal from './SelectionModal';
@@ -35,13 +35,13 @@ export default function DocumentDetail({ onBack, document, documentType, onSave,
   const [activeTab, setActiveTab] = useState<'details' | 'flow' | 'history'>('details');
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [tasks, setTasks] = useState<TodoTask[]>(mockTasks);
+  const [tasks, setTasks] = useState<TodoTask[]>(initialTasks);
   const [isPushingDown, setIsPushingDown] = useState(false);
   const [showCustomerSelection, setShowCustomerSelection] = useState(false);
   const [showProjectSelection, setShowProjectSelection] = useState(false);
   const [showProductSelection, setShowProductSelection] = useState(false);
   const [activeItemIndex, setActiveItemIndex] = useState<number | null>(null);
-  const [projectOptions, setProjectOptions] = useState<any[]>(mockProjects);
+  const [projectOptions, setProjectOptions] = useState<any[]>(initialProjects);
   const [sopFlows, setSopFlows] = useState<any[]>([]);
   const [hasConvertedSopTask, setHasConvertedSopTask] = useState(false);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {

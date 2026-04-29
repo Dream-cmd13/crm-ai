@@ -1,5 +1,5 @@
 import { Department, User } from '../types';
 
-export const mockDepartments: Department[] = [];
+export const initialDepartments: Department[] = [];
 
-export const mockUsers: User[] = [];
+export const initialUsers: User[] = [];

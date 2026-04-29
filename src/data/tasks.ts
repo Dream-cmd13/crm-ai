@@ -1,9 +1,9 @@
 import { TaskType, CustomerType, TodoTask } from '../types';
 
-export const mockTaskTypes: TaskType[] = [];
+export const initialTaskTypes: TaskType[] = [];
 
-export const mockCustomerTypes: CustomerType[] = [];
+export const initialCustomerTypes: CustomerType[] = [];
 
-export const mockTodoTasks: TodoTask[] = [];
+export const initialTodoTasks: TodoTask[] = [];
 
-export const mockTasks = mockTodoTasks;
+export const initialTasks = initialTodoTasks;

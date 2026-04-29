@@ -1,5 +1,5 @@
 import { GroupChat, WeChatUserMapping } from '../types';
 
-export const mockWeChatUserMappings: WeChatUserMapping[] = [];
+export const initialWeChatUserMappings: WeChatUserMapping[] = [];
 
-export const mockGroupChats: GroupChat[] = [];
+export const initialGroupChats: GroupChat[] = [];
