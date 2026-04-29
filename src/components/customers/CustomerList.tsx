@@ -107,7 +107,7 @@ export const CustomerList = ({
               </div>
 
               <h3 className="text-sm font-bold text-gray-900 mb-0.5 group-hover:text-indigo-600 transition-colors truncate">{customer.name}</h3>
-              <p className="text-[11px] text-gray-500 mb-2">编号: {customer.id}</p>
+              <p className="text-[11px] text-gray-500 mb-2">编号: {customer.customerNumber || customer.id}</p>
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">

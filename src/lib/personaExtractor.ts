@@ -1,5 +1,6 @@
 import { getSupabaseClient } from './supabaseClient';
 import { callAiProxy } from './aiProxy';
+import { resolveCustomerDbIdFromSupabase } from './customerRepository';
 
 /**
  * AI Context Thinning & Persona Extraction
@@ -7,13 +8,15 @@ import { callAiProxy } from './aiProxy';
  * 定期或在单据流转时触发，将长文本聊天记录浓缩为精准的客户画像与联系人性格标签。
  */
 export const extractAndThinContext = async (customerId: string) => {
+  const dbId = await resolveCustomerDbIdFromSupabase(customerId);
+  if (!dbId) return;
   const supabase = getSupabaseClient();
   
   // 1. Fetch unsummarized chat logs
   const { data: logs, error } = await supabase
     .from('crm_communication_log')
     .select('*')
-    .eq('customer_id', customerId)
+    .eq('customer_id', dbId)
     .is('is_summarized', false) // assuming we add this flag
     .order('created_at', { ascending: true });
     
@@ -25,7 +28,7 @@ export const extractAndThinContext = async (customerId: string) => {
   const { data: personaData } = await supabase
     .from('crm_customer_persona')
     .select('*')
-    .eq('customer_id', customerId)
+    .eq('customer_id', dbId)
     .single();
 
   const existingPersona = personaData || {};
@@ -55,7 +58,7 @@ ${chatText}
     } else {
       await supabase
         .from('crm_customer_persona')
-        .insert({ ...updatedPersona, customer_id: customerId });
+        .insert({ ...updatedPersona, customer_id: dbId });
     }
 
     // 6. Mark logs as summarized

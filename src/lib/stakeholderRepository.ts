@@ -1,5 +1,6 @@
 import { CustomerStakeholder, StakeholderAssessment } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
+import { resolveCustomerDbIdFromSupabase } from './customerRepository';
 
 const LOCAL_STAKEHOLDER_KEY = 'crm_customer_stakeholder';
 const LOCAL_ASSESSMENT_KEY = 'crm_stakeholder_assessment';
@@ -97,14 +98,16 @@ export const upsertStakeholder = async (entry: CustomerStakeholder) => {
 
 export const fetchStakeholderAssessments = async (customerId: string): Promise<StakeholderAssessment[]> => {
   const local = loadLocal<StakeholderAssessment[]>(LOCAL_ASSESSMENT_KEY, []);
-  if (!customerId) return [];
-  if (!isSupabaseConfigured()) return local.filter((x) => x.customerId === customerId);
+  if (!customerId || !isSupabaseConfigured()) return local.filter((x) => x.customerId === customerId);
+
+  const dbId = await resolveCustomerDbIdFromSupabase(customerId);
+  if (!dbId) return [];
 
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('crm_stakeholder_assessment')
     .select('*')
-    .eq('customer_id', customerId)
+    .eq('customer_id', dbId)
     .order('assessment_date', { ascending: false });
   if (error) throw error;
 
@@ -139,10 +142,13 @@ export const createQuickAssessment = async (entry: StakeholderAssessment) => {
   saveLocal(LOCAL_ASSESSMENT_KEY, [entry, ...local]);
   if (!isSupabaseConfigured()) return;
 
+  const dbId = await resolveCustomerDbIdFromSupabase(entry.customerId);
+  if (!dbId) throw new Error(`无法识别客户ID：${entry.customerId}`);
+
   const supabase = getSupabaseClient();
   const payload = {
     id: entry.id,
-    customer_id: entry.customerId,
+    customer_id: dbId,
     stakeholder_id: entry.stakeholderId,
     assessment_date: entry.assessmentDate,
     need_level_score: entry.needLevelScore ?? null,

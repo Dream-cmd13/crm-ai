@@ -466,6 +466,7 @@ export interface RequirementChange {
 }
 
 export interface Customer extends BaseEntity {
+  customerNumber?: string;
   name: string;
   level: '战略客户' | '成长型客户' | '普通客户' | string;
   status: '活跃' | '休眠' | '流失';

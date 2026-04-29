@@ -5,6 +5,7 @@ import {
   WechatSenderMessage,
 } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
+import { resolveCustomerDbIdFromSupabase } from './customerRepository';
 
 const normalizeSenderKey = (senderWechatId?: string | null, senderDisplayName?: string | null) => {
   const cleanWechatId = String(senderWechatId || '').trim();
@@ -165,6 +166,9 @@ export const createCustomerMessageSessionFromSupabase = async (payload: {
   if (messageIds.length === 0) throw new Error('请至少选择一条消息');
   if (!isSupabaseConfigured()) throw new Error('Supabase 未配置');
 
+  const dbId = await resolveCustomerDbIdFromSupabase(customerId);
+  if (!dbId) throw new Error(`无法识别客户ID：${customerId}`);
+
   const supabase = getSupabaseClient();
   const { data: messageRows, error: messageError } = await supabase
     .from('crm_wx_message')
@@ -192,7 +196,7 @@ export const createCustomerMessageSessionFromSupabase = async (payload: {
   const sessionTitle = String(payload.title || '').trim() || `${customerId} - ${resolvedSenderDisplayName || resolvedSenderWechatId || senderKey} 会话`;
   const sessionInsert = {
     id: sessionId,
-    customer_id: customerId,
+    customer_id: dbId,
     contact_id: String(payload.contactId || '').trim() || null,
     channel: 'wechat_private',
     source_sender_key: senderKey,
@@ -226,14 +230,14 @@ export const createCustomerMessageSessionFromSupabase = async (payload: {
 };
 
 export const fetchCustomerMessageSessionsFromSupabase = async (customerId: string): Promise<CustomerMessageSession[]> => {
-  const id = String(customerId || '').trim();
-  if (!id) return [];
-  if (!isSupabaseConfigured()) return [];
+  if (!customerId || !isSupabaseConfigured()) return [];
+  const dbId = await resolveCustomerDbIdFromSupabase(customerId);
+  if (!dbId) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('crm_customer_message_session')
     .select('*')
-    .eq('customer_id', id)
+    .eq('customer_id', dbId)
     .order('last_message_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
   if (error) throw error;

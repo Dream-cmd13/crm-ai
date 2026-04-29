@@ -1,5 +1,6 @@
 import { Competitor, CustomerCompetitor } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
+import { resolveCustomerDbIdFromSupabase } from './customerRepository';
 
 const LOCAL_COMPETITORS_KEY = 'crm_competitors';
 const LOCAL_CUSTOMER_COMPETITORS_KEY = 'crm_customer_competitors';
@@ -91,13 +92,16 @@ export const saveCompetitors = async (competitors: Competitor[]) => {
 
 export const fetchCustomerCompetitors = async (customerId: string): Promise<CustomerCompetitor[]> => {
   const local = loadLocal<CustomerCompetitor[]>(LOCAL_CUSTOMER_COMPETITORS_KEY, []);
-  if (!customerId) return [];
-  if (!isSupabaseConfigured()) return local.filter((x) => x.customerId === customerId);
+  if (!customerId || !isSupabaseConfigured()) return local.filter((x) => x.customerId === customerId);
+
+  const dbId = await resolveCustomerDbIdFromSupabase(customerId);
+  if (!dbId) return [];
+
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('crm_customer_competitor')
     .select('id, customer_id, competitor_id, threat_level, notes')
-    .eq('customer_id', customerId)
+    .eq('customer_id', dbId)
     .order('updated_at', { ascending: false });
   if (error) throw error;
   const rows: CustomerCompetitor[] = (data || []).map((row: any) => ({
@@ -121,10 +125,14 @@ export const upsertCustomerCompetitor = async (entry: CustomerCompetitor) => {
   const next = local.some((x) => x.id === entry.id) ? local.map((x) => (x.id === entry.id ? entry : x)) : [entry, ...local];
   saveLocal(LOCAL_CUSTOMER_COMPETITORS_KEY, next);
   if (!isSupabaseConfigured()) return;
+
+  const dbId = await resolveCustomerDbIdFromSupabase(entry.customerId);
+  if (!dbId) throw new Error(`无法识别客户ID：${entry.customerId}`);
+
   const supabase = getSupabaseClient();
   const payload = {
     id: entry.id,
-    customer_id: entry.customerId,
+    customer_id: dbId,
     competitor_id: entry.competitorId,
     threat_level: entry.threatLevel || '中',
     notes: entry.notes || '',

@@ -109,7 +109,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
     if (!resolvedId && !resolvedName) return;
     const customer = customers.find((c) =>
       resolvedId
-        ? c.id === resolvedId
+        ? (c.id === resolvedId || c.customerNumber === resolvedId)
         : (resolvedName && (c.name === resolvedName || c.shortName === resolvedName))
     );
     if (customer) setSelectedCustomer(customer);

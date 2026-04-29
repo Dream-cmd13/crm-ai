@@ -25,7 +25,8 @@ const fromCustomerNumber = (customerNumber: string): string => {
 };
 
 const mapDbCustomerToUi = (row: any): Customer => ({
-  id: fromCustomerNumber(row.customer_number || String(row.id || '')),
+  id: String(row.id || ''),
+  customerNumber: row.customer_number || '',
   name: row.name || '',
   level: row.level || '普通客户',
   status: row.status === 1 ? '活跃' : row.status === 2 ? '休眠' : row.status === 3 ? '流失' : '活跃',
@@ -117,7 +118,7 @@ const mapDbVisitTaskToUi = (row: any): TodoTask => ({
 });
 
 const mapUiCustomerToDb = (customer: Customer) => {
-  const customerNumber = toCustomerNumber(customer.id);
+  const customerNumber = customer.customerNumber || toCustomerNumber(customer.id);
   return {
     customer_number: customerNumber,
     name: customer.name || '',
@@ -272,14 +273,14 @@ export const fetchCustomersModuleDataFromSupabase = async (): Promise<{
 };
 
 export const fetchCustomerCommunicationsFromSupabase = async (customerId: string): Promise<CommunicationDetail[]> => {
-  const id = String(customerId || '').trim();
-  if (!id) return [];
-  if (!isSupabaseConfigured()) return [];
+  if (!customerId || !isSupabaseConfigured()) return [];
+  const dbId = await resolveCustomerDbIdFromSupabase(customerId);
+  if (!dbId) return [];
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('crm_communication_log')
     .select('*')
-    .eq('customer_id', id)
+    .eq('customer_id', dbId)
     .order('created_at', { ascending: true });
   if (error) throw error;
   return (data || []).map(mapDbCommunicationToUi);
@@ -352,7 +353,7 @@ export const saveCustomersSnapshotToSupabase = async (customers: Customer[]): Pr
   
   // Insert/update customers
   const customerRows = customers.map((customer, index) => {
-    const customerNumber = toCustomerNumber(customer.id);
+    const customerNumber = customer.customerNumber || toCustomerNumber(customer.id);
     return {
       ...mapUiCustomerToDb(customer),
       customer_number: customerNumber,
@@ -365,41 +366,63 @@ export const saveCustomersSnapshotToSupabase = async (customers: Customer[]): Pr
     const originalIndex = row._originalIndex;
     delete row._originalIndex;
     
-    const existingId = customerNumberToId.get(row.customer_number);
-    if (existingId) {
-      // Update existing customer
+    // Try to find by id first if it's numeric
+    const customerId = customers[originalIndex].id;
+    const isNumericId = /^\d+$/.test(customerId);
+    
+    if (isNumericId) {
+      // Update existing customer by integer ID
       await supabase
         .from('ba_manucustinfo')
         .update({ ...row, updated_at: new Date().toISOString() })
-        .eq('id', existingId);
+        .eq('id', parseInt(customerId, 10));
     } else {
-      // Insert new customer
-      const { data: inserted, error } = await supabase
-        .from('ba_manucustinfo')
-        .insert(row)
-        .select('id, customer_number')
-        .single();
-      if (error) throw error;
-      customerNumberToId.set(inserted.customer_number, inserted.id);
-      newCustomerMap.set(String(originalIndex), inserted.customer_number);
+      // Try to find by customer_number
+      const existingId = customerNumberToId.get(row.customer_number);
+      if (existingId) {
+        await supabase
+          .from('ba_manucustinfo')
+          .update({ ...row, updated_at: new Date().toISOString() })
+          .eq('id', existingId);
+      } else {
+        // Insert new customer
+        const { data: inserted, error } = await supabase
+          .from('ba_manucustinfo')
+          .insert(row)
+          .select('id, customer_number')
+          .single();
+        if (error) throw error;
+        customerNumberToId.set(inserted.customer_number, inserted.id);
+        newCustomerMap.set(String(originalIndex), String(inserted.id));
+        // Also update customerNumber in the local map if needed
+        customers[originalIndex].customerNumber = inserted.customer_number;
+      }
     }
   }
   
   // 仅在有新客户编号回填时返回新数组，避免无变化时触发上层重复 setState 导致列表抖动
   let hasGeneratedIdPatched = false;
   const updatedCustomers = customers.map((customer, index) => {
-    const generatedNumber = newCustomerMap.get(String(index));
-    if (generatedNumber && !customer.id) {
+    const generatedId = newCustomerMap.get(String(index));
+    if (generatedId && !/^\d+$/.test(customer.id)) {
       hasGeneratedIdPatched = true;
-      return { ...customer, id: generatedNumber };
+      return { ...customer, id: generatedId };
     }
     return customer;
   });
   
   // Insert/update contacts using the database customer IDs
   const contactRows = customers.flatMap((customer) => {
-    const customerNumber = toCustomerNumber(customer.id);
-    const dbCustomerId = customerNumberToId.get(customerNumber);
+    const isNumericId = /^\d+$/.test(customer.id);
+    let dbCustomerId: number | undefined;
+    
+    if (isNumericId) {
+      dbCustomerId = parseInt(customer.id, 10);
+    } else {
+      const customerNumber = customer.customerNumber || toCustomerNumber(customer.id);
+      dbCustomerId = customerNumberToId.get(customerNumber);
+    }
+    
     if (!dbCustomerId) return [];
     
     return (customer.contacts || []).map((contact) => ({

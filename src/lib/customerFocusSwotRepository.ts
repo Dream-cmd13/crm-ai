@@ -1,4 +1,5 @@
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
+import { resolveCustomerDbIdFromSupabase } from './customerRepository';
 
 export type DbCompetitorAnalysis = {
   id: string;
@@ -25,15 +26,14 @@ const normalizeStringArray = (value: any): string[] => {
 };
 
 export const fetchCustomerFocusSwot = async (customerId: string): Promise<DbFocusSwotData[]> => {
-  if (!customerId) return [];
-  if (!isSupabaseConfigured()) {
-    throw new Error('Supabase 未配置，无法读取客户关注点数据');
-  }
+  if (!customerId || !isSupabaseConfigured()) return [];
+  const dbId = await resolveCustomerDbIdFromSupabase(customerId);
+  if (!dbId) return [];
   const supabase = getSupabaseClient();
   const { data: focusRows, error: focusError } = await supabase
     .from('crm_customer_focus_swot')
     .select('*')
-    .eq('customer_id', customerId)
+    .eq('customer_id', dbId)
     .order('sort_order', { ascending: true })
     .order('updated_at', { ascending: false });
   if (focusError) throw focusError;
@@ -41,7 +41,7 @@ export const fetchCustomerFocusSwot = async (customerId: string): Promise<DbFocu
   const { data: compRows, error: compError } = await supabase
     .from('crm_customer_focus_competitor')
     .select('*')
-    .eq('customer_id', customerId)
+    .eq('customer_id', dbId)
     .order('sort_order', { ascending: true })
     .order('updated_at', { ascending: false });
   if (compError) throw compError;
@@ -71,15 +71,14 @@ export const fetchCustomerFocusSwot = async (customerId: string): Promise<DbFocu
 };
 
 export const saveCustomerFocusSwot = async (customerId: string, focusItems: DbFocusSwotData[]) => {
-  if (!customerId) return;
-  if (!isSupabaseConfigured()) {
-    throw new Error('Supabase 未配置，无法保存客户关注点数据');
-  }
+  if (!customerId || !isSupabaseConfigured()) return;
+  const dbId = await resolveCustomerDbIdFromSupabase(customerId);
+  if (!dbId) throw new Error(`无法识别客户ID：${customerId}`);
   const supabase = getSupabaseClient();
   const now = new Date().toISOString();
   const cleanFocus = focusItems.map((item, idx) => ({
     id: item.id,
-    customer_id: customerId,
+    customer_id: dbId,
     customer_focus: String(item.customerFocus || ''),
     key_contact: String(item.keyContact || ''),
     focus_level: Number(item.focusLevel || 3),
@@ -97,7 +96,7 @@ export const saveCustomerFocusSwot = async (customerId: string, focusItems: DbFo
     (focus.competitors || []).map((comp, compIdx) => ({
       id: comp.id,
       focus_id: focus.id,
-      customer_id: customerId,
+      customer_id: dbId,
       competitor_name: String(comp.name || ''),
       strengths: Array.isArray(comp.strengths) ? comp.strengths : [],
       weaknesses: Array.isArray(comp.weaknesses) ? comp.weaknesses : [],
@@ -118,11 +117,11 @@ export const saveCustomerFocusSwot = async (customerId: string, focusItems: DbFo
     const { error: deleteExtraFocusError } = await supabase
       .from('crm_customer_focus_swot')
       .delete()
-      .eq('customer_id', customerId)
+      .eq('customer_id', dbId)
       .not('id', 'in', `(${focusIds.map((x) => `"${x}"`).join(',')})`);
     if (deleteExtraFocusError) throw deleteExtraFocusError;
   } else {
-    const { error: clearFocusError } = await supabase.from('crm_customer_focus_swot').delete().eq('customer_id', customerId);
+    const { error: clearFocusError } = await supabase.from('crm_customer_focus_swot').delete().eq('customer_id', dbId);
     if (clearFocusError) throw clearFocusError;
   }
 
@@ -130,11 +129,11 @@ export const saveCustomerFocusSwot = async (customerId: string, focusItems: DbFo
     const { error: deleteExtraCompError } = await supabase
       .from('crm_customer_focus_competitor')
       .delete()
-      .eq('customer_id', customerId)
+      .eq('customer_id', dbId)
       .not('id', 'in', `(${compIds.map((x) => `"${x}"`).join(',')})`);
     if (deleteExtraCompError) throw deleteExtraCompError;
   } else {
-    const { error: clearCompError } = await supabase.from('crm_customer_focus_competitor').delete().eq('customer_id', customerId);
+    const { error: clearCompError } = await supabase.from('crm_customer_focus_competitor').delete().eq('customer_id', dbId);
     if (clearCompError) throw clearCompError;
   }
 };
