@@ -275,3 +275,20 @@ export const fetchCustomerMessageSessionMessagesFromSupabase = async (sessionId:
     .filter(Boolean)
     .map((row: any) => mapWxMessageToCommunication(row, session));
 };
+
+export const bindGroupChatToCustomer = async (conversationId: number, customerId: string) => {
+  if (!isSupabaseConfigured()) throw new Error('Supabase 未配置');
+  const dbId = await resolveCustomerDbIdFromSupabase(customerId);
+  if (!dbId) throw new Error(`无法识别客户ID：${customerId}`);
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('crm_wx_conversation')
+    .update({ 
+      customer_id: String(dbId), 
+      updated_at: new Date().toISOString() 
+    })
+    .eq('id', conversationId);
+
+  if (error) throw error;
+};

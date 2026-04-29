@@ -3,6 +3,7 @@ import { ArrowLeft, Building2, CheckSquare, Download, ExternalLink, FileText, Im
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
 import {
+  bindGroupChatToCustomer,
   createCustomerMessageSessionFromSupabase,
   fetchWechatSenderInboxesFromSupabase,
   fetchWechatSenderMessagesFromSupabase,
@@ -282,6 +283,8 @@ export default function SystemWechatQuery() {
   const [showOnlyUnarchived, setShowOnlyUnarchived] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [showCreateSessionModal, setShowCreateSessionModal] = useState(false);
+  const [showBindCustomerModal, setShowBindCustomerModal] = useState(false);
+  const [targetConversationId, setTargetConversationId] = useState<number | null>(null);
   const [sessionTitle, setSessionTitle] = useState('');
   const [customerKeyword, setCustomerKeyword] = useState('');
   const [contactKeyword, setContactKeyword] = useState('');
@@ -413,7 +416,7 @@ export default function SystemWechatQuery() {
   }, [activeTab, viewMode, selectedConversationId, loadGroupMessages]);
 
   useEffect(() => {
-    if (!showCreateSessionModal || !isSupabaseConfigured()) return;
+    if ((!showCreateSessionModal && !showBindCustomerModal) || !isSupabaseConfigured()) return;
     const keyword = customerKeyword.trim();
     if (!keyword) {
       setCustomerOptions([]);
@@ -441,10 +444,10 @@ export default function SystemWechatQuery() {
     return () => {
       active = false;
     };
-  }, [showCreateSessionModal, customerKeyword]);
+  }, [showCreateSessionModal, showBindCustomerModal, customerKeyword]);
 
   useEffect(() => {
-    if (!showCreateSessionModal || !isSupabaseConfigured() || !selectedCustomerId) {
+    if ((!showCreateSessionModal && !showBindCustomerModal) || !isSupabaseConfigured() || !selectedCustomerId) {
       setContactOptions([]);
       return;
     }
@@ -470,7 +473,7 @@ export default function SystemWechatQuery() {
     return () => {
       active = false;
     };
-  }, [showCreateSessionModal, selectedCustomerId, contactKeyword]);
+  }, [showCreateSessionModal, showBindCustomerModal, selectedCustomerId, contactKeyword]);
 
   const filteredIndividuals = useMemo(
     () => senderInboxes.filter((item) =>
@@ -510,8 +513,10 @@ export default function SystemWechatQuery() {
     ? `群聊会话 · ${selectedConversation?.room_username || '-'}`
     : `发送人消息列表 · ${selectedInbox?.senderWechatId || selectedInbox?.senderDisplayName || '-'}`;
 
-  const resetCreateSessionModal = () => {
+  const resetModals = () => {
     setShowCreateSessionModal(false);
+    setShowBindCustomerModal(false);
+    setTargetConversationId(null);
     setSessionTitle('');
     setCustomerKeyword('');
     setContactKeyword('');
@@ -523,6 +528,23 @@ export default function SystemWechatQuery() {
     setContactOptions([]);
     setCustomerDropdownOpen(false);
     setContactDropdownOpen(false);
+  };
+
+  const handleBindGroupChat = async () => {
+    if (!targetConversationId) return;
+    if (!selectedCustomerId) {
+      toast.error('请选择客户');
+      return;
+    }
+    try {
+      await bindGroupChatToCustomer(targetConversationId, selectedCustomerId);
+      toast.success('群聊绑定成功');
+      resetModals();
+      await fetchChats();
+    } catch (error) {
+      console.error(error);
+      toast.error((error as Error)?.message || '绑定客户失败');
+    }
   };
 
   const toggleMessageSelection = (messageId: string) => {
@@ -566,7 +588,7 @@ export default function SystemWechatQuery() {
         messageIds: selectedMessageIds,
       });
       toast.success('客户会话创建成功');
-      resetCreateSessionModal();
+      resetModals();
       setSelectedMessageIds([]);
       await fetchChats();
       await loadSenderMessages(selectedInbox.senderKey, showOnlyUnarchived);
@@ -677,6 +699,18 @@ export default function SystemWechatQuery() {
                 >
                   <Save className="w-3.5 h-3.5" />
                   创建客户会话
+                </button>
+              )}
+              {activeTab === 'group' && (
+                <button
+                  onClick={() => {
+                    setTargetConversationId(selectedConversationId);
+                    setShowBindCustomerModal(true);
+                  }}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs border border-green-200 text-green-700 rounded bg-green-50 hover:bg-green-100"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  {selectedConversation?.customer_id ? '重新绑定客户' : '绑定客户'}
                 </button>
               )}
             </div>
@@ -811,9 +845,20 @@ export default function SystemWechatQuery() {
                         )}
                       </td>
                       <td className="p-4">
-                        <button onClick={() => handleOpenGroup(Number(group.id))} className="text-xs px-2 py-1 border border-blue-200 text-blue-700 rounded bg-white hover:bg-blue-50">
-                          进入会话
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleOpenGroup(Number(group.id))} className="text-xs px-2 py-1 border border-blue-200 text-blue-700 rounded bg-white hover:bg-blue-50">
+                            进入会话
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setTargetConversationId(Number(group.id));
+                              setShowBindCustomerModal(true);
+                            }} 
+                            className="text-xs px-2 py-1 border border-green-200 text-green-700 rounded bg-white hover:bg-green-50"
+                          >
+                            {group.customer_id ? '重新绑定' : '绑定客户'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -1142,8 +1187,57 @@ export default function SystemWechatQuery() {
               {selectedContactName && <div className="mt-1 text-xs text-gray-500">已选择：{selectedContactName}</div>}
             </div>
             <div className="flex justify-end gap-2">
-              <button onClick={resetCreateSessionModal} className="text-xs px-3 py-1.5 border border-gray-200 rounded bg-white">取消</button>
+              <button onClick={resetModals} className="text-xs px-3 py-1.5 border border-gray-200 rounded bg-white">取消</button>
               <button onClick={handleCreateCustomerSession} className="text-xs px-3 py-1.5 bg-green-600 text-white rounded">创建会话</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBindCustomerModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl p-5 space-y-4">
+            <h4 className="text-base font-bold text-gray-900">群聊绑定客户</h4>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">选择客户（必填）</label>
+              <div className="relative">
+                <input
+                  value={customerKeyword}
+                  onFocus={() => setCustomerDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setCustomerDropdownOpen(false), 120)}
+                  onChange={(e) => {
+                    setCustomerKeyword(e.target.value);
+                    setSelectedCustomerId('');
+                    setSelectedCustomerName('');
+                  }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                  placeholder="搜索客户名称"
+                />
+                {customerDropdownOpen && customerOptions.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full max-h-44 overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+                    {customerOptions.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCustomerId(option.id);
+                          setSelectedCustomerName(option.name);
+                          setCustomerKeyword(option.name);
+                          setCustomerDropdownOpen(false);
+                        }}
+                        className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                      >
+                        {option.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {selectedCustomerName && <div className="mt-1 text-xs text-gray-500">已选择：{selectedCustomerName}</div>}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={resetModals} className="text-xs px-3 py-1.5 border border-gray-200 rounded bg-white">取消</button>
+              <button onClick={handleBindGroupChat} className="text-xs px-3 py-1.5 bg-green-600 text-white rounded">确认绑定</button>
             </div>
           </div>
         </div>
