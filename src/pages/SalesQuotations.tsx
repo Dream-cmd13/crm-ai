@@ -44,16 +44,14 @@ export default function SalesQuotations({ role, viewParams, navigateTo, goBack }
   const handleSaveQuotation = async (updatedData: SalesQuotation, shouldClose = true) => {
     const payload = updatedData.id ? updatedData : { ...updatedData, id: `QUO${Date.now()}` };
     try {
-      await saveQuotationToSupabase(payload as any);
-      if (quotations.find(q => q.id === payload.id)) {
-        setQuotations(quotations.map(q => q.id === payload.id ? payload : q));
-      } else {
-        setQuotations([payload, ...quotations]);
-      }
+      const persistedId = await saveQuotationToSupabase(payload as any);
+      const remote = await fetchQuotationsFromSupabase();
+      setQuotations(remote);
+      const saved = remote.find((q: any) => String(q.id) === String(persistedId));
       if (shouldClose) {
         setSelectedQuotation(null);
       } else {
-        setSelectedQuotation(payload);
+        setSelectedQuotation(saved || payload);
       }
     } catch (error) {
       console.error('Error saving quotation:', error);

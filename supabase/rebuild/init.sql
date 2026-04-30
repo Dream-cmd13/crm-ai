@@ -1511,31 +1511,31 @@ execute function public.set_project_no();
 
 drop trigger if exists trigger_set_quote_no on public.crm_quotation;
 create trigger trigger_set_quote_no
-before insert on public.crm_quotation
+before insert or update on public.crm_quotation
 for each row
 execute function public.set_quote_no();
 
 drop trigger if exists trigger_set_sales_order_no on public.crm_sales_order;
 create trigger trigger_set_sales_order_no
-before insert on public.crm_sales_order
+before insert or update on public.crm_sales_order
 for each row
 execute function public.set_sales_order_no();
 
 drop trigger if exists trigger_set_sample_no on public.crm_sample_order;
 create trigger trigger_set_sample_no
-before insert on public.crm_sample_order
+before insert or update on public.crm_sample_order
 for each row
 execute function public.set_sample_no();
 
 drop trigger if exists trigger_set_return_no on public.crm_return_order;
 create trigger trigger_set_return_no
-before insert on public.crm_return_order
+before insert or update on public.crm_return_order
 for each row
 execute function public.set_return_no();
 
 drop trigger if exists trigger_set_purchase_quote_no on public.crm_purchase_quotation;
 create trigger trigger_set_purchase_quote_no
-before insert on public.crm_purchase_quotation
+before insert or update on public.crm_purchase_quotation
 for each row
 execute function public.set_purchase_quote_no();
 
