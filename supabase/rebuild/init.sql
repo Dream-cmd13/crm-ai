@@ -1787,4 +1787,25 @@ begin
 end
 $$;
 
+-- ========= IDENTITY SEQUENCE RESYNC =========
+do $$
+declare
+  t text;
+  id_tables text[] := array[
+    'crm_quotation','crm_quotation_item',
+    'crm_sales_order','crm_sales_order_item',
+    'crm_sample_order','crm_sample_order_item',
+    'crm_return_order','crm_return_order_item',
+    'crm_purchase_quotation','crm_purchase_quotation_item'
+  ];
+begin
+  foreach t in array id_tables loop
+    execute format(
+      'select setval(pg_get_serial_sequence(''public.%I'',''id''), coalesce((select max(id) from public.%I), 0) + 1, false)',
+      t, t
+    );
+  end loop;
+end
+$$;
+
 commit;

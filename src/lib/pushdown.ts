@@ -295,9 +295,8 @@ export const pushQuotationToSalesOrderInSupabase = async (quotation: SalesQuotat
   }
   const supabase = getSupabaseClient();
   const now = new Date().toISOString();
-  const orderId = `ORD_${Date.now()}`;
   const order: SalesOrder = {
-    id: orderId,
+    id: '',
     orderNo: '',
     customerId: quotation.customerId || '',
     customerName: quotation.customerName || '未填写客户',
@@ -317,14 +316,14 @@ export const pushQuotationToSalesOrderInSupabase = async (quotation: SalesQuotat
     createDate: today()
   };
 
-  await saveSalesOrderToSupabase(order as any);
+  const persistedOrderId = await saveSalesOrderToSupabase(order as any);
 
-  await supabase.from('crm_quotation').update({ status: '已接受', updated_at: now }).eq('id', quotation.id);
+  await supabase.from('crm_quotation').update({ status: 'quotation_complete', updated_at: now }).eq('id', quotation.id);
   if (order.customerId) {
     await updateCustomerLastContactInSupabase(order.customerId, '报价转订单');
   }
 
-  return orderId;
+  return String(persistedOrderId ?? '');
 };
 
 export const deleteLeadFromSupabase = async (leadId: string) => {

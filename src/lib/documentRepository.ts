@@ -1,9 +1,8 @@
-import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
+﻿import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 import { updateCustomerLastContactInSupabase } from './customerRepository';
 
-const mapItemToRow = (item: any, parentKey: string, parentId: string) => {
+const mapItemToRow = (item: any, parentKey: string, parentId: number) => {
   const baseRow: Record<string, any> = {
-    id: item.id || `${parentId}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     [parentKey]: parentId,
     product_id: item.productId || null,
     product_name: item.productName,
@@ -34,11 +33,79 @@ const mapItemToRow = (item: any, parentKey: string, parentId: string) => {
   return baseRow;
 };
 
-const DEFAULT_CATEGORY_NAME = '未分类';
+const DEFAULT_CATEGORY_NAME = 'Uncategorized';
 const toNullableInt = (value: any): number | null => {
   if (value === null || value === undefined || value === '') return null;
   const parsed = Number.parseInt(String(value), 10);
   return Number.isFinite(parsed) ? parsed : null;
+};
+const toPersistedId = (value: any): number | null => {
+  const parsed = toNullableInt(value);
+  return parsed !== null && parsed > 0 ? parsed : null;
+};
+const normalizeQuotationStatus = (value: any): string => {
+  const raw = String(value || '').trim();
+  const allowed = new Set([
+    'quotation_complete',
+    'terminated',
+    'manual_quotation',
+    'timeout_cancellation',
+    'user_cancelled'
+  ]);
+  if (allowed.has(raw)) return raw;
+  const map: Record<string, string> = {
+    '草稿': 'manual_quotation',
+    '手动报价': 'manual_quotation',
+    '已接受': 'quotation_complete',
+    '已终止': 'terminated',
+    '超时取消': 'timeout_cancellation',
+    '用户取消': 'user_cancelled'
+  };
+  return map[raw] || 'manual_quotation';
+};
+const normalizeSalesOrderStatus = (value: any): string => {
+  const raw = String(value || '').trim();
+  const allowed = new Set([
+    'un_paid', 'partial_payment', 'monthly_paid_audit', 'monthly_paid_audit_failed',
+    'offline_payment_audit', 'offline_payment_audit_failed', 'waiting_delivery',
+    'partial_delivery', 'delivered', 'await_comment', 'completed', 'not_submit',
+    'cancellation', 'admin_cancellation', 'admin_cancellation_audit', 'system_cancel',
+    'await_follow', 'await_refund', 'await_receipt_refund', 'completed_refund'
+  ]);
+  if (allowed.has(raw)) return raw;
+  const map: Record<string, string> = {
+    '草稿': 'not_submit',
+    '未提交': 'not_submit',
+    '待执行': 'not_submit',
+    '待发货': 'waiting_delivery',
+    '部分发货': 'partial_delivery',
+    '已发货': 'delivered',
+    '已完成': 'completed',
+    '已取消': 'cancellation',
+    '待跟进': 'await_follow'
+  };
+  return map[raw] || 'not_submit';
+};
+const normalizeSampleOrderStatus = (value: any): string => {
+  const raw = String(value || '').trim();
+  const allowed = new Set([
+    'leader_reject',
+    'wait_leader_examine',
+    'completed',
+    'stay_follow_up',
+    'cancellation',
+    'closure'
+  ]);
+  if (allowed.has(raw)) return raw;
+  const map: Record<string, string> = {
+    '待审核': 'wait_leader_examine',
+    '已完成': 'completed',
+    '待跟进': 'stay_follow_up',
+    '已取消': 'cancellation',
+    '已关闭': 'closure',
+    '主管驳回': 'leader_reject'
+  };
+  return map[raw] || 'wait_leader_examine';
 };
 const resolveMaterialNo = (item: any) => {
   const raw = String(item?.materialNo || item?.customerMaterialNo || '').trim();
@@ -82,7 +149,7 @@ const ensureProductsForItems = async (supabase: any, items: any[]) => {
         category_id: cid !== null && existingCategoryIdSet.has(cid) ? cid : null,
         category_name: item.categoryName || item.productCategoryName || DEFAULT_CATEGORY_NAME,
         material_no: resolveMaterialNo(item),
-        material_name: String(item.productName || item.materialName || '').trim() || '未命名物料',
+        material_name: String(item.productName || item.materialName || '').trim() || 'Unnamed Material',
         specification: item.specification || '',
         unit: item.unit || 'PCS',
         price: Number(item.taxIncludedPrice || 0),
@@ -123,7 +190,7 @@ const mapRowToItem = (row: any) => ({
   materialId: row.material_id || '',
   materialNo: row.material_no || '',
   quantity: Number(row.quantity || 0),
-  taxType: row.tax_type || '增值税专票',
+  taxType: row.tax_type || '澧炲€肩◣涓撶エ',
   taxRate: Number(row.tax_rate || 13),
   taxIncludedPrice: Number(row.tax_included_price || 0),
   taxExcludedPrice: Number(row.tax_excluded_price || 0),
@@ -160,7 +227,7 @@ const saveWithItems = async (
   mainTable: string,
   itemTable: string,
   parentKey: string,
-  id: string,
+  id: number | null,
   mainRow: any,
   items: any[]
 ) => {
@@ -177,21 +244,21 @@ const saveWithItems = async (
         id: mainRow.customer_id,
         name: mainRow.customer_name,
         status: 1,
-        level: '普通客户',
-        industry: '未分类',
+        level: 'Normal',
+        industry: 'Uncategorized',
         source: 7,
         region: null
       },
       { onConflict: 'id' }
     );
     if (customerError) throw customerError;
-    await updateCustomerLastContactInSupabase(mainRow.customer_id, `${mainTable}单据更新`);
+    await updateCustomerLastContactInSupabase(mainRow.customer_id, `${mainTable}鍗曟嵁鏇存柊`);
   }
   if (typeof mainRow.project_id === 'string') {
     const normalizedProjectId = mainRow.project_id.trim();
     mainRow.project_id = normalizedProjectId || null;
   }
-  // 避免 project_id 外键报错：若项目不存在则置空 project_id
+  // 閬垮厤 project_id 澶栭敭鎶ラ敊锛氳嫢椤圭洰涓嶅瓨鍦ㄥ垯缃┖ project_id
   if (mainRow.project_id) {
     const { data: projectRow, error: projectError } = await supabase
       .from('crm_project')
@@ -203,15 +270,22 @@ const saveWithItems = async (
       mainRow.project_id = null;
     }
   }
-  const { error: mainError } = await supabase.from(mainTable).upsert(mainRow, { onConflict: 'id' });
+  const { data: persistedRow, error: mainError } = await supabase
+    .from(mainTable)
+    .upsert(mainRow, { onConflict: 'id' })
+    .select('id')
+    .single();
   if (mainError) throw mainError;
-  const { error: deleteError } = await supabase.from(itemTable).delete().eq(parentKey, id);
+  const persistedId = toPersistedId(persistedRow?.id);
+  if (persistedId === null) throw new Error(`${mainTable} save succeeded but no numeric id returned`);
+  const { error: deleteError } = await supabase.from(itemTable).delete().eq(parentKey, persistedId);
   if (deleteError) throw deleteError;
   if (normalizedItems.length > 0) {
-    const rows = normalizedItems.map((item) => mapItemToRow(item, parentKey, id));
+    const rows = normalizedItems.map((item) => mapItemToRow(item, parentKey, persistedId));
     const { error: insertError } = await supabase.from(itemTable).insert(rows);
     if (insertError) throw insertError;
   }
+  return persistedId;
 };
 
 export const fetchQuotationsFromSupabase = async (): Promise<any[]> => {
@@ -230,33 +304,33 @@ export const fetchQuotationsFromSupabase = async (): Promise<any[]> => {
     projectId: row.project_id || '',
     projectName: row.project_name || '',
     quoteDate: row.quote_date || '',
-    status: row.status || '草稿',
+    status: row.status || '鑽夌',
     taxIncludedTotalAmount: Number(row.tax_included_total_amount || 0),
     taxExcludedTotalAmount: Number(row.tax_excluded_total_amount || 0),
     totalAmount: Number(row.total_amount || 0),
     items: itemsMap.get(row.id) || [],
-    auditStatus: row.audit_status || '未审核',
+    auditStatus: row.audit_status || 'Pending',
     changeRecords: []
   }));
 };
 
 export const saveQuotationToSupabase = async (doc: any) => {
-  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
-  const id = doc.id || `QUO${Date.now()}`;
-  await saveWithItems(
+  if (!isSupabaseConfigured()) throw new Error('Supabase environment variables are not configured');
+  const id = toPersistedId(doc.id);
+  return await saveWithItems(
     'crm_quotation',
     'crm_quotation_item',
     'quotation_id',
     id,
     {
-      id,
+      ...(id !== null ? { id } : {}),
       quote_no: doc.quoteNo,
       customer_id: doc.customerId,
       customer_name: doc.customerName,
       project_id: doc.projectId,
       project_name: doc.projectName,
       quote_date: doc.quoteDate,
-      status: doc.status,
+      status: normalizeQuotationStatus(doc.status),
       audit_status: doc.auditStatus,
       tax_included_total_amount: doc.taxIncludedTotalAmount || 0,
       tax_excluded_total_amount: doc.taxExcludedTotalAmount || 0,
@@ -283,33 +357,33 @@ export const fetchSalesOrdersFromSupabase = async (): Promise<any[] | null> => {
     projectId: row.project_id || '',
     projectName: row.project_name || '',
     orderDate: row.order_date || '',
-    status: row.status || '待执行',
+    status: row.status || 'Pending',
     taxIncludedTotalAmount: Number(row.tax_included_total_amount || 0),
     taxExcludedTotalAmount: Number(row.tax_excluded_total_amount || 0),
     totalAmount: Number(row.total_amount || 0),
     items: itemsMap.get(row.id) || [],
-    auditStatus: row.audit_status || '未审核',
+    auditStatus: row.audit_status || 'Pending',
     changeRecords: []
   }));
 };
 
 export const saveSalesOrderToSupabase = async (doc: any) => {
-  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
-  const id = doc.id || `ORD${Date.now()}`;
-  await saveWithItems(
+  if (!isSupabaseConfigured()) throw new Error('Supabase environment variables are not configured');
+  const id = toPersistedId(doc.id);
+  return await saveWithItems(
     'crm_sales_order',
     'crm_sales_order_item',
     'sales_order_id',
     id,
     {
-      id,
+      ...(id !== null ? { id } : {}),
       order_no: doc.orderNo,
       customer_id: doc.customerId,
       customer_name: doc.customerName,
       project_id: doc.projectId,
       project_name: doc.projectName,
       order_date: doc.orderDate,
-      status: doc.status,
+      status: normalizeSalesOrderStatus(doc.status),
       audit_status: doc.auditStatus,
       tax_included_total_amount: doc.taxIncludedTotalAmount || 0,
       tax_excluded_total_amount: doc.taxExcludedTotalAmount || 0,
@@ -337,33 +411,33 @@ export const fetchSampleOrdersFromSupabase = async (): Promise<any[]> => {
     projectId: row.project_id || '',
     projectName: row.project_name || '',
     createDate: row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : '',
-    status: row.status || '待审批',
+    status: row.status || 'Pending',
     totalAmount: Number(row.total_amount || 0),
     taxIncludedTotalAmount: Number(row.tax_included_total_amount || 0),
     taxExcludedTotalAmount: Number(row.tax_excluded_total_amount || 0),
     items: itemsMap.get(row.id) || [],
-    auditStatus: row.audit_status || '未审核',
+    auditStatus: row.audit_status || 'Pending',
     changeRecords: []
   }));
 };
 
 export const saveSampleOrderToSupabase = async (doc: any) => {
-  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
-  const id = doc.id || `SAM${Date.now()}`;
-  await saveWithItems(
+  if (!isSupabaseConfigured()) throw new Error('Supabase environment variables are not configured');
+  const id = toPersistedId(doc.id);
+  return await saveWithItems(
     'crm_sample_order',
     'crm_sample_order_item',
     'sample_order_id',
     id,
     {
-      id,
+      ...(id !== null ? { id } : {}),
       sample_no: doc.sampleNo,
       customer_id: doc.customerId,
       customer_name: doc.customerName,
       applicant: doc.applicant,
       project_id: doc.projectId,
       project_name: doc.projectName,
-      status: doc.status,
+      status: normalizeSampleOrderStatus(doc.status),
       audit_status: doc.auditStatus,
       tax_included_total_amount: doc.taxIncludedTotalAmount || 0,
       tax_excluded_total_amount: doc.taxExcludedTotalAmount || 0,
@@ -397,25 +471,25 @@ export const fetchReturnOrdersFromSupabase = async (): Promise<any[]> => {
     projectId: row.project_id || '',
     projectName: row.project_name || '',
     createDate: row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : '',
-    status: row.status || '待处理',
+    status: row.status || 'Pending',
     taxIncludedTotalAmount: Number(row.tax_included_total_amount || 0),
     taxExcludedTotalAmount: Number(row.tax_excluded_total_amount || 0),
     items: itemsMap.get(row.id) || [],
-    auditStatus: row.audit_status || '未审核',
+    auditStatus: row.audit_status || 'Pending',
     changeRecords: []
   }));
 };
 
 export const saveReturnOrderToSupabase = async (doc: any) => {
-  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
-  const id = doc.id || `RET${Date.now()}`;
-  await saveWithItems(
+  if (!isSupabaseConfigured()) throw new Error('Supabase environment variables are not configured');
+  const id = toPersistedId(doc.id);
+  return await saveWithItems(
     'crm_return_order',
     'crm_return_order_item',
     'return_order_id',
     id,
     {
-      id,
+      ...(id !== null ? { id } : {}),
       return_no: doc.returnNo,
       order_no: doc.orderNo,
       original_order_no: doc.originalOrderNo,
@@ -445,11 +519,13 @@ const removeWithItems = async (
   parentKey: string,
   id: string
 ) => {
-  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
+  if (!isSupabaseConfigured()) throw new Error('Supabase environment variables are not configured');
+  const numericId = toPersistedId(id);
+  if (numericId === null) return;
   const supabase = getSupabaseClient();
-  const { error: itemDeleteError } = await supabase.from(itemTable).delete().eq(parentKey, id);
+  const { error: itemDeleteError } = await supabase.from(itemTable).delete().eq(parentKey, numericId);
   if (itemDeleteError) throw itemDeleteError;
-  const { error: mainDeleteError } = await supabase.from(mainTable).delete().eq('id', id);
+  const { error: mainDeleteError } = await supabase.from(mainTable).delete().eq('id', numericId);
   if (mainDeleteError) throw mainDeleteError;
 };
 
@@ -468,3 +544,6 @@ export const deleteSampleOrderFromSupabase = async (id: string) => {
 export const deleteReturnOrderFromSupabase = async (id: string) => {
   await removeWithItems('crm_return_order', 'crm_return_order_item', 'return_order_id', id);
 };
+
+
+
