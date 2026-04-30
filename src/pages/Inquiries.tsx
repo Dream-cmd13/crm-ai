@@ -102,6 +102,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     const normalizedStatus = row.status === '未转化' ? '关闭' : (row.status || '待处理');
     return {
       id: String(row.id),
+      inquiryNo: row.inquiry_no || '',
       customerId: row.customer_id !== null && row.customer_id !== undefined ? String(row.customer_id) : undefined,
       date: row.create_date || row.date || today,
       companyName: row.company_name || '',
@@ -175,6 +176,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   const filteredInquiries = inquiries.filter(inq => {
     const searchLower = normalizeForSearch(searchTerm);
     return (
+      normalizeForSearch(inq.inquiryNo).includes(searchLower) ||
       normalizeForSearch(inq.id).includes(searchLower) ||
       normalizeForSearch(inq.companyName).includes(searchLower) ||
       normalizeForSearch(inq.customerName).includes(searchLower) ||
@@ -596,7 +598,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   };
 
   const fields = [
-    { key: 'id', label: '询盘编号' },
+    { key: 'inquiryNo', label: '询盘编号' },
     { key: 'customerId', label: '客户ID', hidden: true },
     { key: 'createDate', label: '创建日期', type: 'date', required: true },
     { key: 'companyName', label: '客户', type: 'customer_lookup', customerIdKey: 'customerId', required: true },
@@ -652,7 +654,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
               询盘登记
             </button>
             <ChevronRight className="w-4 h-4 text-gray-400" />
-            <span className="text-gray-900 font-bold">{selectedInquiry.id}</span>
+            <span className="text-gray-900 font-bold">{selectedInquiry.inquiryNo || '-'}</span>
           </div>
           <div className="flex items-center gap-3">
             <ReservedButtons moduleCode="inquiry_management" contextData={selectedInquiry} />
@@ -707,7 +709,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                   )}
                 </h2>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className="text-sm text-gray-500">编号: {selectedInquiry.id}</span>
+                  <span className="text-sm text-gray-500">编号: {selectedInquiry.inquiryNo || '-'}</span>
                   <span className="text-sm text-gray-500">客户ID: {selectedInquiry.customerId || '-'}</span>
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     selectedInquiry.status === '待处理' ? 'bg-amber-100 text-amber-700' :
@@ -1152,7 +1154,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                 {filteredInquiries.slice(0, displayCount).map((inq, index) => (
                   <tr key={inq.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 text-gray-500">{index + 1}</td>
-                    <td className="px-6 py-4 font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => setSelectedInquiry(inq)}>{inq.id}</td>
+                    <td className="px-6 py-4 font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => setSelectedInquiry(inq)}>{inq.inquiryNo || '-'}</td>
                     <td className="px-6 py-4 font-medium text-gray-900">{inq.companyName}</td>
                     <td className="px-6 py-4 text-gray-600">{inq.customerName}</td>
                     <td className="px-6 py-4 text-gray-600">{inq.contact}</td>
@@ -1238,7 +1240,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
                   <h3 className="font-bold text-gray-900">{inq.companyName}</h3>
-                  <p className="text-xs text-indigo-600 font-medium">{inq.id}</p>
+                  <p className="text-xs text-indigo-600 font-medium">{inq.inquiryNo || '-'}</p>
                 </div>
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                   inq.status === '待处理' ? 'bg-amber-100 text-amber-800' :

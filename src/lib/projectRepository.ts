@@ -89,6 +89,7 @@ const mapDbProjectToUi = (row: any): Project => {
 
   return {
     id: String(row.id),
+    projectNo: row.project_no || '',
     projectName: row.project_name || '',
     projectType: row.project_type || meta.projectType || '研发型项目',
     customerName: row.customer_name || '',
@@ -144,6 +145,7 @@ const mapUiProjectToDb = (project: Project) => {
   const numericProjectId = toNullableInt(project.id);
   return {
   ...(numericProjectId !== null ? { id: numericProjectId } : {}),
+  project_no: project.projectNo || undefined,
   customer_id: toNullableInt(project.customerId) ?? null,
   customer_name: project.customerName || '',
   project_name: project.projectName || '',

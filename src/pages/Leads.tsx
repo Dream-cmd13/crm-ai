@@ -104,6 +104,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
 
   const mapDbLeadToUi = (row: any): Lead => ({
     id: String(row.id),
+    leadNo: row.lead_no || '',
     customerId: row.customer_id !== null && row.customer_id !== undefined ? String(row.customer_id) : undefined,
     customerType: row.customer_type,
     customerName: row.customer_name || '',
@@ -242,6 +243,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           }
           const newLead: Lead = {
             id: `L${new Date().getFullYear()}${String(leads.length + 1).padStart(3, '0')}`,
+            leadNo: sourceInquiry?.lead_no || '',
             inquiryId: String(viewParams.sourceId || ''),
             customerName: sourceInquiry?.company_name || '待定',
             name: sourceInquiry?.customer_name || '',
@@ -280,6 +282,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
 
   const filteredLeads = leads.filter(lead => 
     lead.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(lead.leadNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     lead.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     lead.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -614,7 +617,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
   };
 
   const fields = [
-    { key: 'id', label: '编号' },
+    { key: 'leadNo', label: '编号' },
     { key: 'customerId', label: '客户ID', hidden: true },
     { key: 'customerName', label: '客户', type: 'customer_lookup', customerIdKey: 'customerId', required: true },
     { key: 'name', label: '姓名' },
@@ -670,7 +673,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
               线索登记
             </button>
             <ChevronRight className="w-4 h-4 text-gray-400" />
-            <span className="text-gray-900 font-bold">{selectedLead.id}</span>
+            <span className="text-gray-900 font-bold">{selectedLead.leadNo || '-'}</span>
           </div>
           <div className="flex items-center gap-3">
             <ReservedButtons moduleCode="lead_management" contextData={selectedLead} />
@@ -715,7 +718,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                   )}
                 </h2>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className="text-sm text-gray-500">编号: {selectedLead.id}</span>
+                  <span className="text-sm text-gray-500">编号: {selectedLead.leadNo || '-'}</span>
                   <span className="text-sm text-gray-500">客户ID: {selectedLead.customerId || '-'}</span>
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     selectedLead.status === '未跟进' ? 'bg-red-100 text-red-700' :
@@ -1122,7 +1125,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                 {filteredLeads.slice(0, displayCount).map((lead, index) => (
                   <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 text-gray-500">{index + 1}</td>
-                    <td className="px-6 py-4 font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => setSelectedLead(lead)}>{lead.id}</td>
+                    <td className="px-6 py-4 font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => setSelectedLead(lead)}>{lead.leadNo || '-'}</td>
                     <td className="px-6 py-4 font-medium text-gray-900">{lead.customerName}</td>
                     <td className="px-6 py-4 text-gray-600">{lead.name}</td>
                     <td className="px-6 py-4 text-gray-600">{lead.phone}</td>
@@ -1200,7 +1203,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
                   <h3 className="font-bold text-gray-900">{lead.customerName}</h3>
-                  <p className="text-xs text-indigo-600 font-medium">{lead.id}</p>
+                  <p className="text-xs text-indigo-600 font-medium">{lead.leadNo || '-'}</p>
                 </div>
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                   lead.status === '未跟进' ? 'bg-red-100 text-red-800' :
@@ -1306,7 +1309,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           customerAction: '找货寻料'
         }}
         onSave={handleSave}
-        fields={fields.filter(f => !['id', 'creator', 'createDate', 'updater', 'updateDate', 'associatedOpportunity'].includes(f.key))}
+        fields={fields.filter(f => !['leadNo', 'creator', 'createDate', 'updater', 'updateDate', 'associatedOpportunity'].includes(f.key))}
         isEditing={true}
       />
     </div>

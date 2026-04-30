@@ -119,6 +119,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
 
   const mapDbOppToUi = (row: any): Opportunity => ({
     id: String(row.id),
+    opportunityNo: row.opportunity_no || '',
     customerId: row.customer_id !== null && row.customer_id !== undefined ? String(row.customer_id) : undefined,
     customerType: row.customer_type,
     customerName: row.customer_name || '',
@@ -254,6 +255,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
           }
           const newOpp: Opportunity = {
             id: `O${new Date().getFullYear()}${String(opportunities.length + 1).padStart(3, '0')}`,
+            opportunityNo: '',
             leadId: String(viewParams.sourceId || ''),
             inquiryId: sourceLead?.inquiry_id !== null && sourceLead?.inquiry_id !== undefined ? String(sourceLead.inquiry_id) : undefined,
             customerName: sourceLead?.customer_name || '待定',
@@ -296,6 +298,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
 
   const filteredOpportunities = opportunities.filter(opp => 
     opp.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(opp.opportunityNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     opp.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     opp.oppSummary.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -613,7 +616,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   };
 
   const fields = [
-    { key: 'id', label: '编号' },
+    { key: 'opportunityNo', label: '编号' },
     { key: 'customerId', label: '客户ID', hidden: true },
     { key: 'customerName', label: '客户名称', type: 'customer_lookup', customerIdKey: 'customerId', required: true },
     { key: 'oppDate', label: '商机日期', type: 'date', required: true },
@@ -674,7 +677,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
               商机管理
             </button>
             <ChevronRight className="w-4 h-4 text-gray-400" />
-            <span className="text-gray-900 font-bold">{selectedOpp.id}</span>
+            <span className="text-gray-900 font-bold">{selectedOpp.opportunityNo || '-'}</span>
           </div>
           <div className="flex items-center gap-3">
             <ReservedButtons moduleCode="opportunity_management" contextData={selectedOpp} />
@@ -725,7 +728,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                   )}
                 </h2>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className="text-sm text-gray-500">编号: {selectedOpp.id}</span>
+                  <span className="text-sm text-gray-500">编号: {selectedOpp.opportunityNo || '-'}</span>
                   <span className="text-sm text-gray-500">客户ID: {selectedOpp.customerId || '-'}</span>
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     selectedOpp.status === '未跟进' ? 'bg-amber-100 text-amber-700' :
@@ -1196,7 +1199,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                     {filteredOpportunities.slice(0, displayCount).map((opp, index) => (
                   <tr key={opp.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 text-gray-500">{index + 1}</td>
-                    <td className="px-6 py-4 font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => setSelectedOpp(opp)}>{opp.id}</td>
+                    <td className="px-6 py-4 font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => setSelectedOpp(opp)}>{opp.opportunityNo || '-'}</td>
                     <td className="px-6 py-4 font-medium text-gray-900">{opp.customerName}</td>
                     <td className="px-6 py-4 text-gray-600">{opp.oppDate}</td>
                     <td className="px-6 py-4">
@@ -1286,7 +1289,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
                   <h3 className="font-bold text-gray-900">{opp.customerName}</h3>
-                  <p className="text-xs text-indigo-600 font-medium">{opp.id}</p>
+                  <p className="text-xs text-indigo-600 font-medium">{opp.opportunityNo || '-'}</p>
                 </div>
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                   opp.status === '未跟进' ? 'bg-amber-100 text-amber-800' :
@@ -1382,7 +1385,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
           productLine: 'IO连接器'
         }}
         onSave={handleSave}
-        fields={fields.filter(f => !['id', 'creator', 'createDate', 'updater', 'updateDate', 'associatedProject'].includes(f.key))}
+        fields={fields.filter(f => !['opportunityNo', 'creator', 'createDate', 'updater', 'updateDate', 'associatedProject'].includes(f.key))}
         isEditing={true}
       />
     </div>

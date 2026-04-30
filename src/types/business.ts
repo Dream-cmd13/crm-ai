@@ -85,6 +85,7 @@ export interface FileAttachment {
 }
 
 export interface Inquiry extends BaseEntity {
+  inquiryNo?: string;
   date: string;
   customerId?: string;
   companyName: string;
@@ -128,6 +129,7 @@ export interface Inquiry extends BaseEntity {
 }
 
 export interface Lead extends BaseEntity {
+  leadNo?: string;
   customerId?: string;
   customerType?: '新客户' | '老客户';
   customerName: string;
@@ -189,6 +191,7 @@ export interface Lead extends BaseEntity {
 }
 
 export interface Opportunity extends BaseEntity {
+  opportunityNo?: string;
   customerId?: string;
   customerType?: '新客户' | '老客户';
   customerName: string;
@@ -269,6 +272,7 @@ export interface CustomerResource {
 }
 
 export interface Project extends BaseEntity {
+  projectNo?: string;
   name?: string; // Alias for projectName
   projectName: string;
   projectType: '研发型项目' | '标品类项目' | string;

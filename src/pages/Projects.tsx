@@ -263,6 +263,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
           }
           const newProject: Project = {
             id: `P${new Date().getFullYear()}${String(projects.length + 1).padStart(3, '0')}`,
+            projectNo: sourceOpp?.project_no || '',
             projectName: sourceOpp ? `${sourceOpp.customer_name}-定制项目` : '新项目 (来自商机)',
             projectType: '研发型项目',
             customerName: sourceOpp?.customer_name || '待定',
@@ -334,6 +335,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
     const matchesSearch = 
       p.projectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(p.projectNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.id.toLowerCase().includes(searchTerm.toLowerCase());
 
     if (!matchesSearch) return false;
@@ -428,6 +430,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
     const id = data.id || `PRJ_${Date.now()}`;
     const newProject: Project = {
       id,
+      projectNo: data.projectNo || '',
       projectName: String(data.projectName || '').trim(),
       name: String(data.projectName || '').trim(),
       projectType: data.projectType || '研发型项目',
@@ -709,7 +712,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
   };
 
   const projectFields = [
-    { key: 'id', label: '项目编号' },
+    { key: 'projectNo', label: '项目编号' },
     { key: 'projectType', label: '项目类型', type: 'select', options: ['研发型项目', '标品类项目'], required: true },
     { key: 'customerName', label: '客户名称', type: 'customer_lookup', customerIdKey: 'customerId', allowPotential: false, required: true },
     { key: 'projectName', label: '项目名称', required: true },
@@ -898,7 +901,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
           team: { pm: '' }
         }}
         onSave={handleCreateProject}
-        fields={projectFields.filter((f) => f.key !== 'id')}
+        fields={projectFields.filter((f) => f.key !== 'projectNo')}
         isEditing={true}
       />
     </div>

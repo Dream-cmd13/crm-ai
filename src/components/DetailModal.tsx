@@ -160,6 +160,16 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
   };
 
   const hasWorkflow = moduleCode && ['INQUIRY', 'LEAD', 'OPPORTUNITY', 'PROJECT', 'TASK'].includes(moduleCode) && !isEditing;
+  const displayCode =
+    formData.customerNumber ||
+    formData.inquiryNo ||
+    formData.leadNo ||
+    formData.opportunityNo ||
+    formData.projectNo ||
+    formData.orderNo ||
+    formData.quoteNo ||
+    formData.id ||
+    'NEW';
 
   const workflowSteps: any[] = [];
 
@@ -174,7 +184,7 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
             <div>
               <h3 className="text-base font-bold text-gray-900">{title}</h3>
               <p className="text-xs text-gray-500">
-                {formData.customerNumber ? `编号: ${formData.customerNumber}` : `ID: ${formData.id || 'NEW'}`}
+                编号: {displayCode}
               </p>
             </div>
           </div>

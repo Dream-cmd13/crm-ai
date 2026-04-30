@@ -172,7 +172,7 @@ export const ProjectDetail = ({
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6">
                   <div>
                     <p className="text-sm text-gray-500">项目编号</p>
-                    <p className="font-medium text-gray-900">{selectedProject.id}</p>
+                    <p className="font-medium text-gray-900">{selectedProject.projectNo || '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">客户名称</p>
