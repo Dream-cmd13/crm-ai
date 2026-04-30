@@ -172,7 +172,9 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
             </div>
             <div>
               <h3 className="text-base font-bold text-gray-900">{title}</h3>
-              <p className="text-xs text-gray-500">ID: {formData.id || 'NEW'}</p>
+              <p className="text-xs text-gray-500">
+                {formData.customerNumber ? `编号: ${formData.customerNumber}` : `ID: ${formData.id || 'NEW'}`}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">

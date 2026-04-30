@@ -574,7 +574,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
 
   const fields = [
     { key: 'id', label: '编号' },
-    { key: 'customerId', label: '客户ID', disabled: true },
+    { key: 'customerId', label: '客户ID', hidden: true },
     { key: 'customerName', label: '客户名称', type: 'customer_lookup', customerIdKey: 'customerId', required: true },
     { key: 'oppDate', label: '商机日期', type: 'date', required: true },
     { key: 'status', label: '商机状态', type: 'select', options: OPPORTUNITY_STATUS_OPTIONS, required: true },

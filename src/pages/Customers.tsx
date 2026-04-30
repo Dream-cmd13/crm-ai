@@ -579,7 +579,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
           onSave={handleSaveCustomer}
           data={selectedCustomer}
           fields={[
-            { key: 'id', label: '客户编号' },
+            { key: 'customerNumber', label: '客户编号', disabled: true },
             { key: 'name', label: '客户名称', required: true },
             { key: 'shortName', label: '客户简称' },
             { key: 'englishName', label: '英文名称' },

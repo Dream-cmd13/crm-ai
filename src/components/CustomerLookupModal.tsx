@@ -176,7 +176,9 @@ export default function CustomerLookupModal({ isOpen, initialQuery, onClose, onS
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="text-sm font-bold text-gray-900 truncate">{name}</div>
-                          <div className="text-xs text-gray-500 truncate">{id}</div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {r.source === 'customer' && (r.data as Customer).customerNumber ? (r.data as Customer).customerNumber : id}
+                          </div>
                         </div>
                         <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", isCustomer ? "bg-indigo-50 text-indigo-700" : "bg-amber-50 text-amber-700")}>
                           {isCustomer ? '客户库' : '潜在客户'}

@@ -260,6 +260,9 @@ export const CustomerDetail = ({
             <ChevronLeft className="w-5 h-5 text-gray-500" />
           </button>
           <span className="text-gray-900 font-bold truncate">{selectedCustomer.name}</span>
+          {selectedCustomer.customerNumber && (
+            <span className="text-xs text-gray-500 shrink-0">({selectedCustomer.customerNumber})</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <ReservedButtons moduleCode="customer_management" contextData={selectedCustomer} />
@@ -289,6 +292,10 @@ export const CustomerDetail = ({
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div>
+            <p className="text-sm text-gray-500 mb-1">客户编号</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.customerNumber || selectedCustomer.id}</p>
+          </div>
           <div>
             <p className="text-sm text-gray-500 mb-1">客户名称</p>
             <p className="font-medium text-gray-900">{selectedCustomer.name || '-'}</p>

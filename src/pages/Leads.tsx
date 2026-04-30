@@ -585,7 +585,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
 
   const fields = [
     { key: 'id', label: '编号' },
-    { key: 'customerId', label: '客户ID', disabled: true },
+    { key: 'customerId', label: '客户ID', hidden: true },
     { key: 'customerName', label: '客户', type: 'customer_lookup', customerIdKey: 'customerId', required: true },
     { key: 'name', label: '姓名' },
     { key: 'phone', label: '手机号' },
