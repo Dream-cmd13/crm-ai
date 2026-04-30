@@ -52,6 +52,12 @@ const normalizeLeadStatus = (status?: string): Lead['status'] => {
   return '未跟进';
 };
 
+const toNullableInt = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number.parseInt(String(value).trim(), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 interface LeadsProps {
   role: Role;
   currentUser?: User;
@@ -97,8 +103,8 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
   const processedParams = React.useRef<any>(null);
 
   const mapDbLeadToUi = (row: any): Lead => ({
-    id: row.id,
-    customerId: row.customer_id,
+    id: String(row.id),
+    customerId: row.customer_id !== null && row.customer_id !== undefined ? String(row.customer_id) : undefined,
     customerType: row.customer_type,
     customerName: row.customer_name || '',
     name: row.name || row.contact_person || '',
@@ -120,7 +126,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
     closeReason: row.close_reason || '',
     creator: row.creator_name || role,
     contactPerson: row.contact_person,
-    inquiryId: row.inquiry_id,
+    inquiryId: row.inquiry_id !== null && row.inquiry_id !== undefined ? String(row.inquiry_id) : undefined,
     contactId: row.contact_id,
     attachments: parseAttachments(row.attachments),
     buyerRole: row.buyer_role,
@@ -137,15 +143,28 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
     return error?.code === 'PGRST204' && message.includes("'customer_type'") && message.includes("'crm_lead'");
   };
 
-  const upsertLeadWithSchemaFallback = async (dbData: any) => {
+  const insertLeadWithSchemaFallback = async (dbData: any) => {
     const supabase = getSupabaseClient();
-    const primaryResult = await supabase.from('crm_lead').upsert(dbData, { onConflict: 'id' }).select('*');
+    const primaryResult = await supabase.from('crm_lead').insert(dbData).select('*');
     if (!isMissingLeadCustomerTypeColumn(primaryResult.error)) return primaryResult;
 
     const { customer_type: _ignored, ...fallbackData } = dbData;
-    const fallbackResult = await supabase.from('crm_lead').upsert(fallbackData, { onConflict: 'id' }).select('*');
+    const fallbackResult = await supabase.from('crm_lead').insert(fallbackData).select('*');
     if (!fallbackResult.error) {
-      console.warn("Column 'crm_lead.customer_type' missing, retried upsert without this field.");
+      console.warn("Column 'crm_lead.customer_type' missing, retried insert without this field.");
+    }
+    return fallbackResult;
+  };
+
+  const updateLeadWithSchemaFallback = async (id: number, dbData: any) => {
+    const supabase = getSupabaseClient();
+    const primaryResult = await supabase.from('crm_lead').update(dbData).eq('id', id).select('*');
+    if (!isMissingLeadCustomerTypeColumn(primaryResult.error)) return primaryResult;
+
+    const { customer_type: _ignored, ...fallbackData } = dbData;
+    const fallbackResult = await supabase.from('crm_lead').update(fallbackData).eq('id', id).select('*');
+    if (!fallbackResult.error) {
+      console.warn("Column 'crm_lead.customer_type' missing, retried update without this field.");
     }
     return fallbackResult;
   };
@@ -190,7 +209,9 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           (async () => {
             try {
               const supabase = getSupabaseClient();
-              const { data, error } = await supabase.from('crm_lead').select('*').eq('id', viewParams).limit(1);
+              const leadId = toNullableInt(viewParams);
+              if (leadId === null) return;
+              const { data, error } = await supabase.from('crm_lead').select('*').eq('id', leadId).limit(1);
               if (error) throw error;
               const row = data?.[0];
               if (!row) return;
@@ -221,7 +242,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           }
           const newLead: Lead = {
             id: `L${new Date().getFullYear()}${String(leads.length + 1).padStart(3, '0')}`,
-            inquiryId: viewParams.sourceId,
+            inquiryId: String(viewParams.sourceId || ''),
             customerName: sourceInquiry?.company_name || '待定',
             name: sourceInquiry?.customer_name || '',
             phone: sourceInquiry?.contact || '',
@@ -234,7 +255,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
             source: '在线',
             productCategory: sourceInquiry?.category || '',
             productSeries: sourceInquiry?.product_series || '',
-            customerId: sourceInquiry?.customer_id || `CUST-${Date.now()}`,
+            customerId: sourceInquiry?.customer_id ? String(sourceInquiry.customer_id) : '',
             customerType: sourceInquiry?.customer_id ? '老客户' : '新客户',
             sourceStatus: '客服',
             creator: role,
@@ -278,14 +299,14 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
             const created = await createPotentialCustomerInSupabase(String(data.customerName));
             customerId = created.id;
           } catch {
-            customerId = `PCUST-${Date.now()}`;
+            customerId = '';
           }
         }
-        const customerType: '新客户' | '老客户' = String(customerId || '').startsWith('PCUST-') ? '新客户' : '老客户';
+        const customerIdForDb = toNullableInt(customerId);
+        const customerType: '新客户' | '老客户' = customerIdForDb !== null ? '老客户' : '新客户';
         const dbData = {
-          id: data.id || `LEAD${new Date().getTime()}`,
           customer_name: data.customerName,
-          customer_id: customerId,
+          customer_id: customerIdForDb,
           customer_type: customerType,
           name: data.name,
           phone: data.phone,
@@ -302,7 +323,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           customer_opportunity: data.customerOpportunity,
           close_time: data.closeTime || null,
           close_reason: data.closeReason,
-          inquiry_id: data.inquiryId,
+          inquiry_id: toNullableInt(data.inquiryId),
           contact_id: data.contactId,
           buyer_role: data.buyerRole,
           buying_mode: data.buyingMode,
@@ -315,7 +336,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           updated_at: new Date().toISOString()
         };
 
-        const { data: insertedData, error } = await upsertLeadWithSchemaFallback(dbData);
+        const { data: insertedData, error } = await insertLeadWithSchemaFallback(dbData);
         if (error) throw error;
         if (insertedData && insertedData.length > 0) {
           const newLead = mapDbLeadToUi(insertedData[0]);
@@ -337,14 +358,15 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
             const created = await createPotentialCustomerInSupabase(String(data.customerName));
             customerId = created.id;
           } catch {
-            customerId = `PCUST-${Date.now()}`;
+            customerId = '';
           }
         }
-        const customerType: '新客户' | '老客户' = String(customerId || '').startsWith('PCUST-') ? '新客户' : '老客户';
+        const customerIdForDb = toNullableInt(customerId);
+        const customerType: '新客户' | '老客户' = customerIdForDb !== null ? '老客户' : '新客户';
+        const selectedLeadDbId = toNullableInt(selectedLead.id);
         const dbData = {
-          id: selectedLead.id,
           customer_name: data.customerName,
-          customer_id: customerId,
+          customer_id: customerIdForDb,
           customer_type: customerType,
           name: data.name,
           phone: data.phone,
@@ -361,7 +383,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           customer_opportunity: data.customerOpportunity,
           close_time: data.closeTime || null,
           close_reason: data.closeReason,
-          inquiry_id: data.inquiryId,
+          inquiry_id: toNullableInt(data.inquiryId),
           contact_id: data.contactId,
           buyer_role: data.buyerRole,
           buying_mode: data.buyingMode,
@@ -371,11 +393,19 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           create_date: data.createDate || selectedLead.createDate || today,
           updated_at: new Date().toISOString(),
         };
-        const { data: updatedData, error } = await upsertLeadWithSchemaFallback(dbData);
+        const saveResult = selectedLeadDbId === null
+          ? await insertLeadWithSchemaFallback(dbData)
+          : await updateLeadWithSchemaFallback(selectedLeadDbId, dbData);
+        const { data: updatedData, error } = saveResult;
         if (error) throw error;
         if (updatedData && updatedData.length > 0) {
           const updatedLead = mapDbLeadToUi(updatedData[0]);
-          setLeads(leads.map(l => l.id === updatedLead.id ? updatedLead : l));
+          setLeads((prev) => {
+            const base = selectedLeadDbId === null ? prev.filter((l) => l.id !== selectedLead.id) : prev;
+            const exists = base.some((l) => l.id === updatedLead.id);
+            if (!exists) return [updatedLead, ...base];
+            return base.map((l) => (l.id === updatedLead.id ? updatedLead : l));
+          });
           setSelectedLead(updatedLead);
           triggerAutoFlowsForCreate(
             'lead',

@@ -70,6 +70,12 @@ const parseJsonColumn = <T>(raw: unknown, fallback: T): T => {
   }
 };
 
+const toNullableInt = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number.parseInt(String(value).trim(), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const mapDbProjectToUi = (row: any): Project => {
   const meta = parseProjectMeta(row.manager);
   const team = parseJsonColumn<any>(row.team, null) || meta.team || {
@@ -82,11 +88,11 @@ const mapDbProjectToUi = (row: any): Project => {
   };
 
   return {
-    id: row.id,
+    id: String(row.id),
     projectName: row.project_name || '',
     projectType: row.project_type || meta.projectType || '研发型项目',
     customerName: row.customer_name || '',
-    customerId: row.customer_id || '',
+    customerId: row.customer_id !== null && row.customer_id !== undefined ? String(row.customer_id) : '',
     projectLevel: row.project_level || meta.projectLevel || 'B级',
     stage: normalizeProjectStage(row.stage),
     productLine: normalizeProjectProductLine(row.product_line || meta.productLine),
@@ -112,9 +118,9 @@ const mapDbProjectToUi = (row: any): Project => {
     updateDate: row.updated_at ? new Date(row.updated_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     startDate: row.start_date || undefined,
     endDate: row.end_date || undefined,
-    opportunityId: row.opportunity_id || meta.opportunityId,
-    leadId: row.lead_id || meta.leadId,
-    inquiryId: row.inquiry_id || meta.inquiryId,
+    opportunityId: row.opportunity_id !== null && row.opportunity_id !== undefined ? String(row.opportunity_id) : meta.opportunityId,
+    leadId: row.lead_id !== null && row.lead_id !== undefined ? String(row.lead_id) : meta.leadId,
+    inquiryId: row.inquiry_id !== null && row.inquiry_id !== undefined ? String(row.inquiry_id) : meta.inquiryId,
     attachments: parseJsonColumn(row.attachments, meta.attachments || []),
     notes: parseJsonColumn(row.notes, meta.notes || []),
     requirements: parseJsonColumn(row.requirements, meta.requirements || []),
@@ -134,9 +140,11 @@ const mapDbProjectToUi = (row: any): Project => {
   };
 };
 
-const mapUiProjectToDb = (project: Project) => ({
-  id: project.id || `PRJ${Date.now()}`,
-  customer_id: project.customerId || null,
+const mapUiProjectToDb = (project: Project) => {
+  const numericProjectId = toNullableInt(project.id);
+  return {
+  ...(numericProjectId !== null ? { id: numericProjectId } : {}),
+  customer_id: toNullableInt(project.customerId) ?? null,
   customer_name: project.customerName || '',
   project_name: project.projectName || '',
   status: toDbProjectStatus(normalizeProjectStatus(project.status)),
@@ -176,9 +184,9 @@ const mapUiProjectToDb = (project: Project) => ({
   quality_owner: project.qualityOwner || project.team?.quality || null,
   purchaser: project.purchaser || project.team?.purchasing || null,
   fae: project.fae || project.team?.fae || null,
-  lead_id: project.leadId || null,
-  opportunity_id: project.opportunityId || null,
-  inquiry_id: project.inquiryId || null,
+  lead_id: toNullableInt(project.leadId) ?? null,
+  opportunity_id: toNullableInt(project.opportunityId) ?? null,
+  inquiry_id: toNullableInt(project.inquiryId) ?? null,
   attachments: project.attachments || [],
   close_time: project.closeTime || null,
   close_reason: project.closeReason || null,
@@ -186,7 +194,8 @@ const mapUiProjectToDb = (project: Project) => ({
   start_date: project.startDate || project.createDate || null,
   end_date: project.endDate || project.estimatedMassProductionTime || null,
   updated_at: new Date().toISOString()
-});
+};
+};
 
 export const fetchProjectsFromSupabase = async (): Promise<Project[]> => {
   if (!isSupabaseConfigured()) return [];
@@ -210,19 +219,18 @@ export const saveProjectToSupabase = async (project: Project): Promise<Project> 
   if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const payload = mapUiProjectToDb(project);
-  const { data, error } = await supabase
-    .from('crm_project')
-    .upsert(payload, { onConflict: 'id' })
-    .select('*')
-    .limit(1);
+  const query = payload.id !== undefined
+    ? supabase.from('crm_project').upsert(payload, { onConflict: 'id' })
+    : supabase.from('crm_project').insert(payload);
+  const { data, error } = await query.select('*').limit(1);
   if (error) throw error;
-  return data?.[0] ? mapDbProjectToUi(data[0]) : { ...project, id: payload.id };
+  return data?.[0] ? mapDbProjectToUi(data[0]) : project;
 };
 
 export const deleteProjectFromSupabase = async (projectId: string) => {
   if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
-  const id = String(projectId || '').trim();
-  if (!id) return;
+  const id = toNullableInt(projectId);
+  if (id === null) return;
   const supabase = getSupabaseClient();
   const { error } = await supabase.from('crm_project').delete().eq('id', id);
   if (error) throw error;

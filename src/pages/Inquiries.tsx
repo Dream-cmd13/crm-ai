@@ -40,6 +40,12 @@ const parseAttachments = (raw: unknown): FileAttachment[] => {
   return [];
 };
 
+const toNullableInt = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number.parseInt(String(value).trim(), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 interface InquiriesProps {
   role: Role;
   currentUser?: User;
@@ -95,8 +101,8 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     const aiAnalysis = row.ai_analysis || undefined;
     const normalizedStatus = row.status === '未转化' ? '关闭' : (row.status || '待处理');
     return {
-      id: row.id,
-      customerId: row.customer_id,
+      id: String(row.id),
+      customerId: row.customer_id !== null && row.customer_id !== undefined ? String(row.customer_id) : undefined,
       date: row.create_date || row.date || today,
       companyName: row.company_name || '',
       customerName: row.customer_name || '',
@@ -187,7 +193,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
 
   const handleSave = async (data: any) => {
     const isNew = isAdding;
-    const id = isNew ? `XP${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(2, 12)}` : selectedInquiry?.id;
+    const selectedInquiryDbId = toNullableInt(selectedInquiry?.id);
     const today = new Date().toISOString().split('T')[0];
     if (!isSupabaseConfigured()) {
       toast.error('未配置 Supabase，无法保存询盘数据');
@@ -200,13 +206,13 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
         const created = await createPotentialCustomerInSupabase(String(data.companyName));
         customerId = created.id;
       } catch {
-        customerId = `PCUST-${Date.now()}`;
+        customerId = '';
       }
     }
     try {
+      const customerIdForDb = toNullableInt(customerId);
       const dbData = {
-        id,
-        customer_id: customerId,
+        customer_id: customerIdForDb,
         company_name: data.companyName,
         customer_name: data.customerName,
         contact: data.contact,
@@ -220,7 +226,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
         unconvert_reason: data.unconvertReason,
         unconverted_time: data.unconvertedTime || null,
         notes: data.notes,
-        associated_lead: data.associatedLead,
+        associated_lead: data.associatedLead ? String(data.associatedLead) : null,
         attachments: Array.isArray(data.attachments) ? data.attachments : [],
         creator_id: isNew ? 'system' : selectedInquiry?.creatorId,
         creator_name: isNew ? role : selectedInquiry?.creatorName,
@@ -232,12 +238,13 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       };
       const upsertInquiryWithCompat = async (payload: Record<string, any>) => {
         const supabase = getSupabaseClient();
-        const runUpsert = (row: Record<string, any>) =>
-          supabase
-            .from('crm_inquiry')
-            .upsert(row, { onConflict: 'id' })
-            .select('*');
-        let { data, error } = await runUpsert(payload);
+        const runMutation = (row: Record<string, any>) => {
+          if (isNew || selectedInquiryDbId === null) {
+            return supabase.from('crm_inquiry').insert(row).select('*');
+          }
+          return supabase.from('crm_inquiry').update(row).eq('id', selectedInquiryDbId).select('*');
+        };
+        let { data, error } = await runMutation(payload);
         if (!error) return { data, error: null };
         const message = String((error as any)?.message || '');
         const details = String((error as any)?.details || '');
@@ -248,7 +255,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
         if (isMissingProductSeries) {
           const fallback = { ...payload };
           delete (fallback as any).product_series;
-          const retry = await runUpsert(fallback);
+          const retry = await runMutation(fallback);
           if (retry.error) throw retry.error;
           return { data: retry.data, error: null };
         }

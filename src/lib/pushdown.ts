@@ -3,7 +3,7 @@ import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 import { createPotentialCustomerInSupabase, convertPotentialCustomerToCustomerInSupabase } from './potentialCustomerRepository';
 import { saveSalesOrderToSupabase } from './documentRepository';
 import { triggerAutoFlowsForCreate } from './workflowRunner';
-import { updateCustomerLastContactInSupabase } from './customerRepository';
+import { resolveCustomerDbIdFromSupabase, updateCustomerLastContactInSupabase } from './customerRepository';
 
 const today = () => new Date().toISOString().split('T')[0];
 const LEAD_CUSTOMER_ACTION_ENUM_VALUES = ['寻替代料', '寻替代品', '找货寻料', '指定料号', '指定物料'] as const;
@@ -73,13 +73,24 @@ const normalizeProjectProductLine = (value: unknown): string | null => {
   return '其他';
 };
 
-const ensureCustomerId = async (customerId: string | undefined, customerName: string) => {
+const toNullableInt = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number.parseInt(String(value).trim(), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const ensureCustomerId = async (customerId: string | undefined, customerName: string): Promise<number | null> => {
   const id = String(customerId || '').trim();
   const name = String(customerName || '').trim();
-  if (id) return id;
-  if (!name) return '';
-  const created = await createPotentialCustomerInSupabase(name);
-  return created.id;
+  const resolved = id ? await resolveCustomerDbIdFromSupabase(id) : null;
+  if (resolved !== null) return resolved;
+  if (!name) return null;
+  try {
+    const created = await createPotentialCustomerInSupabase(name);
+    return await resolveCustomerDbIdFromSupabase(created.id);
+  } catch {
+    return null;
+  }
 };
 
 export const pushInquiryToLeadInSupabase = async (source: Inquiry, leadData: any) => {
@@ -89,10 +100,9 @@ export const pushInquiryToLeadInSupabase = async (source: Inquiry, leadData: any
   const supabase = getSupabaseClient();
   const customerName = String(leadData?.customerName || source.companyName || source.customerName || '').trim() || '未填写客户';
   const resolvedCustomerId = await ensureCustomerId(leadData?.customerId || source.customerId, customerName);
-  const leadId = `LEAD_${Date.now()}`;
+  const inquiryId = toNullableInt(source.id);
   const now = new Date().toISOString();
   const leadRow = {
-    id: leadId,
     customer_id: resolvedCustomerId || null,
     customer_type: resolvedCustomerId ? '老客户' : '新客户',
     customer_name: customerName,
@@ -108,7 +118,7 @@ export const pushInquiryToLeadInSupabase = async (source: Inquiry, leadData: any
     source_type: normalizeLeadSourceType(leadData?.source),
     product_category: String(leadData?.productCategory || source.category || '').trim(),
     product_series: String(leadData?.productSeries || source.productSeries || '').trim(),
-    inquiry_id: source.id,
+    inquiry_id: inquiryId,
     buyer_role: leadData?.buyerRole || source.buyerRole || null,
     buying_mode: leadData?.buyingMode || source.buyingMode || null,
     intent_score: leadData?.intentScore ?? source.intentScore ?? null,
@@ -117,8 +127,10 @@ export const pushInquiryToLeadInSupabase = async (source: Inquiry, leadData: any
     updated_at: now
   };
 
-  const { error: leadError } = await supabase.from('crm_lead').upsert(leadRow, { onConflict: 'id' });
+  const { data: insertedLead, error: leadError } = await supabase.from('crm_lead').insert(leadRow).select('id').single();
   if (leadError) throw leadError;
+  const leadId = String(insertedLead?.id || '');
+  if (!leadId) throw new Error('线索创建成功但未返回ID');
 
   triggerAutoFlowsForCreate(
     'lead',
@@ -137,7 +149,7 @@ export const pushInquiryToLeadInSupabase = async (source: Inquiry, leadData: any
     .eq('id', source.id);
   if (inquiryError) throw inquiryError;
   if (resolvedCustomerId) {
-    await updateCustomerLastContactInSupabase(resolvedCustomerId, '询盘转线索');
+    await updateCustomerLastContactInSupabase(String(resolvedCustomerId), '询盘转线索');
   }
 
   return leadId;
@@ -150,7 +162,8 @@ export const pushLeadToOpportunityInSupabase = async (source: Lead, oppData: any
   const supabase = getSupabaseClient();
   const customerName = String(oppData?.customerName || source.customerName || '').trim() || '未填写客户';
   const resolvedCustomerId = await ensureCustomerId(source.customerId, customerName);
-  const oppId = `OPP_${Date.now()}`;
+  const leadId = toNullableInt(source.id);
+  const inquiryId = toNullableInt(source.inquiryId);
   const now = new Date().toISOString();
   const summaryParts = [
     String(oppData?.name || '').trim(),
@@ -164,7 +177,6 @@ export const pushLeadToOpportunityInSupabase = async (source: Lead, oppData: any
   const intentAmount = Number(oppData?.expectedAmount || 0);
 
   const oppRow = {
-    id: oppId,
     customer_id: resolvedCustomerId || null,
     customer_type: resolvedCustomerId ? '老客户' : '新客户',
     customer_name: customerName,
@@ -188,13 +200,15 @@ export const pushLeadToOpportunityInSupabase = async (source: Lead, oppData: any
     product_series: source.productSeries || null,
     completeness: 10,
     contact_person: oppData?.contactPerson || source.name || null,
-    lead_id: source.id,
-    inquiry_id: source.inquiryId || null,
+    lead_id: leadId,
+    inquiry_id: inquiryId,
     updated_at: now
   };
 
-  const { error: oppError } = await supabase.from('crm_opportunity').upsert(oppRow, { onConflict: 'id' });
+  const { data: insertedOpp, error: oppError } = await supabase.from('crm_opportunity').insert(oppRow).select('id').single();
   if (oppError) throw oppError;
+  const oppId = String(insertedOpp?.id || '');
+  if (!oppId) throw new Error('商机创建成功但未返回ID');
 
   triggerAutoFlowsForCreate(
     'opportunity',
@@ -202,13 +216,15 @@ export const pushLeadToOpportunityInSupabase = async (source: Lead, oppData: any
     oppData?.creatorId ? { id: String(oppData.creatorId), name: String(oppData.creatorName || '') } : undefined
   ).catch(() => {});
 
-  const { error: leadError } = await supabase
-    .from('crm_lead')
-    .update({ status: '转商机', updated_at: now })
-    .eq('id', source.id);
-  if (leadError) throw leadError;
+  if (leadId !== null) {
+    const { error: leadError } = await supabase
+      .from('crm_lead')
+      .update({ status: '转商机', updated_at: now })
+      .eq('id', leadId);
+    if (leadError) throw leadError;
+  }
   if (resolvedCustomerId) {
-    await updateCustomerLastContactInSupabase(resolvedCustomerId, '线索转商机');
+    await updateCustomerLastContactInSupabase(String(resolvedCustomerId), '线索转商机');
   }
 
   return oppId;
@@ -221,6 +237,7 @@ export const pushOpportunityToProjectInSupabase = async (source: Opportunity) =>
   const supabase = getSupabaseClient();
   const customerName = String(source.customerName || '').trim() || '未填写客户';
   const resolvedCustomerId = await ensureCustomerId(source.customerId, customerName);
+  const opportunityId = toNullableInt(source.id);
   
   if (resolvedCustomerId) {
     const { data: potential } = await supabase.from('crm_potential_customer').select('*').eq('id', resolvedCustomerId).maybeSingle();
@@ -229,13 +246,11 @@ export const pushOpportunityToProjectInSupabase = async (source: Opportunity) =>
     }
   }
 
-  const projectId = `PRJ_${Date.now()}`;
   const now = new Date().toISOString();
   const amount = Number(source.intentAmount || 0);
   const projectName = `${customerName}-项目`;
 
   const projectRow = {
-    id: projectId,
     customer_id: resolvedCustomerId || null,
     customer_name: customerName,
     project_name: projectName,
@@ -249,8 +264,10 @@ export const pushOpportunityToProjectInSupabase = async (source: Opportunity) =>
     updated_at: now
   };
 
-  const { error: projectError } = await supabase.from('crm_project').upsert(projectRow, { onConflict: 'id' });
+  const { data: insertedProject, error: projectError } = await supabase.from('crm_project').insert(projectRow).select('id').single();
   if (projectError) throw projectError;
+  const projectId = String(insertedProject?.id || '');
+  if (!projectId) throw new Error('项目创建成功但未返回ID');
 
   triggerAutoFlowsForCreate(
     'project',
@@ -258,13 +275,15 @@ export const pushOpportunityToProjectInSupabase = async (source: Opportunity) =>
     source?.creatorId ? { id: String(source.creatorId), name: String(source.creatorName || '') } : undefined
   ).catch(() => {});
 
-  const { error: oppError } = await supabase
-    .from('crm_opportunity')
-    .update({ status: '转项目', associated_project: projectId, updated_at: now })
-    .eq('id', source.id);
-  if (oppError) throw oppError;
+  if (opportunityId !== null) {
+    const { error: oppError } = await supabase
+      .from('crm_opportunity')
+      .update({ status: '转项目', associated_project: projectId, updated_at: now })
+      .eq('id', opportunityId);
+    if (oppError) throw oppError;
+  }
   if (resolvedCustomerId) {
-    await updateCustomerLastContactInSupabase(resolvedCustomerId, '商机转项目');
+    await updateCustomerLastContactInSupabase(String(resolvedCustomerId), '商机转项目');
   }
 
   return projectId;
@@ -310,8 +329,8 @@ export const pushQuotationToSalesOrderInSupabase = async (quotation: SalesQuotat
 
 export const deleteLeadFromSupabase = async (leadId: string) => {
   if (!isSupabaseConfigured()) return;
-  const id = String(leadId || '').trim();
-  if (!id) return;
+  const id = toNullableInt(leadId);
+  if (id === null) return;
   const supabase = getSupabaseClient();
   const { error } = await supabase.from('crm_lead').delete().eq('id', id);
   if (error) throw error;
@@ -319,8 +338,8 @@ export const deleteLeadFromSupabase = async (leadId: string) => {
 
 export const deleteOpportunityFromSupabase = async (opportunityId: string) => {
   if (!isSupabaseConfigured()) return;
-  const id = String(opportunityId || '').trim();
-  if (!id) return;
+  const id = toNullableInt(opportunityId);
+  if (id === null) return;
   const supabase = getSupabaseClient();
   const { error } = await supabase.from('crm_opportunity').delete().eq('id', id);
   if (error) throw error;
@@ -328,8 +347,8 @@ export const deleteOpportunityFromSupabase = async (opportunityId: string) => {
 
 export const deleteProjectFromSupabase = async (projectId: string) => {
   if (!isSupabaseConfigured()) return;
-  const id = String(projectId || '').trim();
-  if (!id) return;
+  const id = toNullableInt(projectId);
+  if (id === null) return;
   const supabase = getSupabaseClient();
   const { error } = await supabase.from('crm_project').delete().eq('id', id);
   if (error) throw error;

@@ -47,6 +47,12 @@ const normalizeOpportunityProductLine = (line?: string): Opportunity['productLin
   return '其他';
 };
 
+const toNullableInt = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number.parseInt(String(value).trim(), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const parseAttachments = (raw: unknown): FileAttachment[] => {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw as FileAttachment[];
@@ -112,8 +118,8 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   const processedParams = React.useRef<any>(null);
 
   const mapDbOppToUi = (row: any): Opportunity => ({
-    id: row.id,
-    customerId: row.customer_id,
+    id: String(row.id),
+    customerId: row.customer_id !== null && row.customer_id !== undefined ? String(row.customer_id) : undefined,
     customerType: row.customer_type,
     customerName: row.customer_name || '',
     oppDate: row.opp_date || new Date().toISOString().split('T')[0],
@@ -140,8 +146,8 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     contactPerson: row.contact_person || '',
     contactId: row.contact_id || undefined,
     attachments: parseAttachments(row.attachments),
-    leadId: row.lead_id,
-    inquiryId: row.inquiry_id,
+    leadId: row.lead_id !== null && row.lead_id !== undefined ? String(row.lead_id) : undefined,
+    inquiryId: row.inquiry_id !== null && row.inquiry_id !== undefined ? String(row.inquiry_id) : undefined,
     creatorId: row.creator_id || 'system',
     creatorNo: row.creator_no || 'system',
     creatorName: row.creator_name || role,
@@ -166,15 +172,28 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     }
   };
 
-  const upsertOpportunityWithSchemaFallback = async (dbData: any) => {
+  const insertOpportunityWithSchemaFallback = async (dbData: any) => {
     const supabase = getSupabaseClient();
-    const primaryResult = await supabase.from('crm_opportunity').upsert(dbData, { onConflict: 'id' }).select('*');
+    const primaryResult = await supabase.from('crm_opportunity').insert(dbData).select('*');
     if (!isMissingOpportunityCustomerTypeColumn(primaryResult.error)) return primaryResult;
 
     const { customer_type: _ignored, ...fallbackData } = dbData;
-    const fallbackResult = await supabase.from('crm_opportunity').upsert(fallbackData, { onConflict: 'id' }).select('*');
+    const fallbackResult = await supabase.from('crm_opportunity').insert(fallbackData).select('*');
     if (!fallbackResult.error) {
-      console.warn("Column 'crm_opportunity.customer_type' missing, retried upsert without this field.");
+      console.warn("Column 'crm_opportunity.customer_type' missing, retried insert without this field.");
+    }
+    return fallbackResult;
+  };
+
+  const updateOpportunityWithSchemaFallback = async (id: number, dbData: any) => {
+    const supabase = getSupabaseClient();
+    const primaryResult = await supabase.from('crm_opportunity').update(dbData).eq('id', id).select('*');
+    if (!isMissingOpportunityCustomerTypeColumn(primaryResult.error)) return primaryResult;
+
+    const { customer_type: _ignored, ...fallbackData } = dbData;
+    const fallbackResult = await supabase.from('crm_opportunity').update(fallbackData).eq('id', id).select('*');
+    if (!fallbackResult.error) {
+      console.warn("Column 'crm_opportunity.customer_type' missing, retried update without this field.");
     }
     return fallbackResult;
   };
@@ -202,7 +221,9 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
           (async () => {
             try {
               const supabase = getSupabaseClient();
-              const { data, error } = await supabase.from('crm_opportunity').select('*').eq('id', viewParams).limit(1);
+              const oppId = toNullableInt(viewParams);
+              if (oppId === null) return;
+              const { data, error } = await supabase.from('crm_opportunity').select('*').eq('id', oppId).limit(1);
               if (error) throw error;
               const row = data?.[0];
               if (!row) return;
@@ -233,8 +254,8 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
           }
           const newOpp: Opportunity = {
             id: `O${new Date().getFullYear()}${String(opportunities.length + 1).padStart(3, '0')}`,
-            leadId: viewParams.sourceId,
-            inquiryId: sourceLead?.inquiry_id,
+            leadId: String(viewParams.sourceId || ''),
+            inquiryId: sourceLead?.inquiry_id !== null && sourceLead?.inquiry_id !== undefined ? String(sourceLead.inquiry_id) : undefined,
             customerName: sourceLead?.customer_name || '待定',
             oppDate: new Date().toISOString().split('T')[0],
             status: '未跟进',
@@ -254,7 +275,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
             salesType: '新客户',
             productIndustry: sourceLead?.industry || '',
             productSeries: sourceLead?.product_series || '',
-            customerId: sourceLead?.customer_id || `CUST-${Date.now()}`,
+            customerId: sourceLead?.customer_id !== null && sourceLead?.customer_id !== undefined ? String(sourceLead.customer_id) : '',
             customerType: sourceLead?.customer_type || (sourceLead?.customer_id ? '老客户' : '新客户'),
             completeness: 10,
             creatorId: 'U001',
@@ -289,19 +310,23 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
       const normalizedStatus = normalizeOpportunityStatus(data.status);
       const cleanCustomerName = String(data.customerName || '').trim();
       const matchedCustomer = customers.find((c) => c.id === data.customerId || (cleanCustomerName && c.name === cleanCustomerName));
-      const id = data.id || (isAdding ? `OP${new Date().getTime()}` : selectedOpp?.id);
       let resolvedCustomerId =
         data.customerId || selectedOpp?.customerId || matchedCustomer?.id || '';
 
       if (!resolvedCustomerId && cleanCustomerName) {
-        const created = await createPotentialCustomerInSupabase(cleanCustomerName);
-        resolvedCustomerId = created.id;
+        try {
+          const created = await createPotentialCustomerInSupabase(cleanCustomerName);
+          resolvedCustomerId = created.id;
+        } catch {
+          resolvedCustomerId = '';
+        }
       }
+      const customerIdForDb = toNullableInt(resolvedCustomerId);
+      const selectedOppDbId = toNullableInt(selectedOpp?.id);
 
       const dbData = {
-        id,
-        customer_id: resolvedCustomerId || `CUST-${Date.now()}`,
-        customer_type: matchedCustomer || selectedOpp?.customerType === '老客户' ? '老客户' : (resolvedCustomerId ? '新客户' : '新客户'),
+        customer_id: customerIdForDb,
+        customer_type: customerIdForDb !== null ? '老客户' : '新客户',
         customer_name: cleanCustomerName,
         opp_date: data.oppDate || today,
         status: normalizedStatus,
@@ -325,12 +350,17 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
         product_series: data.productSeries,
         completeness: Number(data.completeness || 0),
         contact_person: data.contactPerson,
-        lead_id: data.leadId,
-        inquiry_id: data.inquiryId,
+        lead_id: toNullableInt(data.leadId),
+        inquiry_id: toNullableInt(data.inquiryId),
         attachments: Array.isArray(data.attachments) ? data.attachments : [],
         updated_at: new Date().toISOString()
       };
-      const { data: savedRows, error } = await upsertOpportunityWithSchemaFallback(dbData);
+      const saveResult = isAdding
+        ? await insertOpportunityWithSchemaFallback(dbData)
+        : (selectedOppDbId === null
+          ? await insertOpportunityWithSchemaFallback(dbData)
+          : await updateOpportunityWithSchemaFallback(selectedOppDbId, dbData));
+      const { data: savedRows, error } = saveResult;
       if (error) throw error;
       if (savedRows && savedRows.length > 0) {
         const savedOpp = mapDbOppToUi(savedRows[0]);
@@ -341,7 +371,12 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
             console.error('Error triggering opportunity workflow:', error);
           });
         } else {
-          setOpportunities(opportunities.map(o => o.id === savedOpp.id ? savedOpp : o));
+          setOpportunities((prev) => {
+            const base = selectedOppDbId === null && selectedOpp ? prev.filter((o) => o.id !== selectedOpp.id) : prev;
+            const exists = base.some((o) => o.id === savedOpp.id);
+            if (!exists) return [savedOpp, ...base];
+            return base.map((o) => (o.id === savedOpp.id ? savedOpp : o));
+          });
           setSelectedOpp(savedOpp);
             triggerAutoFlowsForCreate(
               'opportunity',
@@ -363,6 +398,11 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   const handleGenerateCustomerProfile = () => {
     if (!selectedOpp?.customerId || !selectedOpp.customerName) {
       toast.error('请先确保商机中存在客户ID和客户名称');
+      return;
+    }
+    const customerDbId = toNullableInt(selectedOpp.customerId);
+    if (customerDbId === null) {
+      toast.error('当前客户ID不是正式客户ID，请先在客户模块完成转正。');
       return;
     }
     const exists = customers.some((c) => c.id === selectedOpp.customerId);
@@ -391,7 +431,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
       if (isSupabaseConfigured()) {
         const supabase = getSupabaseClient();
         const { error } = await supabase.from('ba_manucustinfo').upsert({
-          id: newCustomer.id,
+          id: customerDbId,
           name: newCustomer.name,
           level: newCustomer.level,
           status: newCustomer.status,

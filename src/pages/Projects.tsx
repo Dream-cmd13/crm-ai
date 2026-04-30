@@ -295,8 +295,8 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
             startDate: new Date().toISOString().split('T')[0],
             endDate: '',
             opportunityId: viewParams.sourceId,
-            leadId: sourceOpp?.lead_id,
-            inquiryId: sourceOpp?.inquiry_id,
+            leadId: sourceOpp?.lead_id !== null && sourceOpp?.lead_id !== undefined ? String(sourceOpp.lead_id) : undefined,
+            inquiryId: sourceOpp?.inquiry_id !== null && sourceOpp?.inquiry_id !== undefined ? String(sourceOpp.inquiry_id) : undefined,
             attachments: Array.isArray(sourceOpp?.attachments) ? sourceOpp.attachments : [],
             communicationDetails: [],
             notes: [],
@@ -317,7 +317,11 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
           setSelectedProject(newProject);
           setIsEditing(true);
           saveProjectToSupabase(newProject)
-            .then((saved) => triggerAutoFlowsForCreate('project', saved, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined))
+            .then((saved) => {
+              setProjects((prev) => [saved, ...prev.filter((p) => p.id !== newProject.id && p.id !== saved.id)]);
+              setSelectedProject(saved);
+              return triggerAutoFlowsForCreate('project', saved, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined);
+            })
             .catch((error) => {
               console.error('Error saving new project:', error);
             });
