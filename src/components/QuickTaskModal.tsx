@@ -1,5 +1,6 @@
 import { toast } from 'react-hot-toast';
 import React, { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Mic, Square, Save, User, Tag, FileText, Building2, Briefcase, Users, Calendar, Search, Plus } from 'lucide-react';
 import { TodoTask, TaskType, User as UserType } from '../types';
 import { loadLocalState } from '../lib/localState';
@@ -280,8 +281,8 @@ export default function QuickTaskModal({ isOpen, onClose, onSave, currentUser, i
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
+  return createPortal(
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
           <h3 className="text-lg font-bold text-gray-900">快速下达任务</h3>
@@ -780,6 +781,7 @@ export default function QuickTaskModal({ isOpen, onClose, onSave, currentUser, i
           setActiveAuxiliaryField(null);
         }}
       />
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Loader2, Sparkles, Calendar, MapPin, FileText, Mic, Upload, CheckCircle2 } from 'lucide-react';
 import { Contact, Customer } from '../types';
 import { callAiProxy } from '../lib/aiProxy';
@@ -87,8 +88,8 @@ export default function VisitModal({ isOpen, onClose, contact, customer, onSave 
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
           <h3 className="text-lg font-bold text-gray-900">发起拜访 - {contact.name} ({customer.name})</h3>
@@ -233,6 +234,7 @@ export default function VisitModal({ isOpen, onClose, contact, customer, onSave 
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { initialObjects, initialSystemFunctions } from '../data/ontologyData';
 import { WorkflowFlow } from '../types/ontology';
 import { Play, X } from 'lucide-react';
@@ -77,8 +78,8 @@ export default function ReservedButtons({ moduleCode, contextData }: ReservedBut
         ))}
       </div>
 
-      {selectedFlow && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      {selectedFlow && createPortal(
+        <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-[10010]">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
               <h3 className="text-lg font-bold text-gray-900">{selectedFlow.name}</h3>
@@ -132,7 +133,8 @@ export default function ReservedButtons({ moduleCode, contextData }: ReservedBut
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

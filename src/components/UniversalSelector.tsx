@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, ChevronRight, ChevronDown, CheckCircle2, Loader2, Users, Package, Building2, UserCircle, FolderTree, Briefcase } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { fetchUsersFromSupabase, fetchDepartmentsFromSupabase } from '../lib/userRepository';
@@ -395,9 +396,10 @@ export default function UniversalSelector({
     return content;
   }
 
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[10010] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       {content}
-    </div>
+    </div>,
+    document.body
   );
 }

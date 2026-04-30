@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Mic, Image as ImageIcon, FileText, Loader2, Calendar, MapPin } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -37,8 +38,8 @@ export default function AddSessionRecordModal({ onClose, onSave, type }: AddSess
     }, 1500);
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <h2 className="text-xl font-bold text-gray-900">
@@ -124,6 +125,7 @@ export default function AddSessionRecordModal({ onClose, onSave, type }: AddSess
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

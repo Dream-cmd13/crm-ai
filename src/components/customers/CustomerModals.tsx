@@ -1,5 +1,6 @@
 import { toast } from 'react-hot-toast';
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { XCircle, CheckCircle2, ListTodo, Calendar as CalendarIcon, Edit, Target, Sparkles, Loader2, Users, Plus, RefreshCw } from 'lucide-react';
 import { Customer, TodoTask, CustomerPersona, Contact } from '../../types';
 import { cn } from '../../lib/utils';
@@ -15,8 +16,8 @@ interface PersonaEditModalProps {
 
 export const PersonaEditModal = ({ isOpen, onClose, onSave, editingPersona, setEditingPersona }: PersonaEditModalProps) => {
   if (!isOpen || !editingPersona) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-indigo-50">
           <h3 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
@@ -60,7 +61,8 @@ export const PersonaEditModal = ({ isOpen, onClose, onSave, editingPersona, setE
           <button onClick={() => onSave(editingPersona)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">保存修改</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -74,8 +76,8 @@ interface ContactEditModalProps {
 
 export const ContactEditModal = ({ isOpen, onClose, onSave, editingContact, setEditingContact }: ContactEditModalProps) => {
   if (!isOpen || !editingContact) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-indigo-50">
           <h3 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
@@ -190,7 +192,8 @@ export const ContactEditModal = ({ isOpen, onClose, onSave, editingContact, setE
           <button onClick={onSave} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">保存修改</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -206,8 +209,8 @@ export const ManageMembersModal = ({ isOpen, onClose, chat, onUpdateMembers, cus
   const [showMappingSelection, setShowMappingSelection] = React.useState<{userId: string, type: 'user' | 'contact'} | null>(null);
 
   if (!isOpen || !chat) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-indigo-50">
           <div className="flex flex-col">
@@ -317,8 +320,8 @@ export const ManageMembersModal = ({ isOpen, onClose, chat, onUpdateMembers, cus
         />
       )}
 
-      {showMappingSelection && showMappingSelection.type === 'contact' && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      {showMappingSelection && showMappingSelection.type === 'contact' && createPortal(
+        <div className="fixed top-0 left-0 right-0 bottom-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                <h3 className="text-lg font-bold text-gray-900">选择联系人</h3>
@@ -353,8 +356,10 @@ export const ManageMembersModal = ({ isOpen, onClose, chat, onUpdateMembers, cus
                 </div>
              </div>
            </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </div>,
+    document.body
   );
 };

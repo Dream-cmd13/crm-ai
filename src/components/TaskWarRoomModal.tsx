@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, CheckCircle2, Bot, Send, Loader2, User } from 'lucide-react';
 import { callAiProxy } from '../lib/aiProxy';
 import { TodoTask } from '../types/task';
@@ -51,8 +52,8 @@ export default function TaskWarRoomModal({ isOpen, onClose, task, onUpdate }: Ta
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[80vh] flex overflow-hidden">
         
         {/* Left: Human Zone */}
@@ -150,8 +151,8 @@ export default function TaskWarRoomModal({ isOpen, onClose, task, onUpdate }: Ta
             )}
           </div>
         </div>
-
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

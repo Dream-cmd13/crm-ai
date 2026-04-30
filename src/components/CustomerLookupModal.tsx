@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Loader2, Search, X, Building2, UserCircle, Plus } from 'lucide-react';
 import { Customer, PotentialCustomer } from '../types';
 import { cn } from '../lib/utils';
@@ -94,8 +95,8 @@ export default function CustomerLookupModal({ isOpen, initialQuery, onClose, onS
     }
   }, [showPotential]);
 
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
           <div>
@@ -207,6 +208,7 @@ export default function CustomerLookupModal({ isOpen, initialQuery, onClose, onS
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

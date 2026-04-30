@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Search, Check, Folder } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -86,8 +87,8 @@ export default function SelectionModal({
     </div>
   );
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl flex flex-col max-h-[80vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
           <h3 className="text-lg font-bold text-gray-900">{title}</h3>
@@ -165,6 +166,7 @@ export default function SelectionModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

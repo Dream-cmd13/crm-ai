@@ -1,5 +1,6 @@
 import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, User as UserIcon, Package, Building2, Image as ImageIcon, FileText, Search, Upload, Trash2, Paperclip } from 'lucide-react';
 import UniversalSelector from './UniversalSelector';
 import CustomerLookupModal from './CustomerLookupModal';
@@ -162,8 +163,8 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
 
   const workflowSteps: any[] = [];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+  return createPortal(
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className={`bg-white rounded-2xl shadow-xl w-full ${hasWorkflow ? 'max-w-5xl' : 'max-w-3xl'} max-h-[90vh] flex flex-col`}>
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-3">
@@ -502,6 +503,7 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
           }}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 }

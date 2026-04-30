@@ -1,5 +1,6 @@
 import { toast } from 'react-hot-toast';
 import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Building2, Briefcase, User, Calendar, Clock, AlertCircle, CheckCircle2, FileText, Bot, Mic, Image as ImageIcon, GitBranch, Target, History, Share2, Layers, ArrowUpRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { initialTaskTypes, initialTodoTasks } from '../data';
@@ -293,8 +294,8 @@ export default function TaskDetailModal({ isOpen, onClose, task, navigateTo, onC
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
           <div className="flex items-center gap-3">
@@ -895,6 +896,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, navigateTo, onC
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

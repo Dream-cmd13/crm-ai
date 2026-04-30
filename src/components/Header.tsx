@@ -26,7 +26,7 @@ export default function Header({
 }: HeaderProps) {
 
   return (
-    <header className="bg-gradient-to-b from-gray-100 to-gray-50 border-b border-gray-300 shrink-0">
+    <header className="relative z-10 bg-gradient-to-b from-gray-100 to-gray-50 border-b border-gray-300 shrink-0">
       <div className="h-12 flex items-center gap-3 px-3 md:px-4">
         <button 
           onClick={onMenuClick}

@@ -1,5 +1,6 @@
 import { toast } from 'react-hot-toast';
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Plus, Trash2, User, Calendar, AlertCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import UserSelector from './UserSelector';
@@ -42,8 +43,8 @@ export default function TaskDecompositionModal({ isOpen, onClose, parentTask, on
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
           <div className="flex items-center gap-3">
@@ -163,6 +164,7 @@ export default function TaskDecompositionModal({ isOpen, onClose, parentTask, on
           onClose={() => setShowUserSelection(null)}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
