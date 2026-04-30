@@ -92,6 +92,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   const [isAddingGroupChat, setIsAddingGroupChat] = useState(false);
   const [isAddingContact, setIsAddingContact] = useState(false);
   const [contacts, setContacts] = useState<any[]>([]);
+  const [selectedCustomerNumber, setSelectedCustomerNumber] = useState('');
 
   
   const [tasks, setTasks] = useState<TodoTask[]>([]);
@@ -209,6 +210,33 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     } else {
       setContacts([]);
     }
+  }, [selectedOpp?.customerId]);
+
+  useEffect(() => {
+    const loadCustomerNumber = async () => {
+      if (!selectedOpp?.customerId || !isSupabaseConfigured()) {
+        setSelectedCustomerNumber('');
+        return;
+      }
+      try {
+        const supabase = getSupabaseClient();
+        const oppCustomerId = toNullableInt(selectedOpp.customerId);
+        if (oppCustomerId === null) {
+          setSelectedCustomerNumber('');
+          return;
+        }
+        const { data, error } = await supabase
+          .from('ba_manucustinfo')
+          .select('customer_number')
+          .eq('id', oppCustomerId)
+          .limit(1);
+        if (error) throw error;
+        setSelectedCustomerNumber(String(data?.[0]?.customer_number || ''));
+      } catch {
+        setSelectedCustomerNumber('');
+      }
+    };
+    loadCustomerNumber();
   }, [selectedOpp?.customerId]);
 
   useEffect(() => {
@@ -731,7 +759,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                 </h2>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <span className="text-sm text-gray-500">商机编号: {selectedOpp.opportunityNo || '-'}</span>
-                  <span className="text-sm text-gray-500">客户ID: {selectedOpp.customerId || '-'}</span>
+                  <span className="text-sm text-gray-500">客户编号: {selectedCustomerNumber || '-'}</span>
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     selectedOpp.status === '未跟进' ? 'bg-amber-100 text-amber-700' :
                     selectedOpp.status === '跟进中' ? 'bg-blue-100 text-blue-700' :
@@ -1395,7 +1423,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
           productLine: 'IO连接器'
         }}
         onSave={handleSave}
-        fields={fields.filter(f => !['creator', 'createDate', 'updater', 'updateDate', 'associatedProject'].includes(f.key))}
+        fields={fields.filter(f => !['opportunityNo', 'creator', 'createDate', 'updater', 'updateDate', 'associatedProject'].includes(f.key))}
         isEditing={true}
       />
     </div>

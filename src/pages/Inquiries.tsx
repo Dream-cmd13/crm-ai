@@ -77,6 +77,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   const [isAddingGroupChat, setIsAddingGroupChat] = useState(false);
   const [isAddingContact, setIsAddingContact] = useState(false);
   const [contacts, setContacts] = useState<any[]>([]);
+  const [selectedCustomerNumber, setSelectedCustomerNumber] = useState('');
 
   useEffect(() => {
     if (selectedInquiry?.customerId) {
@@ -84,6 +85,33 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     } else {
       setContacts([]);
     }
+  }, [selectedInquiry?.customerId]);
+
+  useEffect(() => {
+    const loadCustomerNumber = async () => {
+      if (!selectedInquiry?.customerId || !isSupabaseConfigured()) {
+        setSelectedCustomerNumber('');
+        return;
+      }
+      try {
+        const supabase = getSupabaseClient();
+        const customerId = toNullableInt(selectedInquiry.customerId);
+        if (customerId === null) {
+          setSelectedCustomerNumber('');
+          return;
+        }
+        const { data, error } = await supabase
+          .from('ba_manucustinfo')
+          .select('customer_number')
+          .eq('id', customerId)
+          .limit(1);
+        if (error) throw error;
+        setSelectedCustomerNumber(String(data?.[0]?.customer_number || ''));
+      } catch {
+        setSelectedCustomerNumber('');
+      }
+    };
+    loadCustomerNumber();
   }, [selectedInquiry?.customerId]);
   const [newTaskData, setNewTaskData] = useState<any>(null);
 
@@ -626,7 +654,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   ];
 
   const editFields = fields.filter((f) => !['unconvertReason', 'unconvertedTime'].includes(f.key));
-  const addFields = fields.filter((f) => !['id', 'creator', 'updater', 'updateDate', 'associatedLead', 'unconvertReason', 'unconvertedTime', 'situation', 'intentScore'].includes(f.key));
+  const addFields = fields.filter((f) => !['id', 'inquiryNo', 'creator', 'updater', 'updateDate', 'associatedLead', 'unconvertReason', 'unconvertedTime', 'situation', 'intentScore'].includes(f.key));
   const closeFields = [
     { key: 'unconvertedTime', label: '未转化时间', type: 'date', required: true },
     { key: 'unconvertReason', label: '未转化原因', required: true }
@@ -711,7 +739,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                 </h2>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <span className="text-sm text-gray-500">编号: {selectedInquiry.inquiryNo || '-'}</span>
-                  <span className="text-sm text-gray-500">客户ID: {selectedInquiry.customerId || '-'}</span>
+                  <span className="text-sm text-gray-500">客户编号: {selectedCustomerNumber || '-'}</span>
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     selectedInquiry.status === '待处理' ? 'bg-amber-100 text-amber-700' :
                     selectedInquiry.status === '已转线索' ? 'bg-emerald-100 text-emerald-700' :

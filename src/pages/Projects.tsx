@@ -901,7 +901,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
           team: { pm: '' }
         }}
         onSave={handleCreateProject}
-        fields={projectFields}
+        fields={projectFields.filter((f) => f.key !== 'projectNo')}
         isEditing={true}
       />
     </div>

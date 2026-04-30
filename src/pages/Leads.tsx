@@ -77,6 +77,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
   const [isAddingGroupChat, setIsAddingGroupChat] = useState(false);
   const [isAddingContact, setIsAddingContact] = useState(false);
   const [contacts, setContacts] = useState<any[]>([]);
+  const [selectedCustomerNumber, setSelectedCustomerNumber] = useState('');
 
   
 
@@ -197,6 +198,33 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
     } else {
       setContacts([]);
     }
+  }, [selectedLead?.customerId]);
+
+  useEffect(() => {
+    const loadCustomerNumber = async () => {
+      if (!selectedLead?.customerId || !isSupabaseConfigured()) {
+        setSelectedCustomerNumber('');
+        return;
+      }
+      try {
+        const supabase = getSupabaseClient();
+        const leadCustomerId = toNullableInt(selectedLead.customerId);
+        if (leadCustomerId === null) {
+          setSelectedCustomerNumber('');
+          return;
+        }
+        const { data, error } = await supabase
+          .from('ba_manucustinfo')
+          .select('customer_number')
+          .eq('id', leadCustomerId)
+          .limit(1);
+        if (error) throw error;
+        setSelectedCustomerNumber(String(data?.[0]?.customer_number || ''));
+      } catch {
+        setSelectedCustomerNumber('');
+      }
+    };
+    loadCustomerNumber();
   }, [selectedLead?.customerId]);
 
   useEffect(() => {
@@ -723,7 +751,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                 </h2>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <span className="text-sm text-gray-500">线索编号: {selectedLead.leadNo || '-'}</span>
-                  <span className="text-sm text-gray-500">客户ID: {selectedLead.customerId || '-'}</span>
+                  <span className="text-sm text-gray-500">客户编号: {selectedCustomerNumber || '-'}</span>
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     selectedLead.status === '未跟进' ? 'bg-red-100 text-red-700' :
                     selectedLead.status === '跟进中' ? 'bg-blue-100 text-blue-700' :
@@ -1386,7 +1414,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           customerAction: '找货寻料'
         }}
         onSave={handleSave}
-        fields={fields.filter(f => !['creator', 'createDate', 'updater', 'updateDate', 'associatedOpportunity'].includes(f.key))}
+        fields={fields.filter(f => !['leadNo', 'creator', 'createDate', 'updater', 'updateDate', 'associatedOpportunity'].includes(f.key))}
         isEditing={true}
       />
     </div>
