@@ -146,7 +146,7 @@ export default function SampleOrders({ role, viewParams, navigateTo, goBack }: S
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input 
               type="text" 
-              placeholder="搜索试样单号/客户..." 
+              placeholder="搜索样品单号/客户..." 
               className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -179,7 +179,7 @@ export default function SampleOrders({ role, viewParams, navigateTo, goBack }: S
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200 sticky top-0 z-10">
                   <tr>
-                    <th className="px-6 py-4">试样单号</th>
+                    <th className="px-6 py-4">样品单号</th>
                     <th className="px-6 py-4">客户名称</th>
                     <th className="px-6 py-4">关联项目</th>
                     <th className="px-6 py-4">申请人</th>

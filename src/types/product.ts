@@ -27,6 +27,8 @@ export interface Product {
   isOutsourceable: boolean;
   attributes?: { [key: string]: string | number };
   imageUrl?: string;
+  creatorName?: string;
+  createDate?: string;
 }
 
 export interface ProductSeries {

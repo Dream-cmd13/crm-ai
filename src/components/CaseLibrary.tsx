@@ -272,7 +272,7 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-gray-900">{viewingCase.title}</h3>
-                  <p className="text-xs text-gray-500">{viewingCase.industry} · {viewingCase.createDate}</p>
+                  <p className="text-xs text-gray-500">{viewingCase.industry} · {viewingCase.createDate} · 创建人: {viewingCase.creatorName}</p>
                 </div>
               </div>
               <button onClick={() => setViewingCase(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">

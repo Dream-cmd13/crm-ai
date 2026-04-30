@@ -77,12 +77,25 @@ export default function CustomerContactsCards({
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h5 className="font-bold text-gray-900 text-2xl leading-none">{contact.name}</h5>
+                    {contact.appellation && <span className="text-gray-500 text-lg">({contact.appellation})</span>}
                     {contact.isPrimary && <span className="px-2.5 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded">首要联系人</span>}
                   </div>
                   <p className="text-base font-semibold text-gray-700 mt-1">{contact.position || '联系人'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <div className="flex flex-col items-end mr-4">
+                  <span className="text-xs font-bold text-gray-400 uppercase">内部决策权</span>
+                  <span className={cn(
+                    "text-sm font-bold",
+                    contact.decisionPower === '核心决策者' ? 'text-rose-600' :
+                    contact.decisionPower === '技术评估者' ? 'text-blue-600' :
+                    contact.decisionPower === '商务执行者' ? 'text-amber-600' :
+                    'text-gray-600'
+                  )}>
+                    {contact.decisionPower || '未定义'}
+                  </span>
+                </div>
                 {onEditContact && (
                   <button
                     onClick={() => onEditContact(contact)}
@@ -113,29 +126,86 @@ export default function CustomerContactsCards({
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-base text-gray-800">
-                  <Phone className="w-4 h-4 text-gray-400" />
-                  {contact.phone || '-'}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-base text-gray-800">
+                    <Phone className="w-4 h-4 text-gray-400" />
+                    {contact.phone || '-'}
+                </div>
+                <div className="flex items-center gap-2 text-base text-gray-800">
+                    <Mail className="w-4 h-4 text-gray-400" />
+                    {contact.email || '-'}
+                </div>
+                <div className="flex items-center gap-2 text-base text-gray-800">
+                    <MessageSquare className="w-4 h-4 text-green-500" />
+                    {contact.wechatId || '-'}
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-700 flex-wrap">
+                  <span className={`px-2 py-0.5 rounded text-xs ${attitudeStyle(contact.attitudeToUs)}`}>{contact.attitudeToUs || '中性评价'}</span>
+                  {contact.faction && <span className="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">派系:{contact.faction}</span>}
+                  {contact.managerContactId && (
+                    <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700">
+                      上级:{contacts.find((c) => c.id === contact.managerContactId)?.name || contact.managerContactId}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-base text-gray-800">
-                  <Mail className="w-4 h-4 text-gray-400" />
-                  {contact.email || '-'}
-              </div>
-              <div className="flex items-center gap-2 text-base text-gray-800">
-                  <MessageSquare className="w-4 h-4 text-green-500" />
-                  {contact.wechatId || '-'}
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-700 flex-wrap">
-                <span className={`px-2 py-0.5 rounded text-xs ${attitudeStyle(contact.attitudeToUs)}`}>{contact.attitudeToUs || '中性评价'}</span>
-                {contact.faction && <span className="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">派系:{contact.faction}</span>}
-                {contact.managerContactId && (
-                  <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700">
-                    上级:{contacts.find((c) => c.id === contact.managerContactId)?.name || contact.managerContactId}
-                  </span>
-                )}
+
+              <div className="space-y-2 border-l border-gray-100 pl-8">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-gray-400">年龄: </span>
+                    <span className="text-gray-700">{contact.age || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">性格: </span>
+                    <span className="text-gray-700">{contact.personality || '-'}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-400">籍贯: </span>
+                    <span className="text-gray-700">{contact.hometown || '-'}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-400">家庭情况: </span>
+                    <span className="text-gray-700">{contact.familySituation || '-'}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-400">爱好: </span>
+                    <span className="text-gray-700">{contact.hobbies?.filter(h => h.trim()).join(', ') || '-'}</span>
+                  </div>
+                </div>
               </div>
             </div>
+
+            {/* Social Media Section */}
+            {(contact.videoChannelProfile || contact.douyinProfile || contact.xiaohongshuProfile || contact.socialMediaBehavior) && (
+              <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="text-[10px] font-bold text-gray-400 uppercase mb-2">社媒画像与行为</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-2">
+                  {contact.videoChannelProfile && (
+                    <div className="text-xs">
+                      <span className="text-gray-500">视频号: </span>
+                      <span className="text-indigo-600 truncate block">{contact.videoChannelProfile}</span>
+                    </div>
+                  )}
+                  {contact.douyinProfile && (
+                    <div className="text-xs">
+                      <span className="text-gray-500">抖音: </span>
+                      <span className="text-indigo-600 truncate block">{contact.douyinProfile}</span>
+                    </div>
+                  )}
+                  {contact.xiaohongshuProfile && (
+                    <div className="text-xs">
+                      <span className="text-gray-500">小红书: </span>
+                      <span className="text-indigo-600 truncate block">{contact.xiaohongshuProfile}</span>
+                    </div>
+                  )}
+                </div>
+                {contact.socialMediaBehavior && (
+                  <p className="text-xs text-gray-600 italic">“{contact.socialMediaBehavior}”</p>
+                )}
+              </div>
+            )}
 
             <div className="mt-6 border-t border-gray-100 pt-4">
               <div className="flex items-center justify-between">

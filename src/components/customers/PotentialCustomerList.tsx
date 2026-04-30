@@ -44,7 +44,7 @@ export default function PotentialCustomerList({ items, searchTerm, setSearchTerm
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="搜索潜在客户名称、编号..."
+              placeholder="搜索潜在客户名称、潜在客户ID..."
               className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -59,7 +59,7 @@ export default function PotentialCustomerList({ items, searchTerm, setSearchTerm
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 tracking-wider">客户名称</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 tracking-wider">客户ID</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 tracking-wider">潜在客户ID</th>
                 <th className="px-6 py-3 text-right text-xs font-bold text-gray-600 tracking-wider">操作</th>
               </tr>
             </thead>

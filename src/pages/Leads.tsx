@@ -617,13 +617,17 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
   };
 
   const fields = [
-    { key: 'leadNo', label: '编号' },
+    { key: 'leadNo', label: '线索编号' },
     { key: 'customerId', label: '客户ID', hidden: true },
-    { key: 'customerName', label: '客户', type: 'customer_lookup', customerIdKey: 'customerId', required: true },
+    { key: 'customerName', label: '客户名称', type: 'customer_lookup', customerIdKey: 'customerId', required: true },
+    { key: 'contactPerson', label: '客户联系人' },
     { key: 'name', label: '姓名' },
     { key: 'phone', label: '手机号' },
     { key: 'customerAction', label: '客户行动', type: 'select', options: LEAD_CUSTOMER_ACTION_OPTIONS },
     { key: 'industry', label: '客户行业' },
+    { key: 'buyerRole', label: '买家角色', type: 'select', options: ['技术买家', '用户买家', '经济买家', '教练'] },
+    { key: 'buyingMode', label: '购买模式', type: 'select', options: ['增长模式', '困难模式', '平稳模式', '过度自信模式'] },
+    { key: 'intentScore', label: '意向得分', type: 'number' },
     { key: 'status', label: '线索状态', type: 'select', options: LEAD_STATUS_OPTIONS, required: true },
     { key: 'classification', label: '分类标签', type: 'select', options: ['处理中', '有效', '无效'] },
     { key: 'assignee', label: '处理人', type: 'user' },
@@ -718,7 +722,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                   )}
                 </h2>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className="text-sm text-gray-500">编号: {selectedLead.leadNo || '-'}</span>
+                  <span className="text-sm text-gray-500">线索编号: {selectedLead.leadNo || '-'}</span>
                   <span className="text-sm text-gray-500">客户ID: {selectedLead.customerId || '-'}</span>
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     selectedLead.status === '未跟进' ? 'bg-red-100 text-red-700' :
@@ -766,6 +770,79 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                   <div>
                     <p className="text-sm text-gray-500 mb-1">手机号</p>
                     <p className="font-medium text-gray-900">{selectedLead.phone}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">买家角色</p>
+                    <p className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                      selectedLead.buyerRole === '技术买家' ? 'bg-blue-50 text-blue-700' :
+                      selectedLead.buyerRole === '用户买家' ? 'bg-green-50 text-green-700' :
+                      selectedLead.buyerRole === '经济买家' ? 'bg-purple-50 text-purple-700' :
+                      selectedLead.buyerRole === '教练' ? 'bg-amber-50 text-amber-700' :
+                      'bg-gray-50 text-gray-700'
+                    }`}>
+                      {selectedLead.buyerRole || '未识别'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">购买模式</p>
+                    <p className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                      selectedLead.buyingMode === '增长模式' ? 'bg-emerald-50 text-emerald-700' :
+                      selectedLead.buyingMode === '困难模式' ? 'bg-rose-50 text-rose-700' :
+                      selectedLead.buyingMode === '平稳模式' ? 'bg-gray-50 text-gray-700' :
+                      selectedLead.buyingMode === '过度自信模式' ? 'bg-amber-50 text-amber-700' :
+                      'bg-gray-50 text-gray-700'
+                    }`}>
+                      {selectedLead.buyingMode || '待探测'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">意向得分</p>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-indigo-600">{selectedLead.intentScore || 0}</span>
+                      <div className="flex-grow h-1.5 bg-gray-100 rounded-full overflow-hidden max-w-[100px]">
+                        <div 
+                          className="h-full bg-indigo-600 transition-all duration-500" 
+                          style={{ width: `${selectedLead.intentScore || 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">线索状态</p>
+                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      selectedLead.status === '未跟进' ? 'bg-red-100 text-red-700' :
+                      selectedLead.status === '跟进中' ? 'bg-blue-100 text-blue-700' :
+                      selectedLead.status === '转商机' ? 'bg-emerald-100 text-emerald-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {selectedLead.status}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">分类标签</p>
+                    {selectedLead.classification ? (
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        selectedLead.classification === '处理中' ? 'bg-blue-100 text-blue-800' :
+                        selectedLead.classification === '有效' ? 'bg-green-100 text-green-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {selectedLead.classification}
+                      </span>
+                    ) : (
+                      <p className="font-medium text-gray-900">-</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">产品所属行业</p>
+                    <p className="font-medium text-gray-900">{selectedLead.productIndustry || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">创建人</p>
+                    <p className="font-medium text-gray-900">{selectedLead.creatorName || selectedLead.creator || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">创建日期</p>
+                    <p className="font-medium text-gray-900">{selectedLead.createDate || '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">客户行动</p>
@@ -1100,7 +1177,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                   <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200">
                     <tr>
                       <th className="px-6 py-4">序号</th>
-                      <th className="px-6 py-4">编号</th>
+                      <th className="px-6 py-4">线索编号</th>
                       <th className="px-6 py-4">客户名称</th>
                       <th className="px-6 py-4">姓名</th>
                       <th className="px-6 py-4">手机号</th>

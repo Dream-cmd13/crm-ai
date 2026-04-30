@@ -602,7 +602,8 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     { key: 'customerId', label: '客户ID', hidden: true },
     { key: 'createDate', label: '创建日期', type: 'date', required: true },
     { key: 'companyName', label: '客户', type: 'customer_lookup', customerIdKey: 'customerId', required: true },
-    { key: 'customerName', label: '联系人姓名' },
+    { key: 'customerName', label: '客户名称' },
+    { key: 'contactPerson', label: '客户联系人' },
     { key: 'contact', label: '联系方式' },
     { key: 'buyerRole', label: '买家角色', type: 'select', options: ['技术买家', '用户买家', '经济买家', '教练'] },
     { key: 'buyingMode', label: '购买模式', type: 'select', options: ['增长模式', '困难模式', '平稳模式', '过度自信模式'] },
@@ -795,6 +796,18 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                     </p>
                   </div>
                   <div>
+                    <p className="text-sm text-gray-500 mb-1">意向得分</p>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-indigo-600">{selectedInquiry.intentScore || 0}</span>
+                      <div className="flex-grow h-1.5 bg-gray-100 rounded-full overflow-hidden max-w-[100px]">
+                        <div 
+                          className="h-full bg-indigo-600 transition-all duration-500" 
+                          style={{ width: `${selectedInquiry.intentScore || 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
                     <p className="text-sm text-gray-500 mb-1">来源渠道</p>
                     <p className="font-medium text-gray-900">{selectedInquiry.sourceChannel}</p>
                   </div>
@@ -805,6 +818,37 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                   <div>
                     <p className="text-sm text-gray-500 mb-1">客户省市</p>
                     <p className="font-medium text-gray-900">{selectedInquiry.province}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">分类标签</p>
+                    {selectedInquiry.classification ? (
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        selectedInquiry.classification === '处理中' ? 'bg-blue-100 text-blue-700' :
+                        selectedInquiry.classification === '有效' ? 'bg-green-100 text-green-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {selectedInquiry.classification}
+                      </span>
+                    ) : (
+                      <p className="font-medium text-gray-900">-</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">关联线索</p>
+                    {selectedInquiry.associatedLead ? (
+                      <button 
+                        onClick={() => navigateTo?.('leads', selectedInquiry.associatedLead)}
+                        className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                      >
+                        {selectedInquiry.associatedLead}
+                      </button>
+                    ) : (
+                      <p className="font-medium text-gray-900">-</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">创建人</p>
+                    <p className="font-medium text-gray-900">{selectedInquiry.creatorName || selectedInquiry.creator || '-'}</p>
                   </div>
                   <div className="col-span-3">
                     <p className="text-sm text-gray-500 mb-1">客户情况</p>

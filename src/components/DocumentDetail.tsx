@@ -472,7 +472,20 @@ export default function DocumentDetail({ onBack, document, documentType, onSave,
             {/* Basic Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">客户</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {documentType === 'quotation' ? '报价单编号' : 
+                   documentType === 'order' ? '订单编号' : 
+                   documentType === 'sample' ? '样品单编号' : '退货单编号'}
+                </label>
+                <input
+                  type="text"
+                  value={getDocNo()}
+                  readOnly
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 cursor-not-allowed"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">客户名称</label>
                 <div className="relative">
                   <input
                     type="text"
@@ -512,6 +525,22 @@ export default function DocumentDetail({ onBack, document, documentType, onSave,
                 </div>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">单据日期</label>
+                <input
+                  type="date"
+                  value={formData.quoteDate || formData.orderDate || formData.sampleDate || formData.returnDate || ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const key = documentType === 'quotation' ? 'quoteDate' : 
+                               documentType === 'order' ? 'orderDate' : 
+                               documentType === 'sample' ? 'sampleDate' : 'returnDate';
+                    setFormData({ ...formData, [key]: val });
+                  }}
+                  disabled={!isEditing || isAudited}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
+                />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">状态</label>
                 <input 
                   type="text" 
@@ -519,6 +548,15 @@ export default function DocumentDetail({ onBack, document, documentType, onSave,
                   onChange={e => setFormData({...formData, status: e.target.value})}
                   disabled={!isEditing || isAudited}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">创建人</label>
+                <input
+                  type="text"
+                  value={formData.creatorName || ''}
+                  readOnly
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 cursor-not-allowed"
                 />
               </div>
             </div>

@@ -652,18 +652,26 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
           onSave={(data) => handleAddContact(data as any)}
           fields={[
             { key: 'name', label: '姓名', required: true },
+            { key: 'appellation', label: '称呼' },
             { key: 'position', label: '职位' },
+            { key: 'decisionPower', label: '内部决策权', type: 'select', options: ['核心决策者', '技术评估者', '商务执行者', '内部影响者'] },
             { key: 'phone', label: '电话' },
             { key: 'email', label: '邮箱' },
             { key: 'wechatId', label: '微信号' },
+            { key: 'age', label: '年龄', type: 'number' },
+            { key: 'personality', label: '性格' },
+            { key: 'familySituation', label: '家庭情况' },
+            { key: 'hometown', label: '籍贯' },
+            { key: 'hobbies', label: '爱好 (逗号分隔)', type: 'textarea' },
             { key: 'videoChannelProfile', label: '视频号账号/链接' },
             { key: 'douyinProfile', label: '抖音账号/链接' },
             { key: 'xiaohongshuProfile', label: '小红书账号/链接' },
             { key: 'socialMediaBehavior', label: '社媒行为摘要', type: 'textarea' },
             { key: 'buyingRole', label: '购买角色', type: 'select', options: ['经济买家', '技术买家', '用户买家', '教练'] },
-            { key: 'managerContactId', label: '上级联系人', type: 'select', options: (selectedCustomer?.contacts || []).map(c => c.id) },
+            { key: 'managerContactId', label: '上级联系人', type: 'select', options: (selectedCustomer?.contacts || []).map(c => ({ value: c.id, label: c.name })) },
             { key: 'attitudeToUs', label: '对我方态度', type: 'select', options: ['积极推进', '正面评价', '中性评价', '反对者'] },
-            { key: 'faction', label: '派系' }
+            { key: 'faction', label: '派系' },
+            { key: 'isPrimary', label: '设为主联系人', type: 'boolean' }
           ]}
         />
 

@@ -1,4 +1,4 @@
-﻿﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Save, Search, Trash2, ArrowLeft, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Competitor } from '../types';
@@ -93,9 +93,17 @@ export default function CompetitorLibrary() {
 
         <div className="flex-1 overflow-y-auto pr-2">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">竞品名称</label>
-              <input readOnly={!isEditing} value={detailDraft.name} onChange={(e) => setDetailDraft({ ...detailDraft, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white disabled:bg-gray-50" placeholder="竞品公司或品牌名称" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">竞品名称</label>
+                <input readOnly={!isEditing} value={detailDraft.name} onChange={(e) => setDetailDraft({ ...detailDraft, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white disabled:bg-gray-50" placeholder="竞品公司或品牌名称" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">创建信息</label>
+                <div className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500">
+                  {detailDraft.creatorName} · {detailDraft.createDate}
+                </div>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">整体定位</label>

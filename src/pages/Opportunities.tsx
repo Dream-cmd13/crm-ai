@@ -616,7 +616,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   };
 
   const fields = [
-    { key: 'opportunityNo', label: '编号' },
+    { key: 'opportunityNo', label: '商机编号' },
     { key: 'customerId', label: '客户ID', hidden: true },
     { key: 'customerName', label: '客户名称', type: 'customer_lookup', customerIdKey: 'customerId', required: true },
     { key: 'oppDate', label: '商机日期', type: 'date', required: true },
@@ -639,6 +639,8 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     { key: 'salesType', label: '销售类型' },
     { key: 'productIndustry', label: '产品所属行业', type: 'select', options: PRODUCT_INDUSTRY_OPTIONS },
     { key: 'productSeries', label: '产品系列' },
+    { key: 'leadId', label: '关联线索' },
+    { key: 'inquiryId', label: '关联询盘' },
     { key: 'contactPerson', label: '客户联系人' },
     { key: 'attachments', label: '附件', type: 'attachments' },
     { key: 'completeness', label: '完整度%', type: 'number' },
@@ -728,7 +730,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                   )}
                 </h2>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className="text-sm text-gray-500">编号: {selectedOpp.opportunityNo || '-'}</span>
+                  <span className="text-sm text-gray-500">商机编号: {selectedOpp.opportunityNo || '-'}</span>
                   <span className="text-sm text-gray-500">客户ID: {selectedOpp.customerId || '-'}</span>
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     selectedOpp.status === '未跟进' ? 'bg-amber-100 text-amber-700' :
@@ -826,6 +828,14 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                   <div>
                     <p className="text-sm text-gray-500 mb-1">销售类型</p>
                     <p className="font-medium text-gray-900">{selectedOpp.salesType}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">创建人</p>
+                    <p className="font-medium text-gray-900">{selectedOpp.creatorName || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">创建日期</p>
+                    <p className="font-medium text-gray-900">{selectedOpp.createDate || '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">产品所属行业</p>
@@ -1170,7 +1180,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                   <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200">
                     <tr>
                       <th className="px-6 py-4">序号</th>
-                      <th className="px-6 py-4">编号</th>
+                      <th className="px-6 py-4">商机编号</th>
                       <th className="px-6 py-4">客户名称</th>
                       <th className="px-6 py-4">商机日期</th>
                       <th className="px-6 py-4">商机状态</th>

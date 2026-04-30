@@ -291,7 +291,7 @@ export const CustomerDetail = ({
             <p className="text-xs font-medium text-gray-700 line-clamp-2 mt-1">{latestFollowUpText}</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
           <div>
             <p className="text-sm text-gray-500 mb-1">客户编号</p>
             <p className="font-medium text-gray-900">{selectedCustomer.customerNumber || selectedCustomer.id}</p>
@@ -301,12 +301,28 @@ export const CustomerDetail = ({
             <p className="font-medium text-gray-900">{selectedCustomer.name || '-'}</p>
           </div>
           <div>
+            <p className="text-sm text-gray-500 mb-1">客户简称</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.shortName || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 mb-1">英文名称</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.englishName || '-'}</p>
+          </div>
+          <div>
             <p className="text-sm text-gray-500 mb-1">客户等级</p>
             <p className="font-medium text-gray-900">{selectedCustomer.level || '-'}</p>
           </div>
           <div>
+            <p className="text-sm text-gray-500 mb-1">客户状态</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.status || '-'}</p>
+          </div>
+          <div>
             <p className="text-sm text-gray-500 mb-1">行业</p>
             <p className="font-medium text-gray-900">{selectedCustomer.industry || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 mb-1">客户来源</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.source || '-'}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500 mb-1">区域</p>
@@ -315,6 +331,48 @@ export const CustomerDetail = ({
           <div>
             <p className="text-sm text-gray-500 mb-1">销售负责人</p>
             <p className="font-medium text-gray-900">{selectedCustomer.salesRep || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 mb-1">业务经理</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.businessManager || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 mb-1">跟单员</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.merchandiser || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 mb-1">客户类型</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.customerType || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 mb-1">币别</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.currency || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 mb-1">账期</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.paymentTerm || (selectedCustomer.hasPaymentTerm ? '有' : '无')}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 mb-1">统一社会信用代码</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.unifiedSocialCreditCode || '-'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 mb-1">网址</p>
+            {selectedCustomer.website ? (
+              <a href={selectedCustomer.website.startsWith('http') ? selectedCustomer.website : `https://${selectedCustomer.website}`} target="_blank" rel="noopener noreferrer" className="font-medium text-indigo-600 hover:underline">
+                {selectedCustomer.website}
+              </a>
+            ) : (
+              <p className="font-medium text-gray-900">-</p>
+            )}
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 mb-1">创建时间</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.createDate || '-'}</p>
+          </div>
+          <div className="md:col-span-2 lg:col-span-3">
+            <p className="text-sm text-gray-500 mb-1">公司地址</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.companyAddress || '-'}</p>
           </div>
           <div className="md:col-span-2 lg:col-span-3">
             <p className="text-sm text-gray-500 mb-1">备注</p>

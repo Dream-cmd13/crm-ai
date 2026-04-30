@@ -92,7 +92,9 @@ const mapDbProductToUi = (row: any): Product => {
     isOutsourceable: Boolean(metadata.isOutsourceable),
     attributes: metadata.attributes || {},
     imageUrl: metadata.imageUrl || undefined,
-    price: Number(row.price || 0)
+    price: Number(row.price || 0),
+    creatorName: row.creator_name || 'system',
+    createDate: row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : ''
   } as Product;
 };
 

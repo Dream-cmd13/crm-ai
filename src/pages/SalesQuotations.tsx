@@ -143,7 +143,7 @@ export default function SalesQuotations({ role, viewParams, navigateTo, goBack }
               <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-4">单号</th>
+                  <th className="px-6 py-4">报价单编号</th>
                   <th className="px-6 py-4">客户名称</th>
                   <th className="px-6 py-4">状态</th>
                   <th className="px-6 py-4">操作</th>

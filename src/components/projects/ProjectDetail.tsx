@@ -217,8 +217,12 @@ export const ProjectDetail = ({
                     <p className="font-medium text-gray-900">{selectedProject.customerAction || '-'}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">意向金额与预计用量</p>
-                    <p className="font-medium text-gray-900">¥{selectedProject.intentAmount} / {selectedProject.estimatedUsage}</p>
+                    <p className="text-sm text-gray-500">意向金额(RMB)</p>
+                    <p className="font-medium text-indigo-600">¥{selectedProject.intentAmount || '0'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">预估用量</p>
+                    <p className="font-medium text-gray-900">{selectedProject.estimatedUsage || '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">应用场景</p>
@@ -241,8 +245,8 @@ export const ProjectDetail = ({
                     <p className="font-medium text-gray-900">{selectedProject.estimatedMassProductionTime || '-'}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">开始日期</p>
-                    <p className="font-medium text-gray-900">{selectedProject.startDate || selectedProject.createDate || '-'}</p>
+                    <p className="text-sm text-gray-500">立项日期</p>
+                    <p className="font-medium text-gray-900">{selectedProject.startDate || '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">结束日期</p>
@@ -255,6 +259,10 @@ export const ProjectDetail = ({
                   <div>
                     <p className="text-sm text-gray-500">微信项目群</p>
                     <p className="font-medium text-gray-900">{selectedProject.wechatGroup || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">创建人</p>
+                    <p className="font-medium text-gray-900">{selectedProject.creatorName || selectedProject.creator || '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">创建日期</p>

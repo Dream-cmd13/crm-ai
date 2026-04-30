@@ -144,6 +144,9 @@ export default function Products({ viewParams }: ProductsProps) {
     { key: 'isStorable', label: '可库存', type: 'boolean' as const },
     { key: 'isManufacturable', label: '可自制', type: 'boolean' as const },
     { key: 'isOutsourceable', label: '可委外', type: 'boolean' as const },
+    { key: 'price', label: '价格', type: 'number' as const },
+    { key: 'creatorName', label: '创建人' },
+    { key: 'createDate', label: '创建日期' },
   ];
 
   const getProductFields = (product: Partial<Product> | null) => {

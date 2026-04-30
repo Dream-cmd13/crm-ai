@@ -185,7 +185,7 @@ export default function ReturnOrders({ role, viewParams, navigateTo, goBack }: R
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200 sticky top-0 z-10">
                   <tr>
-                    <th className="px-6 py-4">售后单号</th>
+                    <th className="px-6 py-4">退货单号</th>
                     <th className="px-6 py-4">订单编号</th>
                     <th className="px-6 py-4">原始订单号</th>
                     <th className="px-6 py-4">客户名称</th>
