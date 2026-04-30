@@ -70,7 +70,7 @@ export default function SampleOrders({ role, viewParams, navigateTo, goBack }: S
   const handleCreateNew = () => {
     setSelectedOrder({
       id: '',
-      sampleNo: `SAM${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(orders.length + 1).padStart(3, '0')}`,
+      sampleNo: '',
       customerName: '',
       customerId: '',
       projectId: '',

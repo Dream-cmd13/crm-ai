@@ -92,7 +92,7 @@ export default function Sales({ role, viewParams, navigateTo, goBack }: SalesPro
     if (activeModule === 'quotations') {
       setSelectedQuotation({
         id: '',
-        quoteNo: `QT${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(quotations.length + 1).padStart(3, '0')}`,
+        quoteNo: '',
         customerName: '',
         customerId: '',
         projectId: '',
@@ -113,7 +113,7 @@ export default function Sales({ role, viewParams, navigateTo, goBack }: SalesPro
     } else {
       setSelectedOrder({
         id: '',
-        orderNo: `SO${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(orders.length + 1).padStart(3, '0')}`,
+        orderNo: '',
         customerName: '',
         customerId: '',
         projectId: '',

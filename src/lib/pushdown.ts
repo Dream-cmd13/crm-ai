@@ -298,7 +298,7 @@ export const pushQuotationToSalesOrderInSupabase = async (quotation: SalesQuotat
   const orderId = `ORD_${Date.now()}`;
   const order: SalesOrder = {
     id: orderId,
-    orderNo: `SO${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}${String(Date.now()).slice(-5)}`,
+    orderNo: '',
     customerId: quotation.customerId || '',
     customerName: quotation.customerName || '未填写客户',
     projectId: quotation.projectId || '',

@@ -598,7 +598,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   };
 
   const fields = [
-    { key: 'inquiryNo', label: '询盘编号' },
+    { key: 'inquiryNo', label: '询盘编号', disabled: true },
     { key: 'customerId', label: '客户ID', hidden: true },
     { key: 'createDate', label: '创建日期', type: 'date', required: true },
     { key: 'companyName', label: '客户', type: 'customer_lookup', customerIdKey: 'customerId', required: true },

@@ -64,7 +64,7 @@ export default function SalesQuotations({ role, viewParams, navigateTo, goBack }
   const handleCreateNew = () => {
     setSelectedQuotation({
       id: '',
-      quoteNo: `QT${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(quotations.length + 1).padStart(3, '0')}`,
+      quoteNo: '',
       customerName: '',
       customerId: '',
       projectId: '',

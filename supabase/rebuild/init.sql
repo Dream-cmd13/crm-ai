@@ -362,6 +362,153 @@ before insert on public.ba_manucustinfo
 for each row
 execute function public.set_customer_number();
 
+drop function if exists public.generate_business_number(text, text, integer);
+drop function if exists public.generate_business_number(text, text, text, integer);
+create or replace function public.generate_business_number(prefix text, table_name text, column_name text, pad_len integer default 4)
+returns text
+language plpgsql
+as $$
+declare
+  today_str text;
+  current_max integer;
+  sql_text text;
+begin
+  today_str := to_char(current_date, 'YYYYMMDD');
+  sql_text := format(
+    'select coalesce(max(substring(no from ''([0-9]{%1$s})$'')::integer), 0)
+       from (
+         select %2$I as no
+           from public.%3$I
+          where %2$I ~ %4$L
+       ) t',
+    pad_len,
+    column_name,
+    table_name,
+    '^' || prefix || '-' || today_str || '-[0-9]{' || pad_len::text || '}$'
+  );
+
+  execute sql_text into current_max;
+  return prefix || '-' || today_str || '-' || lpad((current_max + 1)::text, pad_len, '0');
+end;
+$$;
+
+drop function if exists public.set_inquiry_no();
+create or replace function public.set_inquiry_no()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.inquiry_no is null or btrim(new.inquiry_no) = '' then
+    new.inquiry_no := public.generate_business_number('INQ', 'crm_inquiry', 'inquiry_no', 4);
+  end if;
+  return new;
+end;
+$$;
+
+drop function if exists public.set_lead_no();
+create or replace function public.set_lead_no()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.lead_no is null or btrim(new.lead_no) = '' then
+    new.lead_no := public.generate_business_number('LEAD', 'crm_lead', 'lead_no', 4);
+  end if;
+  return new;
+end;
+$$;
+
+drop function if exists public.set_opportunity_no();
+create or replace function public.set_opportunity_no()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.opportunity_no is null or btrim(new.opportunity_no) = '' then
+    new.opportunity_no := public.generate_business_number('OPP', 'crm_opportunity', 'opportunity_no', 4);
+  end if;
+  return new;
+end;
+$$;
+
+drop function if exists public.set_project_no();
+create or replace function public.set_project_no()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.project_no is null or btrim(new.project_no) = '' then
+    new.project_no := public.generate_business_number('PRJ', 'crm_project', 'project_no', 4);
+  end if;
+  return new;
+end;
+$$;
+
+drop function if exists public.set_quote_no();
+create or replace function public.set_quote_no()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.quote_no is null or btrim(new.quote_no) = '' then
+    new.quote_no := public.generate_business_number('QT', 'crm_quotation', 'quote_no', 4);
+  end if;
+  return new;
+end;
+$$;
+
+drop function if exists public.set_sales_order_no();
+create or replace function public.set_sales_order_no()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.order_no is null or btrim(new.order_no) = '' then
+    new.order_no := public.generate_business_number('SO', 'crm_sales_order', 'order_no', 4);
+  end if;
+  return new;
+end;
+$$;
+
+drop function if exists public.set_sample_no();
+create or replace function public.set_sample_no()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.sample_no is null or btrim(new.sample_no) = '' then
+    new.sample_no := public.generate_business_number('SAM', 'crm_sample_order', 'sample_no', 4);
+  end if;
+  return new;
+end;
+$$;
+
+drop function if exists public.set_return_no();
+create or replace function public.set_return_no()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.return_no is null or btrim(new.return_no) = '' then
+    new.return_no := public.generate_business_number('RET', 'crm_return_order', 'return_no', 4);
+  end if;
+  return new;
+end;
+$$;
+
+drop function if exists public.set_purchase_quote_no();
+create or replace function public.set_purchase_quote_no()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.purchase_quote_no is null or btrim(new.purchase_quote_no) = '' then
+    new.purchase_quote_no := public.generate_business_number('PQT', 'crm_purchase_quotation', 'purchase_quote_no', 4);
+  end if;
+  return new;
+end;
+$$;
+
 create table if not exists public.crm_customer_contact (
   id text primary key,
   customer_id integer not null references public.ba_manucustinfo(id) on delete cascade,
@@ -1338,6 +1485,60 @@ create table if not exists public.crm_purchase_quotation_item (
   constraint chk_crm_purchase_quotation_item_id_unsigned check (id > 0)
 );
 
+drop trigger if exists trigger_set_inquiry_no on public.crm_inquiry;
+create trigger trigger_set_inquiry_no
+before insert on public.crm_inquiry
+for each row
+execute function public.set_inquiry_no();
+
+drop trigger if exists trigger_set_lead_no on public.crm_lead;
+create trigger trigger_set_lead_no
+before insert on public.crm_lead
+for each row
+execute function public.set_lead_no();
+
+drop trigger if exists trigger_set_opportunity_no on public.crm_opportunity;
+create trigger trigger_set_opportunity_no
+before insert on public.crm_opportunity
+for each row
+execute function public.set_opportunity_no();
+
+drop trigger if exists trigger_set_project_no on public.crm_project;
+create trigger trigger_set_project_no
+before insert on public.crm_project
+for each row
+execute function public.set_project_no();
+
+drop trigger if exists trigger_set_quote_no on public.crm_quotation;
+create trigger trigger_set_quote_no
+before insert on public.crm_quotation
+for each row
+execute function public.set_quote_no();
+
+drop trigger if exists trigger_set_sales_order_no on public.crm_sales_order;
+create trigger trigger_set_sales_order_no
+before insert on public.crm_sales_order
+for each row
+execute function public.set_sales_order_no();
+
+drop trigger if exists trigger_set_sample_no on public.crm_sample_order;
+create trigger trigger_set_sample_no
+before insert on public.crm_sample_order
+for each row
+execute function public.set_sample_no();
+
+drop trigger if exists trigger_set_return_no on public.crm_return_order;
+create trigger trigger_set_return_no
+before insert on public.crm_return_order
+for each row
+execute function public.set_return_no();
+
+drop trigger if exists trigger_set_purchase_quote_no on public.crm_purchase_quotation;
+create trigger trigger_set_purchase_quote_no
+before insert on public.crm_purchase_quotation
+for each row
+execute function public.set_purchase_quote_no();
+
 -- ========= ONTOLOGY / CONFIG =========
 create table if not exists public.crm_ontology_object (
   id text primary key,
@@ -1501,6 +1702,16 @@ create index if not exists idx_crm_return_order_item_after_sale_order_id on publ
 create index if not exists idx_crm_purchase_quotation_project_id on public.crm_purchase_quotation(project_id);
 create index if not exists idx_crm_purchase_quotation_customer_id on public.crm_purchase_quotation(customer_id);
 create index if not exists idx_crm_purchase_quotation_item_purchase_id on public.crm_purchase_quotation_item(purchase_quotation_id);
+
+create unique index if not exists uq_crm_inquiry_inquiry_no on public.crm_inquiry(inquiry_no);
+create unique index if not exists uq_crm_lead_lead_no on public.crm_lead(lead_no);
+create unique index if not exists uq_crm_opportunity_opportunity_no on public.crm_opportunity(opportunity_no);
+create unique index if not exists uq_crm_project_project_no on public.crm_project(project_no);
+create unique index if not exists uq_crm_quotation_quote_no on public.crm_quotation(quote_no);
+create unique index if not exists uq_crm_sales_order_order_no on public.crm_sales_order(order_no);
+create unique index if not exists uq_crm_sample_order_sample_no on public.crm_sample_order(sample_no);
+create unique index if not exists uq_crm_return_order_return_no on public.crm_return_order(return_no);
+create unique index if not exists uq_crm_purchase_quotation_purchase_quote_no on public.crm_purchase_quotation(purchase_quote_no);
 
 -- ========= COMMON TRIGGER =========
 create or replace function app_meta.set_updated_at()

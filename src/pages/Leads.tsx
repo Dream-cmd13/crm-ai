@@ -617,7 +617,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
   };
 
   const fields = [
-    { key: 'leadNo', label: '线索编号' },
+    { key: 'leadNo', label: '线索编号', disabled: true },
     { key: 'customerId', label: '客户ID', hidden: true },
     { key: 'customerName', label: '客户名称', type: 'customer_lookup', customerIdKey: 'customerId', required: true },
     { key: 'contactPerson', label: '客户联系人' },
@@ -1386,7 +1386,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           customerAction: '找货寻料'
         }}
         onSave={handleSave}
-        fields={fields.filter(f => !['leadNo', 'creator', 'createDate', 'updater', 'updateDate', 'associatedOpportunity'].includes(f.key))}
+        fields={fields.filter(f => !['creator', 'createDate', 'updater', 'updateDate', 'associatedOpportunity'].includes(f.key))}
         isEditing={true}
       />
     </div>

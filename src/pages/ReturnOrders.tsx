@@ -70,7 +70,7 @@ export default function ReturnOrders({ role, viewParams, navigateTo, goBack }: R
   const handleCreateNew = () => {
     setSelectedOrder({
       id: '',
-      returnNo: `RET${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(orders.length + 1).padStart(3, '0')}`,
+      returnNo: '',
       orderNo: '',
       originalOrderNo: '',
       customerId: '',

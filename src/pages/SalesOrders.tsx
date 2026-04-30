@@ -94,7 +94,7 @@ export default function SalesOrders({ role, viewParams, navigateTo, goBack }: Sa
   const handleCreateNew = () => {
     setSelectedOrder({
       id: '',
-      orderNo: `SO${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(orders.length + 1).padStart(3, '0')}`,
+      orderNo: '',
       customerName: '',
       customerId: '',
       projectId: '',

@@ -616,7 +616,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   };
 
   const fields = [
-    { key: 'opportunityNo', label: '商机编号' },
+    { key: 'opportunityNo', label: '商机编号', disabled: true },
     { key: 'customerId', label: '客户ID', hidden: true },
     { key: 'customerName', label: '客户名称', type: 'customer_lookup', customerIdKey: 'customerId', required: true },
     { key: 'oppDate', label: '商机日期', type: 'date', required: true },
@@ -1395,7 +1395,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
           productLine: 'IO连接器'
         }}
         onSave={handleSave}
-        fields={fields.filter(f => !['opportunityNo', 'creator', 'createDate', 'updater', 'updateDate', 'associatedProject'].includes(f.key))}
+        fields={fields.filter(f => !['creator', 'createDate', 'updater', 'updateDate', 'associatedProject'].includes(f.key))}
         isEditing={true}
       />
     </div>

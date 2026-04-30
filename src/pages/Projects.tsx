@@ -712,7 +712,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
   };
 
   const projectFields = [
-    { key: 'projectNo', label: '项目编号' },
+    { key: 'projectNo', label: '项目编号', disabled: true },
     { key: 'projectType', label: '项目类型', type: 'select', options: ['研发型项目', '标品类项目'], required: true },
     { key: 'customerName', label: '客户名称', type: 'customer_lookup', customerIdKey: 'customerId', allowPotential: false, required: true },
     { key: 'projectName', label: '项目名称', required: true },
@@ -901,7 +901,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
           team: { pm: '' }
         }}
         onSave={handleCreateProject}
-        fields={projectFields.filter((f) => f.key !== 'projectNo')}
+        fields={projectFields}
         isEditing={true}
       />
     </div>
