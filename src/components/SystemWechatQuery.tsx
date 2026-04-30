@@ -565,8 +565,12 @@ export default function SystemWechatQuery() {
   };
 
   const handleCreateCustomerSession = async () => {
-    if (!selectedInbox) {
+    if (activeTab === 'individual' && !selectedInbox) {
       toast.error('缺少发送人消息列表');
+      return;
+    }
+    if (activeTab === 'group' && !selectedConversation) {
+      toast.error('缺少选中的群聊');
       return;
     }
     if (!selectedCustomerId) {
@@ -581,11 +585,12 @@ export default function SystemWechatQuery() {
       await createCustomerMessageSessionFromSupabase({
         customerId: selectedCustomerId,
         contactId: selectedContactId || undefined,
-        senderKey: selectedInbox.senderKey,
-        senderWechatId: selectedInbox.senderWechatId,
-        senderDisplayName: selectedInbox.senderDisplayName,
+        senderKey: activeTab === 'group' ? (selectedConversation?.room_name || selectedConversation?.conversation_name || String(selectedConversation?.id || '')) : selectedInbox!.senderKey,
+        senderWechatId: activeTab === 'group' ? undefined : selectedInbox?.senderWechatId,
+        senderDisplayName: activeTab === 'group' ? undefined : selectedInbox?.senderDisplayName,
         title: sessionTitle,
         messageIds: selectedMessageIds,
+        channel: activeTab === 'group' ? 'wechat_group' : 'wechat_private'
       });
       toast.success('客户会话创建成功');
       resetModals();
@@ -876,40 +881,40 @@ export default function SystemWechatQuery() {
               ? '按时间顺序展示群聊消息。'
               : '按时间顺序展示该“我的微信”下的全部个人消息；可单选或多选创建客户会话。'}
           </div>
-          {activeTab === 'individual' && senderMessages.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4">
-              <div className="text-sm text-gray-600">已选 {selectedMessageIds.length} 条消息</div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    if (selectedMessageIds.length === senderMessages.length) {
-                      setSelectedMessageIds([]);
-                    } else {
-                      setSelectedMessageIds(senderMessages.filter((item) => !item.archivedSessionId).map((item) => item.id));
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                >
-                  {selectedMessageIds.length === senderMessages.length ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
-                  全选未归档
-                </button>
-                <button
-                  onClick={() => {
-                    if (selectedMessageIds.length === 0) {
-                      toast.error('请先选择消息');
-                      return;
-                    }
-                    setSessionTitle(selectedInbox ? `${selectedInbox.senderDisplayName || selectedInbox.senderWechatId || selectedInbox.senderKey} 会话` : '');
-                    setShowCreateSessionModal(true);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded border border-green-200 bg-green-50 px-3 py-1.5 text-xs text-green-700 hover:bg-green-100"
-                >
-                  <Save className="h-3.5 w-3.5" />
-                  创建客户会话
-                </button>
-              </div>
-            </div>
-          )}
+          {activeTab === 'group' && groupMessages.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4">
+                  <div className="text-sm text-gray-600">已选 {selectedMessageIds.length} 条消息</div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        if (selectedMessageIds.length === groupMessages.length) {
+                          setSelectedMessageIds([]);
+                        } else {
+                          setSelectedMessageIds(groupMessages.map((item) => String(item.id)));
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                    >
+                      {selectedMessageIds.length === groupMessages.length ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+                      全选群消息
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (selectedMessageIds.length === 0) {
+                          toast.error('请先选择消息');
+                          return;
+                        }
+                        setSessionTitle(selectedConversation ? `${selectedConversation.room_name || selectedConversation.conversation_name || '群聊'} 会话` : '');
+                        setShowCreateSessionModal(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded border border-green-200 bg-green-50 px-3 py-1.5 text-xs text-green-700 hover:bg-green-100"
+                    >
+                      <Save className="h-3.5 w-3.5" />
+                      创建客户会话
+                    </button>
+                  </div>
+                </div>
+              )}
           <div className="space-y-3">
             {loadingMessages ? (
               <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">加载消息中...</div>

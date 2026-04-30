@@ -13,22 +13,13 @@ import { fetchCustomerMessageSessionMessagesFromSupabase, fetchCustomerMessageSe
 import { toast } from 'react-hot-toast';
 
 interface CommunicationLogProps {
-  communications: CommunicationDetail[];
   onAddCommunication: (comm: Partial<CommunicationDetail>) => void;
   title?: string;
   contacts?: { id: string; name: string; position?: string; department?: string; wechatId?: string }[];
   employees?: { id: string; name: string; role?: string }[];
-  groupChats?: any[];
-  wechatChats?: any[];
-  onManageMembers?: (chat: any) => void;
-  isSyncingChats?: boolean;
-  onSyncChats?: () => void;
-  onAddGroupChat?: () => void;
-  onAddWechatChat?: () => void;
-  initialActiveTab?: string;
-  initialSelectedChat?: any;
   customerId?: string;
   customerName?: string;
+  communications?: CommunicationDetail[];
   aiContactProfiles?: Array<{
     id?: string;
     name?: string;
@@ -43,39 +34,21 @@ interface CommunicationLogProps {
 }
 
 export default function CommunicationLog({ 
-  communications, 
   onAddCommunication, 
-  title = "沟通详情",
   contacts = [],
   employees = [],
-  groupChats = [],
-  wechatChats = [],
-  onManageMembers,
-  isSyncingChats,
-  onSyncChats,
-  onAddGroupChat,
-  onAddWechatChat,
-  initialActiveTab,
-  initialSelectedChat,
   customerId = '',
   customerName = '',
+  communications = [],
   aiContactProfiles = []
 }: CommunicationLogProps) {
+  const [activeTab, setActiveTab] = useState<CommunicationDetail['type']>('wechat');
   const [newContent, setNewContent] = useState('');
   const [sender, setSender] = useState('');
   const [newCommType, setNewCommType] = useState<CommunicationDetail['type']>('wechat');
-  const [activeTab, setActiveTab] = useState<'wechat' | 'wechat_group' | 'email' | 'meeting' | 'phone'>(
-    initialActiveTab && initialActiveTab !== 'all' && ['wechat', 'wechat_group', 'email', 'meeting', 'phone'].includes(initialActiveTab)
-      ? (initialActiveTab as 'wechat' | 'wechat_group' | 'email' | 'meeting' | 'phone')
-      : 'wechat'
-  );
-  const [selectedWechatSessionId, setSelectedWechatSessionId] = useState<string>(String((initialSelectedChat as any)?.id || ''));
-  const [selectedGroupChatId, setSelectedGroupChatId] = useState<string>(String((initialSelectedChat as any)?.id || groupChats[0]?.id || ''));
-
+  
   const [showAddSessionModal, setShowAddSessionModal] = useState(false);
   const [showAiPanel, setShowAiPanel] = useState(false);
-  const [systemWechatSessions, setSystemWechatSessions] = useState<any[]>([]);
-  const [systemWechatGroups, setSystemWechatGroups] = useState<any[]>([]);
   const [customerSessions, setCustomerSessions] = useState<CustomerMessageSession[]>([]);
   const [selectedCustomerSessionId, setSelectedCustomerSessionId] = useState('');
   const [selectedCustomerSessionMessages, setSelectedCustomerSessionMessages] = useState<CommunicationDetail[]>([]);
@@ -105,7 +78,12 @@ export default function CommunicationLog({
     }
     return activeChatFlow || runnableFlows[0];
   }, [selectedFlowIdForRun, runnableFlows, activeChatFlow]);
-  React.useEffect(() => { if (employees.length && !sender) setSender(employees[0].name); }, [employees]);
+  React.useEffect(() => { 
+    if (employees.length && !sender) {
+      const firstEmp = employees[0];
+      setSender(`${firstEmp.name} (${firstEmp.role || '员工'})`); 
+    } 
+  }, [employees]);
   React.useEffect(() => {
     fetchChatAssistConfigFromSupabase()
       .then((cfg) => {
@@ -129,13 +107,28 @@ export default function CommunicationLog({
     fetchCustomerMessageSessionsFromSupabase(customerId)
       .then((sessions) => {
         setCustomerSessions(sessions);
-        setSelectedCustomerSessionId((prev) => prev || sessions[0]?.id || '');
+        // 不在这里设置 setSelectedCustomerSessionId，由下面的 tab 切换逻辑处理
       })
       .catch((error) => {
         console.error(error);
         setCustomerSessions([]);
       });
-  }, [customerId, communications.length]);
+  }, [customerId]);
+
+  // 当切换微信/微信群聊标签时，如果当前选中的会话不属于该标签，则自动切换到该标签下的第一个会话
+  React.useEffect(() => {
+    if (activeTab === 'wechat' || activeTab === 'wechat_group') {
+      const targetChannel = activeTab === 'wechat' ? 'wechat_private' : 'wechat_group';
+      const currentSession = customerSessions.find(s => s.id === selectedCustomerSessionId);
+      
+      if (!currentSession || currentSession.channel !== targetChannel) {
+        const firstMatching = customerSessions.find(s => s.channel === targetChannel);
+        setSelectedCustomerSessionId(firstMatching?.id || '');
+      }
+    } else {
+      setSelectedCustomerSessionId('');
+    }
+  }, [activeTab, customerSessions]);
   React.useEffect(() => {
     if (!selectedCustomerSessionId) {
       setSelectedCustomerSessionMessages([]);
@@ -148,191 +141,132 @@ export default function CommunicationLog({
         setSelectedCustomerSessionMessages([]);
       });
   }, [selectedCustomerSessionId]);
-  const loadSystemWechatSessions = React.useCallback(async () => {
-    if (!isSupabaseConfigured()) return;
-    const wechatIds = (contacts || []).map((c) => String(c.wechatId || '').trim()).filter(Boolean);
-    try {
-      const supabase = getSupabaseClient();
-      let sessionQuery = supabase.from('crm_wx_conversation').select('*').eq('conversation_type', 'private');
-      if (customerId) {
-        sessionQuery = sessionQuery.eq('customer_id', customerId);
-      } else if (wechatIds.length > 0) {
-        sessionQuery = sessionQuery.in('peer_wechat_id', wechatIds as any);
-      }
-      const { data: sessions } = await sessionQuery.order('last_message_at', { ascending: false, nullsFirst: false });
-      let groupQuery = supabase.from('crm_wx_conversation').select('*').eq('conversation_type', 'group');
-      if (customerId) {
-        groupQuery = groupQuery.eq('customer_id', customerId);
-      }
-      const { data: groups } = await groupQuery.order('last_message_at', { ascending: false, nullsFirst: false });
-      setSystemWechatSessions(sessions || []);
-      setSystemWechatGroups(groups || []);
-    } catch (error) {
-      console.error(error);
-    }
-  }, [customerId, contacts]);
-  React.useEffect(() => {
-    loadSystemWechatSessions();
-  }, [loadSystemWechatSessions]);
-  const tabItems: Array<{ id: 'wechat' | 'wechat_group' | 'email' | 'meeting' | 'phone'; label: string }> = [
-    { id: 'wechat', label: '微信' },
-    { id: 'wechat_group', label: '微信群聊' },
-    { id: 'email', label: '邮件' },
-    { id: 'meeting', label: '会议' },
-    { id: 'phone', label: '聊天' }
-  ];
-  const derivedWechatSessions = useMemo(() => {
-    const sourceSessions = systemWechatSessions.length > 0 ? systemWechatSessions : wechatChats;
-    if (sourceSessions.length > 0) {
-      return sourceSessions.map((session: any) => {
-        const matchKeys = new Set([
-          String(session.id || ''),
-          String(session.peer_wechat_id || ''),
-          String(session.my_wechat_id || ''),
-          String(session.peer_wechat_name || ''),
-          String(session.conversation_name || '')
-        ].filter(Boolean));
-        const messages = communications
-          .filter((c) => c.type === 'wechat')
-          .filter((c) => {
-            const sourceId = String(c.sourceId || '');
-            const sourceGroup = String(c.sourceGroup || '');
-            const sender = String(c.sender || '');
-            return matchKeys.has(sourceId) || matchKeys.has(sourceGroup) || matchKeys.has(sender);
-          });
-        return {
-          ...session,
-          id: String(session.id || `wechat_${session.peer_wechat_id || session.my_wechat_id || Math.random()}`),
-          name: session.peer_wechat_name || session.conversation_name || session.peer_wechat_id || session.my_wechat_name || session.my_wechat_id || '未命名会话',
-          messages,
-          lastMessage: messages[messages.length - 1]?.content || session.last_message_preview || '',
-          lastTime: messages[messages.length - 1]?.date || session.last_message_at || ''
-        };
-      });
-    }
-    const list = communications.filter((c) => c.type === 'wechat');
-    const map = new Map<string, any>();
-    list.forEach((item) => {
-      const key = item.sourceGroup || item.sender || '默认会话';
-      if (!map.has(key)) {
-        map.set(key, { id: `wechat_${key}`, name: key, messages: [] as any[] });
-      }
-      map.get(key).messages.push(item);
-    });
-    return Array.from(map.values()).map((s) => ({
-      ...s,
-      lastMessage: s.messages[s.messages.length - 1]?.content || '',
-      lastTime: s.messages[s.messages.length - 1]?.date || ''
-    }));
-  }, [systemWechatSessions, wechatChats, communications]);
 
   React.useEffect(() => {
-    if (!selectedWechatSessionId && derivedWechatSessions.length > 0) {
-      setSelectedWechatSessionId(String(derivedWechatSessions[0].id));
-    }
-  }, [selectedWechatSessionId, derivedWechatSessions]);
-
-  React.useEffect(() => {
-    if (activeTab === 'wechat') setNewCommType('wechat');
-    if (activeTab === 'wechat_group') setNewCommType('wechat_group');
-    if (activeTab === 'email') setNewCommType('email');
-    if (activeTab === 'meeting') setNewCommType('meeting');
-    if (activeTab === 'phone') setNewCommType('phone');
+    setNewCommType(activeTab);
   }, [activeTab]);
-  const filteredCommunications = communications.filter((comm) => {
-    if (activeTab === 'wechat') return comm.type === 'wechat' || (comm as any).type === 'wechat_group';
-    if (activeTab === 'wechat_group') return comm.type === 'wechat_group';
-    if (activeTab === 'email') return comm.type === 'email';
-    if (activeTab === 'meeting') return comm.type === 'meeting';
-    if (activeTab === 'phone') return comm.type === 'phone' || comm.type === 'voice' || comm.type === 'screenshot';
-    return true;
-  });
 
   const handleSaveSession = (data: any) => {
-    const activeSessionSourceId = activeTab === 'wechat'
-      ? String(selectedWechatSession?.id || '')
-      : activeTab === 'wechat_group'
-        ? String(selectedGroupChat?.id || '')
-        : '';
-    const activeSessionSourceGroup = activeTab === 'wechat'
-      ? (selectedWechatSession?.name || selectedWechatSession?.peer_wechat_name || selectedWechatSession?.peer_wechat_id || '')
-      : activeTab === 'wechat_group'
-        ? (selectedGroupChat?.room_remark_name || selectedGroupChat?.room_name || selectedGroupChat?.groupName || selectedGroupChat?.name || '')
-        : '';
+    let sourceId = selectedCustomerSessionId;
+    
+    // 如果没有选择会话，尝试根据发送人自动匹配一个
+    if (!sourceId && (activeTab === 'wechat' || activeTab === 'wechat_group')) {
+      const matchingSession = customerSessions.find(s => 
+        s.title === sender || s.sourceSenderDisplayName === sender
+      );
+      if (matchingSession) sourceId = matchingSession.id;
+    }
+
     onAddCommunication({
       content: data.content,
       type: data.type,
       sender: sender || '销售',
-      date: new Date(data.date).toLocaleString(),
-      sourceId: activeSessionSourceId || undefined,
-      sourceGroup: activeSessionSourceGroup || data.location
+      date: new Date(data.date).toLocaleString('zh-CN', { hour12: false }),
+      sourceId: sourceId || undefined,
+      sourceGroup: data.location
     });
     setShowAddSessionModal(false);
   };
-  const selectedWechatSession = derivedWechatSessions.find((c: any) => String(c.id) === String(selectedWechatSessionId));
-  const derivedGroupChats = useMemo(() => {
-    const sourceGroups = systemWechatGroups.length > 0 ? systemWechatGroups : (groupChats || []);
-    if (sourceGroups.length > 0) {
-      return sourceGroups.map((group: any) => {
-        const matchKeys = new Set([
-          String(group.id || ''),
-          String(group.room_username || ''),
-          String(group.room_name || ''),
-          String(group.room_remark_name || ''),
-          String(group.conversation_name || '')
-        ].filter(Boolean));
-        const messages = communications
-          .filter((c) => c.type === 'wechat_group')
-          .filter((c) => {
-            const sourceId = String(c.sourceId || '');
-            const sourceGroup = String(c.sourceGroup || '');
-            return matchKeys.has(sourceId) || matchKeys.has(sourceGroup);
-          });
-        return {
-          ...group,
-          id: String(group.id || `wg_${group.room_username || group.room_name || Math.random()}`),
-          name: group.room_remark_name || group.room_name || group.conversation_name || group.name || '未命名群聊',
-          groupName: group.room_name || group.groupName || group.name || '',
-          messages,
-          lastMessage: messages[messages.length - 1]?.content || group.last_message_preview || '',
-          lastTime: messages[messages.length - 1]?.date || group.last_message_at || '',
-          members: group.members || []
-        };
-      });
-    }
-    const list = communications.filter((c) => c.type === 'wechat_group');
-    const map = new Map<string, any>();
-    list.forEach((item) => {
-      const key = String(item.sourceGroup || '默认群聊');
-      if (!map.has(key)) {
-        map.set(key, { id: `wg_${key}`, name: key, groupName: key, messages: [] as any[] });
-      }
-      map.get(key).messages.push(item);
-    });
-    return Array.from(map.values()).map((s: any) => ({
-      ...s,
-      lastMessage: s.messages[s.messages.length - 1]?.content || '',
-      lastTime: s.messages[s.messages.length - 1]?.date || '',
-      members: s.members || []
-    }));
-  }, [systemWechatGroups, groupChats, communications]);
-  React.useEffect(() => {
-    if (!selectedGroupChatId && derivedGroupChats.length > 0) {
-      setSelectedGroupChatId(String(derivedGroupChats[0].id));
-    }
-  }, [selectedGroupChatId, derivedGroupChats]);
-  const selectedGroupChat = derivedGroupChats.find((c: any) => String(c.id) === String(selectedGroupChatId));
-  const sessionMessages = activeTab === 'wechat'
-    ? (selectedWechatSession?.messages || [])
-    : activeTab === 'wechat_group'
-      ? (selectedGroupChat?.messages || filteredCommunications.filter((x) => x.type === 'wechat_group'))
-      : filteredCommunications;
+
   const getMessageKey = (comm: any, idx: number) => String(comm?.id || `${comm?.date || ''}_${comm?.sender || ''}_${idx}`);
+
+  const sessionMessages = useMemo(() => {
+    // 1. 获取基础消息 (如果是真实会话，从 selectedCustomerSessionMessages 获取)
+    let baseMessages = [...selectedCustomerSessionMessages];
+    
+    // 2. 如果是手动会话，从 communications 中获取对应发送人的消息
+    if (selectedCustomerSessionId.startsWith('MANUAL_')) {
+      const manualSender = selectedCustomerSessionId.replace('MANUAL_', '');
+      baseMessages = (communications || []).filter(c => 
+        c.type === activeTab && c.sender === manualSender && (!c.sourceId || !customerSessions.some(s => s.id === c.sourceId))
+      );
+    }
+    
+    // 3. 获取手动添加且 sourceId 匹配当前会话的消息
+    const manualCommsForThisSession = (communications || []).filter(c => 
+      c.type === activeTab && c.sourceId === selectedCustomerSessionId
+    );
+    
+    const combined = [...baseMessages, ...manualCommsForThisSession];
+    
+    // 去重
+    const seen = new Set();
+    const final = combined.filter(m => {
+      const key = getMessageKey(m, 0);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // 按时间倒序排列 (最新的在最上面)
+    return final.sort((a, b) => {
+      const timeA = new Date(a.date || 0).getTime();
+      const timeB = new Date(b.date || 0).getTime();
+      return timeB - timeA;
+    });
+  }, [selectedCustomerSessionMessages, communications, activeTab, selectedCustomerSessionId, customerSessions]);
+
+  const manualSessions = useMemo(() => {
+    if (activeTab !== 'wechat' && activeTab !== 'wechat_group') return [];
+
+    const manualComms = (communications || []).filter(c => 
+      c.type === activeTab && (!c.sourceId || !customerSessions.some(s => s.id === c.sourceId))
+    );
+    
+    const groups = new Map<string, CommunicationDetail[]>();
+    manualComms.forEach(c => {
+      const key = c.sender || '未知发送人';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(c);
+    });
+    
+    return Array.from(groups.entries()).map(([senderName, comms]): CustomerMessageSession => {
+      const sorted = [...comms].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const lastComm = sorted[0];
+      return {
+        id: `MANUAL_${senderName}`,
+        customerId: customerId,
+        channel: activeTab === 'wechat_group' ? 'wechat_group' : 'wechat_private',
+        sourceSenderKey: senderName,
+        title: senderName,
+        messageCount: comms.length,
+        lastMessageAt: lastComm.date,
+        lastMessagePreview: lastComm.content.slice(0, 100),
+        status: 'active',
+        createdAt: lastComm.date,
+        updatedAt: lastComm.date
+      };
+    });
+  }, [communications, activeTab, customerSessions, customerId]);
+
+  const displayedSessions = useMemo(() => {
+    const targetChannel = activeTab === 'wechat' ? 'wechat_private' : 'wechat_group';
+    const realSessions = customerSessions.filter(s => s.channel === targetChannel);
+    
+    // 合并真实会话和手动会话
+    const combined = [...realSessions, ...manualSessions];
+    
+    return combined.sort((a, b) => {
+      const timeA = new Date(a.lastMessageAt || 0).getTime();
+      const timeB = new Date(b.lastMessageAt || 0).getTime();
+      return timeB - timeA;
+    });
+  }, [customerSessions, manualSessions, activeTab]);
+
+  const filteredLogs = useMemo(() => {
+    return (communications || [])
+      .filter(c => c.type === activeTab)
+      .sort((a, b) => {
+        const timeA = new Date(a.date || 0).getTime();
+        const timeB = new Date(b.date || 0).getTime();
+        return timeB - timeA;
+      });
+  }, [communications, activeTab]);
 
   React.useEffect(() => {
     const validIds = new Set(sessionMessages.map((comm: any, idx: number) => getMessageKey(comm, idx)));
     setSelectedMessageIds((prev) => prev.filter((id) => validIds.has(id)));
-  }, [activeTab, selectedWechatSessionId, selectedGroupChatId, sessionMessages.length]);
+  }, [selectedCustomerSessionId, sessionMessages.length]);
 
   React.useEffect(() => {
     if (!currentRunFlow) {
@@ -717,190 +651,131 @@ export default function CommunicationLog({
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col h-[600px]">
-      <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <MessageSquare className="w-5 h-5 text-indigo-500" />
-          {title}
-        </h3>
-      </div>
-      <div className="px-4 pt-3 bg-white border-b border-gray-100">
-        {customerSessions.length > 0 && (
-          <div className="mb-4 rounded-xl border border-green-100 bg-green-50/50 p-3">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-green-800">
-              <MessageSquare className="w-4 h-4" />
-              客户会话
-            </div>
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[280px_1fr]">
-              <div className="space-y-2">
-                {customerSessions.map((session) => {
-                  const selected = selectedCustomerSessionId === session.id;
-                  return (
-                    <button
-                      key={session.id}
-                      type="button"
-                      onClick={() => setSelectedCustomerSessionId(session.id)}
-                      className={cn(
-                        'w-full rounded-lg border px-3 py-2 text-left',
-                        selected ? 'border-green-300 bg-white shadow-sm' : 'border-green-100 bg-white/80 hover:bg-white'
-                      )}
-                    >
-                      <div className="text-sm font-medium text-gray-900">{session.title}</div>
-                      <div className="mt-1 text-xs text-gray-500">
-                        {session.sourceSenderDisplayName || session.sourceSenderWechatId || session.sourceSenderKey}
-                      </div>
-                      <div className="mt-1 text-xs text-gray-400">
-                        {session.messageCount} 条消息 · {session.lastMessageAt ? new Date(session.lastMessageAt).toLocaleString() : '-'}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="rounded-lg border border-green-100 bg-white p-3">
-                {selectedCustomerSessionMessages.length === 0 ? (
-                  <div className="py-10 text-center text-sm text-gray-400">当前客户会话暂无消息</div>
-                ) : (
-                  <div className="max-h-[220px] space-y-3 overflow-y-auto pr-1">
-                    {selectedCustomerSessionMessages.map((comm) => (
-                      <div key={comm.id} className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <span className="font-medium text-gray-700">{comm.sender}</span>
-                          <span>{comm.date}</span>
-                        </div>
-                        <div className="mt-1 whitespace-pre-wrap break-words text-sm text-gray-800">{comm.content}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-        <div className="flex flex-wrap gap-2">
-          {tabItems.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                'px-3 py-1.5 text-xs font-bold rounded-lg border transition-colors',
-                activeTab === tab.id
-                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+      {/* 顶部标签页 */}
+      <div className="flex border-b border-gray-100 bg-white px-4 pt-3 shrink-0">
+        {[
+          { id: 'wechat', label: '微信' },
+          { id: 'wechat_group', label: '微信群聊' },
+          { id: 'email', label: '邮件' },
+          { id: 'meeting', label: '会议' },
+          { id: 'phone', label: '聊天' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={cn(
+              'px-4 py-2 text-sm font-bold border-b-2 transition-all -mb-[1px]',
+              activeTab === tab.id
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <div className="flex-grow overflow-hidden bg-gray-50/30">
         {(activeTab === 'wechat' || activeTab === 'wechat_group') ? (
           <div className="h-full grid grid-cols-[260px_1fr]">
             <div className="border-r border-gray-200 bg-white overflow-y-auto">
-              <div className="p-3 border-b border-gray-100 flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-700">{activeTab === 'wechat' ? '微信会话' : '微信群会话'}</span>
-                <span className="text-[11px] text-gray-400">系统原始消息浏览</span>
-              </div>
               <div className="p-2 space-y-1">
-                {(activeTab === 'wechat' ? derivedWechatSessions : derivedGroupChats).map((chat: any) => {
-                  const selected = activeTab === 'wechat'
-                    ? String(chat.id) === String(selectedWechatSessionId)
-                    : String(chat.id) === String(selectedGroupChatId);
-                  return (
-                    <button
-                      key={chat.id}
-                      onClick={() => activeTab === 'wechat' ? setSelectedWechatSessionId(String(chat.id)) : setSelectedGroupChatId(String(chat.id))}
-                      className={cn(
-                        'w-full text-left p-2 rounded-lg border',
-                        selected ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-transparent hover:bg-gray-50'
-                      )}
-                    >
-                      <div className="text-xs font-bold text-gray-800 truncate">{chat.name || chat.groupName || '未命名会话'}</div>
-                      <div className="text-[11px] text-gray-500 truncate mt-1">{chat.lastMessage || ''}</div>
-                    </button>
-                  );
-                })}
+                {displayedSessions.length === 0 ? (
+                  <div className="py-10 text-center text-[11px] text-gray-400">暂无归档会话</div>
+                ) : (
+                  displayedSessions.map((session) => {
+                    const selected = selectedCustomerSessionId === session.id;
+                    return (
+                      <button
+                        key={session.id}
+                        onClick={() => setSelectedCustomerSessionId(session.id)}
+                        className={cn(
+                          'w-full text-left p-2 rounded-lg border transition-all',
+                          selected ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-transparent hover:bg-gray-50'
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs font-bold text-gray-800 truncate">{session.title}</div>
+                          {session.channel === 'wechat_group' && (
+                            <span className="px-1 py-0.5 bg-green-50 text-green-600 text-[9px] rounded border border-green-100 shrink-0">群聊</span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-gray-500 truncate mt-1">
+                          {session.sourceSenderDisplayName || session.sourceSenderWechatId || session.sourceSenderKey}
+                        </div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">
+                          {session.messageCount}条 · {session.lastMessageAt ? new Date(session.lastMessageAt).toLocaleString('zh-CN', { hour12: false }) : '-'}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
               </div>
             </div>
-            <div className={cn("h-full overflow-y-auto p-4 space-y-4 relative", showAiPanel ? "pr-[390px]" : "")}>
-              <div className="p-3 bg-white border border-gray-200 rounded-lg flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAiPanel((v) => !v)}
-                  className="text-xs px-3 py-1.5 border border-indigo-200 text-indigo-700 rounded bg-indigo-50 hover:bg-indigo-100 flex items-center gap-1"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  AI辅助
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selectedMessageIds.length === 0) {
-                      const lastIds = sessionMessages
-                        .slice(-6)
-                        .map((comm: any, idx: number) => getMessageKey(comm, sessionMessages.length - Math.min(6, sessionMessages.length) + idx));
-                      setSelectedMessageIds(lastIds);
-                    } else {
-                      setSelectedMessageIds([]);
-                    }
-                  }}
-                  className="text-xs px-3 py-1.5 border border-gray-200 rounded bg-white hover:bg-gray-50"
-                >
-                  {selectedMessageIds.length > 0 ? `已选 ${selectedMessageIds.length} 条，清空选择` : '快速选择最近6条'}
-                </button>
-              </div>
-
-              {activeTab === 'wechat_group' && selectedGroupChat && (
-                <div className="p-3 bg-white border border-gray-200 rounded-lg flex items-center justify-between">
-                  <div className="text-xs text-gray-700">
-                    群成员：{(selectedGroupChat.members || []).length} 人
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => onSyncChats?.()}
-                      className="text-xs px-2 py-1 border border-gray-200 rounded bg-white hover:bg-gray-50"
-                    >
-                      {isSyncingChats ? '同步中...' : '同步消息'}
-                    </button>
-                    <button
-                      onClick={() => onManageMembers?.(selectedGroupChat)}
-                      className="text-xs px-2 py-1 border border-indigo-200 text-indigo-700 rounded bg-indigo-50 hover:bg-indigo-100"
-                    >
-                      群成员管理
-                    </button>
-                  </div>
-                </div>
-              )}
+            <div className={cn("h-full overflow-y-auto p-4 space-y-4 relative bg-white", showAiPanel ? "pr-[390px]" : "")}>
               {sessionMessages.length === 0 ? (
-                <div className="h-[360px] flex flex-col items-center justify-center text-gray-400 space-y-2">
+                <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-2">
                   <MessageSquare className="w-12 h-12 opacity-20" />
-                  <p className="text-sm">暂无会话记录</p>
+                  <p className="text-sm">请选择会话查看详情</p>
                 </div>
-              ) : sessionMessages.map((comm: any, idx: number) => {
-                const isSelf = String(comm.sender || '').includes('销售') || String(comm.sender || '').includes('张三') || String(comm.sender || '').includes('我');
-                const messageKey = getMessageKey(comm, idx);
-                const checked = selectedMessageIds.includes(messageKey);
-                return (
-                  <div key={messageKey} className={cn('flex flex-col', isSelf ? 'items-end' : 'items-start')}>
-                    <div className="flex items-center gap-2 mb-1 px-1">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          setSelectedMessageIds((prev) => e.target.checked ? [...prev, messageKey] : prev.filter((id) => id !== messageKey));
-                        }}
-                        className="w-3.5 h-3.5 text-indigo-600 rounded border-gray-300"
-                      />
-                      {!isSelf && <span className="text-[10px] font-bold text-gray-600">{comm.sender}</span>}
-                      <span className="text-[10px] text-gray-400">{comm.date || comm.time}</span>
-                    </div>
-                    <div className={cn('group relative max-w-[85%] rounded-2xl p-3 shadow-sm', isSelf ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white text-gray-900 border border-gray-200 rounded-tl-none')}>
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{comm.content}</p>
-                    </div>
+              ) : (
+                <>
+                  <div className="sticky top-0 z-10 p-3 bg-white/80 backdrop-blur border border-gray-200 rounded-lg flex flex-wrap items-center gap-2 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowAiPanel((v) => !v)}
+                      className="text-xs px-3 py-1.5 border border-indigo-200 text-indigo-700 rounded bg-indigo-50 hover:bg-indigo-100 flex items-center gap-1"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      AI辅助
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedMessageIds.length === 0) {
+                          const lastIds = sessionMessages
+                            .slice(0, 6)
+                            .map((comm: any, idx: number) => getMessageKey(comm, idx));
+                          setSelectedMessageIds(lastIds);
+                        } else {
+                          setSelectedMessageIds([]);
+                        }
+                      }}
+                      className="text-xs px-3 py-1.5 border border-gray-200 rounded bg-white hover:bg-gray-50"
+                    >
+                      {selectedMessageIds.length > 0 ? `已选 ${selectedMessageIds.length} 条，清空选择` : '快速选择最近6条'}
+                    </button>
                   </div>
-                );
-              })}
+
+                  <div className="space-y-4">
+                    {sessionMessages.map((comm: any, idx: number) => {
+                      const isSelf = String(comm.sender || '').includes('销售') || String(comm.sender || '').includes('张三') || String(comm.sender || '').includes('我');
+                      const messageKey = getMessageKey(comm, idx);
+                      const checked = selectedMessageIds.includes(messageKey);
+                      return (
+                        <div key={messageKey} className={cn('flex flex-col', isSelf ? 'items-end' : 'items-start')}>
+                          <div className="flex items-center gap-2 mb-1 px-1">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                setSelectedMessageIds((prev) => e.target.checked ? [...prev, messageKey] : prev.filter((id) => id !== messageKey));
+                              }}
+                              className="w-3.5 h-3.5 text-indigo-600 rounded border-gray-300"
+                            />
+                            {!isSelf && <span className="text-[10px] font-bold text-gray-600">{comm.sender}</span>}
+                            <span className="text-[10px] text-gray-400">{comm.date}</span>
+                          </div>
+                          <div className={cn('group relative max-w-[85%] rounded-2xl p-3 shadow-sm', isSelf ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white text-gray-900 border border-gray-200 rounded-tl-none')}>
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{comm.content}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
               {showAiPanel && (
                 <div className="absolute right-4 top-4 bottom-4 w-[360px] bg-white border border-indigo-200 rounded-xl shadow-xl z-20 overflow-y-auto">
                   <div className="sticky top-0 bg-white border-b border-indigo-100 px-3 py-2 flex items-center justify-between">
@@ -944,9 +819,6 @@ export default function CommunicationLog({
                         })}
                       </div>
                     </div>
-                    <div className="text-[11px] text-gray-700 bg-white border border-indigo-100 rounded p-2">
-                      思维链流程：{((currentRunFlow?.nodes || chatAssistConfig.flowNodes || []) as any[]).filter((n: any) => n.enabled !== false && selectedNodeIdsForRun.includes(String(n.id))).map((n: any) => n.name).join(' -> ') || '未配置'}
-                    </div>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -958,14 +830,9 @@ export default function CommunicationLog({
                         生成建议话术
                       </button>
                       <span className="text-[11px] text-gray-500">
-                        已选聊天记录：{selectedMessageIds.length > 0 ? `${selectedMessageIds.length} 条` : '请先勾选聊天记录'}
+                        已选记录：{selectedMessageIds.length} 条
                       </span>
                     </div>
-                    {matchedFaqs.length > 0 && (
-                      <div className="text-xs text-gray-700 bg-white border border-indigo-100 rounded p-2">
-                        FAQ匹配：{matchedFaqs.map((f) => `${f.category}/${f.name}`).join('；')}
-                      </div>
-                    )}
                     {aiSuggestion && (
                       <div className="space-y-2">
                         <textarea
@@ -988,44 +855,22 @@ export default function CommunicationLog({
             </div>
           </div>
         ) : (
-          <div className="h-full overflow-y-auto p-4 space-y-4">
-            {filteredCommunications.length === 0 ? (
+          <div className="h-full overflow-y-auto p-4 space-y-4 bg-white">
+            {filteredLogs.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-2">
                 <MessageSquare className="w-12 h-12 opacity-20" />
-                <p className="text-sm">暂无沟通记录</p>
+                <p className="text-sm">暂无该类型的沟通记录</p>
               </div>
             ) : (
-              filteredCommunications.map((comm, idx) => {
-                const isSelf = comm.sender.includes('销售') || comm.sender.includes('张三') || comm.sender.includes('我');
-                const messageKey = getMessageKey(comm, idx);
-                const checked = selectedMessageIds.includes(messageKey);
-                return (
-                  <div key={messageKey} className={cn("flex flex-col", isSelf ? "items-end" : "items-start")}>
-                    <div className="flex items-center gap-2 mb-1 px-1">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          setSelectedMessageIds((prev) => e.target.checked ? [...prev, messageKey] : prev.filter((id) => id !== messageKey));
-                        }}
-                        className="w-3.5 h-3.5 text-indigo-600 rounded border-gray-300"
-                      />
-                      {!isSelf && <span className="text-[10px] font-bold text-gray-600">{comm.sender}</span>}
-                      {comm.sourceGroup && <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded border border-gray-200">{comm.sourceGroup}</span>}
-                      <span className="text-[10px] text-gray-400">{comm.date}</span>
-                    </div>
-                    <div className={cn("group relative max-w-[85%] rounded-2xl p-3 shadow-sm", isSelf ? "bg-indigo-600 text-white rounded-tr-none" : "bg-white text-gray-900 border border-gray-200 rounded-tl-none")}>
-                      {comm.type === 'voice' ? (
-                        <div className="flex items-center gap-3 min-w-[120px]"><Mic className="w-4 h-4" /><span className="text-[10px]">{comm.duration}s</span></div>
-                      ) : comm.type === 'screenshot' && comm.attachmentUrl ? (
-                        <div className="space-y-2"><img src={comm.attachmentUrl} alt="Screenshot" className="rounded-lg max-w-full" /><p className="text-sm">{comm.content}</p></div>
-                      ) : (
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{comm.content}</p>
-                      )}
-                    </div>
+              filteredLogs.map((log, idx) => (
+                <div key={log.id || idx} className="p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-indigo-600">{log.sender}</span>
+                    <span className="text-[10px] text-gray-400">{log.date}</span>
                   </div>
-                );
-              })
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{log.content}</p>
+                </div>
+              ))
             )}
           </div>
         )}
@@ -1037,9 +882,16 @@ export default function CommunicationLog({
           <select 
             value={sender}
             onChange={(e) => setSender(e.target.value)}
-            className="text-xs border border-gray-200 rounded px-2 py-1 bg-gray-50"
+            className="text-xs border border-gray-200 rounded px-2 py-1 bg-gray-50 max-w-[150px]"
           >
-            {employees.map(e => <option key={e.id} value={`${e.name} (${e.role || '员工'})`}>{e.name}</option>)}
+            <optgroup label="员工">
+              {employees.map(e => <option key={e.id} value={`${e.name} (${e.role || '员工'})`}>{e.name} ({e.role || '员工'})</option>)}
+            </optgroup>
+            {contacts.length > 0 && (
+              <optgroup label="客户联系人">
+                {contacts.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              </optgroup>
+            )}
           </select>
           <span className="text-xs text-gray-500">类型:</span>
           <select
@@ -1076,13 +928,9 @@ export default function CommunicationLog({
                   content: newContent,
                   type: newCommType as any,
                   sender: sender || '销售',
-                  date: new Date().toLocaleString(),
-                  sourceId: activeTab === 'wechat_group'
-                    ? String(selectedGroupChat?.id || '')
-                    : activeTab === 'wechat'
-                      ? String(selectedWechatSession?.id || '')
-                      : undefined,
-                  sourceGroup: activeTab === 'wechat_group' ? (selectedGroupChat?.name || selectedGroupChat?.groupName || '') : (activeTab === 'wechat' ? (selectedWechatSession?.name || '') : undefined)
+                  date: new Date().toLocaleString('zh-CN', { hour12: false }),
+                  sourceId: undefined,
+                  sourceGroup: undefined
                 });
                 setNewContent('');
               }}

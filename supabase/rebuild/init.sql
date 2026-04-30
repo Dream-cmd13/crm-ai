@@ -811,7 +811,7 @@ create table if not exists public.crm_customer_message_session (
   customer_id text not null,
   contact_id text,
   channel text not null default 'wechat_private'
-    check (channel in ('wechat_private')),
+    check (channel in ('wechat_private', 'wechat_group')),
   source_sender_key text not null,
   source_sender_wechat_id text,
   source_sender_display_name text,

@@ -4,6 +4,7 @@ import { Customer, Contact, GroupChat, TodoTask, CustomerPersona, CommunicationD
 import ReservedButtons from '../ReservedButtons';
 import { cn } from '../../lib/utils';
 import { initialInquiries, initialLeads, initialOpportunities, initialProjects, initialQuotations, initialOrders, initialSampleOrders, initialReturnOrders, initialUsers } from '../../data';
+import { fetchUsersFromSupabase } from '../../lib/userRepository';
 import CommunicationLog from '../CommunicationLog';
 import CustomerPersonaPanel from '../CustomerPersonaPanel';
 import SwotMatrixPanel from '../SwotMatrixPanel';
@@ -107,6 +108,15 @@ export const CustomerDetail = ({
   const [frameworkEditMode, setFrameworkEditMode] = useState(false);
   const [frameworkLoading, setFrameworkLoading] = useState(false);
   const [selectedStageIds, setSelectedStageIds] = useState<string[]>([]);
+  const [dbEmployees, setDbEmployees] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchUsersFromSupabase().then(users => {
+      if (users && users.length > 0) {
+        setDbEmployees(users.map(u => ({ id: u.id, name: u.name, role: u.role })));
+      }
+    }).catch(console.error);
+  }, []);
 
   useEffect(() => {
     saveLocalState('crm.activation_frameworks', customerFrameworks);
@@ -344,8 +354,8 @@ export const CustomerDetail = ({
           communications={communications}
           onAddCommunication={onAddCommunication}
           contacts={(selectedCustomer.contacts || []).map((c: any) => ({ id: c.id, name: c.name, position: c.position, wechatId: c.wechatId }))}
-          employees={initialUsers.map((u: any) => ({ id: u.id, name: u.name, role: u.role }))}
-          groupChats={[]}
+          employees={dbEmployees.length > 0 ? dbEmployees : initialUsers.map((u: any) => ({ id: u.id, name: u.name, role: u.role }))}
+          groupChats={groupChats}
           onManageMembers={(chat) => setSelectedChat(chat)}
         />
       )}
