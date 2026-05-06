@@ -150,6 +150,7 @@ def parse_forwarded_chat_record_info(raw_content: str | None) -> dict[str, Any] 
             for item in datalist.findall("dataitem"):
                 sourcename = normalize_text(get_xml_text(item, "sourcename"))
                 datadesc = normalize_text(get_xml_text(item, "datadesc"))
+                datatype = safe_int(item.attrib.get("datatype"))
                 refermsgitem = item.find("refermsgitem")
                 quote_line = None
                 if refermsgitem is not None:
@@ -162,7 +163,20 @@ def parse_forwarded_chat_record_info(raw_content: str | None) -> dict[str, Any] 
                         quote_line = refer_content
                     else:
                         quote_line = sanitize_summary_text(refer_desc, fallback="")
+                # Forwarded record media lines (e.g. images) often have empty datadesc,
+                # so we recover a readable placeholder from datatype.
                 message_content = sanitize_summary_text(datadesc, fallback="")
+                if not message_content:
+                    placeholder_map = {
+                        2: "[图片]",
+                        3: "[语音]",
+                        4: "[视频]",
+                        6: "[文件]",
+                        8: "[表情]",
+                        17: "[位置]",
+                        19: "[聊天记录]",
+                    }
+                    message_content = placeholder_map.get(datatype, "")
                 if message_content:
                     message_content = merge_content_with_quote(message_content, quote_line)
                 line = message_content
@@ -174,10 +188,21 @@ def parse_forwarded_chat_record_info(raw_content: str | None) -> dict[str, Any] 
                 if line:
                     lines.append(line)
                 if sourcename or message_content:
+                    media_meta = None
+                    if datatype == 2:
+                        media_meta = {
+                            "cdn_data_url": normalize_text(get_xml_text(item, "cdndataurl")) or None,
+                            "cdn_data_key": normalize_text(get_xml_text(item, "cdndatakey")) or None,
+                            "cdn_thumb_url": normalize_text(get_xml_text(item, "cdnthumburl")) or None,
+                            "cdn_thumb_key": normalize_text(get_xml_text(item, "cdnthumbkey")) or None,
+                            "data_fmt": normalize_text(get_xml_text(item, "datafmt")) or None,
+                        }
                     record_messages.append(
                         {
+                            "datatype": datatype,
                             "sender_name": sourcename or None,
                             "content": message_content or line or None,
+                            "media_meta": media_meta,
                         }
                     )
 

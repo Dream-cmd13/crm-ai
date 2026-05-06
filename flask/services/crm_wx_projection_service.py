@@ -4,9 +4,12 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from clients.cloud_api_client import CloudApiClient
+from clients.guid_request_client import GuidRequestClient
 from clients.supabase_client import SupabaseClient
 from config import Settings
 from parsers.xml_parser import parse_forwarded_chat_record_info
+from services.cdn_state_service import CdnStateService
 from services.contact_sync_service import ContactSyncService, safe_str
 from services.schema_guard import assert_tables_exist
 
@@ -100,6 +103,9 @@ class CrmWxProjectionService:
         self.supabase = supabase
         self.contact_sync_service = contact_sync_service
         self.settings = settings
+        self.guid_client = GuidRequestClient(settings)
+        self.cloud_client = CloudApiClient(settings)
+        self.cdn_state_service = CdnStateService(supabase, self.guid_client)
         self._validated_table_groups: set[tuple[str, ...]] = set()
 
     def enqueue_message_projection(
@@ -666,11 +672,20 @@ class CrmWxProjectionService:
             content = safe_str(item.get("content")) or None
             if not content:
                 continue
+            datatype = safe_optional_int(item.get("datatype"))
             projected_context = dict(message_context)
             projected_context["content"] = content
             projected_context["sender_wechat_id"] = None
             projected_context["sender_display_name"] = sender_name or message_context.get("sender_display_name")
             projected_context["sender_alias"] = None
+            if datatype == 2:
+                projected_context["msg_type"] = 3
+                projected_context["remote_media_url"] = self._try_download_forwarded_image_url(
+                    guid=safe_str(message_context.get("guid")),
+                    username=safe_str(message_context.get("sender_wechat_id")),
+                    room_username=safe_str(message_context.get("room_username")),
+                    media_meta=item.get("media_meta"),
+                ) or None
             projected_messages.append(
                 {
                     "raw_event_dedupe_key": self._build_projected_message_dedupe_key(raw_event_dedupe_key, index),
@@ -680,6 +695,53 @@ class CrmWxProjectionService:
         if projected_messages:
             return projected_messages
         return [{"raw_event_dedupe_key": raw_event_dedupe_key, "message_context": message_context}]
+
+    def _try_download_forwarded_image_url(
+        self,
+        *,
+        guid: str,
+        username: str,
+        room_username: str,
+        media_meta: Any,
+    ) -> str | None:
+        if not guid or not isinstance(media_meta, dict):
+            return None
+
+        cdn_data_url = safe_str(media_meta.get("cdn_data_url"))
+        cdn_data_key = safe_str(media_meta.get("cdn_data_key"))
+        cdn_thumb_url = safe_str(media_meta.get("cdn_thumb_url"))
+        cdn_thumb_key = safe_str(media_meta.get("cdn_thumb_key"))
+        if not ((cdn_data_url and cdn_data_key) or (cdn_thumb_url and cdn_thumb_key)):
+            return None
+
+        try:
+            cdn_state = self.cdn_state_service.get_or_refresh_cdn_state(
+                guid=guid,
+                username=username,
+                room_username=room_username,
+            )
+            result = self.cloud_client.download_wx_image(
+                {
+                    "base_request": {
+                        "cdn_info": cdn_state.get("cdn_info"),
+                        "client_version": cdn_state.get("client_version"),
+                        "device_type": cdn_state.get("device_type"),
+                        "username": cdn_state.get("username") or username,
+                    },
+                    "cdn_data_url": cdn_data_url or None,
+                    "cdn_data_key": cdn_data_key or None,
+                    "cdn_thumb_url": cdn_thumb_url or None,
+                    "cdn_thumb_key": cdn_thumb_key or None,
+                }
+            )
+            return safe_str(
+                result.get("url")
+                or result.get("download_url")
+                or result.get("remote_media_url")
+            ) or None
+        except Exception:
+            logger.exception("forwarded image download failed guid=%s username=%s", guid, username)
+            return None
 
     def _list_existing_projected_messages(
         self,
