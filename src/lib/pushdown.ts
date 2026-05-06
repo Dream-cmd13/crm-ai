@@ -1,5 +1,6 @@
 import { Inquiry, Lead, Opportunity, SalesQuotation, Project, SalesOrder } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
+import { generateBusinessNumber, ID_PREFIX } from './idUtils';
 import { createPotentialCustomerInSupabase, convertPotentialCustomerToCustomerInSupabase } from './potentialCustomerRepository';
 import { saveSalesOrderToSupabase } from './documentRepository';
 import { triggerAutoFlowsForCreate } from './workflowRunner';
@@ -110,28 +111,6 @@ const insertOpportunityWithSchemaFallback = async (payload: Record<string, any>)
   return await supabase.from('crm_opportunity').insert(workPayload).select('id').single();
 };
 
-const generateBusinessNo = async (prefix: string, tableName: string, columnName: string): Promise<string | null> => {
-  const supabase = getSupabaseClient();
-  try {
-    const withColumn = await supabase.rpc('generate_business_number', {
-      prefix,
-      table_name: tableName,
-      column_name: columnName,
-      pad_len: 4
-    });
-    if (!withColumn.error && typeof withColumn.data === 'string' && withColumn.data) return withColumn.data;
-  } catch {}
-  try {
-    const shortSig = await supabase.rpc('generate_business_number', {
-      prefix,
-      table_name: tableName,
-      pad_len: 4
-    });
-    if (!shortSig.error && typeof shortSig.data === 'string' && shortSig.data) return shortSig.data;
-  } catch {}
-  return null;
-};
-
 export const pushInquiryToLeadInSupabase = async (source: Inquiry, leadData: any) => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase 环境变量未配置');
@@ -141,7 +120,7 @@ export const pushInquiryToLeadInSupabase = async (source: Inquiry, leadData: any
   const resolvedCustomerId = await ensureCustomerId(leadData?.customerId || source.customerId, customerName);
   const inquiryId = toNullableInt(source.id);
   const now = new Date().toISOString();
-  const leadNo = await generateBusinessNo('XS', 'crm_lead', 'lead_no');
+  const leadNo = await generateBusinessNumber(ID_PREFIX.LEAD);
   const leadRow = {
     lead_no: leadNo || null,
     customer_id: resolvedCustomerId || null,
@@ -159,6 +138,7 @@ export const pushInquiryToLeadInSupabase = async (source: Inquiry, leadData: any
     source_type: normalizeLeadSourceType(leadData?.source),
     product_category: String(leadData?.productCategory || source.category || '').trim(),
     product_series: String(leadData?.productSeries || source.productSeries || '').trim(),
+    source_status: '客服',
     inquiry_id: inquiryId,
     buyer_role: leadData?.buyerRole || source.buyerRole || null,
     buying_mode: leadData?.buyingMode || source.buyingMode || null,
@@ -216,7 +196,7 @@ export const pushLeadToOpportunityInSupabase = async (source: Lead, oppData: any
   ].filter(Boolean);
   const oppSummary = summaryParts.join('；') || `来自线索 ${source.id}`;
   const intentAmount = Number(oppData?.expectedAmount || 0);
-  const opportunityNo = await generateBusinessNo('JH', 'crm_opportunity', 'opportunity_no');
+  const opportunityNo = await generateBusinessNumber(ID_PREFIX.OPPORTUNITY);
 
   const oppRow = {
     opportunity_no: opportunityNo || null,
@@ -292,7 +272,7 @@ export const pushOpportunityToProjectInSupabase = async (source: Opportunity) =>
   const now = new Date().toISOString();
   const amount = Number(source.intentAmount || 0);
   const projectName = `${customerName}-项目`;
-  const projectNo = await generateBusinessNo('XM', 'crm_project', 'project_no');
+  const projectNo = await generateBusinessNumber(ID_PREFIX.PROJECT);
 
   const projectRow = {
     project_no: projectNo || null,

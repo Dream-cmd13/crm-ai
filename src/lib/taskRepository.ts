@@ -1,6 +1,5 @@
 import { TodoTask } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
-import { generateBusinessId, ID_PREFIX } from './idUtils';
 
 const mapDbTaskToUi = (row: any): TodoTask => ({
   id: row.id,
@@ -25,7 +24,7 @@ const mapDbTaskToUi = (row: any): TodoTask => ({
 });
 
 const mapUiTaskToDb = (task: TodoTask, module = 'task_center') => ({
-  id: task.id || generateBusinessId(ID_PREFIX.TASK),
+  id: task.id || crypto.randomUUID(),
   title: task.title || '',
   description: task.description || '',
   module,

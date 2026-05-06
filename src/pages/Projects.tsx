@@ -10,7 +10,7 @@ import { ProcessingNode } from '../components/ProcessingFlow';
 import { ProjectList } from '../components/projects/ProjectList';
 import { ProjectDetail } from '../components/projects/ProjectDetail';
 import { fetchProjectByIdFromSupabase, fetchProjectsFromSupabase, saveProjectToSupabase, deleteProjectFromSupabase } from '../lib/projectRepository';
-import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
+import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
 import { fetchQuotationsFromSupabase, fetchSalesOrdersFromSupabase, fetchSampleOrdersFromSupabase, fetchReturnOrdersFromSupabase } from '../lib/documentRepository';
 import { fetchUsersFromSupabase } from '../lib/userRepository';
@@ -271,8 +271,6 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
             }
           }
           const newProject: Project = {
-            id: generateBusinessId(ID_PREFIX.PROJECT, projects),
-            projectNo: sourceOpp?.project_no || generateBusinessId(ID_PREFIX.PROJECT, projects),
             projectName: sourceOpp ? `${sourceOpp.customer_name}-定制项目` : '新项目 (来自商机)',
             projectType: '研发型项目',
             customerName: sourceOpp?.customer_name || '待定',
@@ -410,10 +408,10 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
     syncProject(updatedProject);
   };
 
-  const handleSaveProject = (updatedData: Project) => {
+  const handleSaveProject = async (updatedData: Project) => {
     const normalizedProject: Project = {
       ...updatedData,
-      projectNo: updatedData.projectNo || generateBusinessId(ID_PREFIX.PROJECT, projects),
+      projectNo: updatedData.projectNo || await generateBusinessNumber(ID_PREFIX.PROJECT),
       projectType: updatedData.projectType || '研发型项目',
       projectLevel: updatedData.projectLevel || 'B级',
       wechatGroup: updatedData.wechatGroup || '',
@@ -437,10 +435,10 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
 
   const handleCreateProject = async (data: any) => {
     const today = new Date().toISOString().split('T')[0];
-    const id = data.id || generateBusinessId(ID_PREFIX.PROJECT, projects);
+    const id = data.id;
     const newProject: Project = {
       id,
-      projectNo: data.projectNo || generateBusinessId(ID_PREFIX.PROJECT, projects),
+      projectNo: data.projectNo || await generateBusinessNumber(ID_PREFIX.PROJECT),
       projectName: String(data.projectName || '').trim(),
       name: String(data.projectName || '').trim(),
       projectType: data.projectType || '研发型项目',
@@ -665,7 +663,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
   const handleAddTask = () => {
     if (!selectedProject || !newTask.title || !newTask.assignee || !newTask.endTime || !newTask.stage) return;
     const task: TodoTask = {
-      id: generateBusinessId(ID_PREFIX.TASK, selectedProject.tasks || []),
+      id: crypto.randomUUID(),
       title: newTask.title,
       assignee: newTask.assignee,
       assigneeId: '',

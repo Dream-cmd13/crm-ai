@@ -5,7 +5,7 @@ import { Role, SalesQuotation } from '../types';
 import { cn } from '../lib/utils';
 import DocumentDetail from '../components/DocumentDetail';
 import { deleteQuotationFromSupabase, fetchQuotationsFromSupabase, saveQuotationToSupabase } from '../lib/documentRepository';
-import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
+import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
 
 interface SalesQuotationsProps {
@@ -43,7 +43,7 @@ export default function SalesQuotations({ role, viewParams, navigateTo, goBack }
   }, [viewParams, quotations]);
 
   const handleSaveQuotation = async (updatedData: SalesQuotation, shouldClose = true) => {
-    const payload = updatedData.id ? updatedData : { ...updatedData, id: generateBusinessId(ID_PREFIX.QUOTATION, quotations) };
+    const payload = updatedData.quoteNo ? updatedData : { ...updatedData, quoteNo: await generateBusinessNumber(ID_PREFIX.QUOTATION) };
     try {
       const persistedId = await saveQuotationToSupabase(payload as any);
       const remote = await fetchQuotationsFromSupabase();

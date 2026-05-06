@@ -2,7 +2,7 @@ import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Trash2, Package, Loader2 } from 'lucide-react';
 import { Role, SampleOrder } from '../types';
-import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
+import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { cn } from '../lib/utils';
 import DocumentDetail from '../components/DocumentDetail';
 import { deleteSampleOrderFromSupabase, fetchSampleOrdersFromSupabase, saveSampleOrderToSupabase } from '../lib/documentRepository';
@@ -50,7 +50,7 @@ export default function SampleOrders({ role, viewParams, navigateTo, goBack }: S
 
   const handleSaveOrder = async (updatedData: SampleOrder, shouldClose = true) => {
     try {
-      const payload = updatedData.id ? updatedData : { ...updatedData, id: generateBusinessId(ID_PREFIX.SAMPLE_ORDER, orders) };
+      const payload = updatedData.sampleNo ? updatedData : { ...updatedData, sampleNo: await generateBusinessNumber(ID_PREFIX.SAMPLE_ORDER) };
       await saveSampleOrderToSupabase(payload as any);
       if (payload.id && orders.find(o => o.id === payload.id)) {
         setOrders(orders.map(o => o.id === payload.id ? payload : o));

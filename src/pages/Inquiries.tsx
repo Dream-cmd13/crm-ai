@@ -20,10 +20,16 @@ import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
 import { saveCustomerContactToSupabase, saveGroupChatToSupabase, fetchCustomerContactsFromSupabase } from '../lib/customerInteractionRepository';
 import { createPotentialCustomerInSupabase } from '../lib/potentialCustomerRepository';
 import { pushInquiryToLeadInSupabase } from '../lib/pushdown';
+import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
-import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 
-const INQUIRY_SOURCE_CHANNEL_OPTIONS = ['万连', '电子谷', '1688', '爱采购', '胜蓝', '新电子谷', '其他', '淘宝'];
+const INQUIRY_SOURCE_CHANNEL_OPTIONS = ['万连', '电子谷', '1688', '爱采购', '胜蓝', '新电子谷', '其他', '淘宝', '官网', '展会'];
+
+const normalizeSourceChannel = (value: unknown): string | null => {
+  const text = String(value || '').trim();
+  if (INQUIRY_SOURCE_CHANNEL_OPTIONS.includes(text)) return text;
+  return null;
+};
 const LEAD_CUSTOMER_ACTION_OPTIONS = ['寻替代料', '寻替代品', '找货寻料', '指定料号', '指定物料'];
 const LEAD_SOURCE_TYPE_OPTIONS = ['企业微信', '注册', '在线', '微信', '邮件', '电话', '其他'];
 
@@ -241,15 +247,14 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       }
     }
     try {
-      const generatedInquiryNo = isNew ? generateBusinessId(ID_PREFIX.INQUIRY, inquiries) : undefined;
       const customerIdForDb = toNullableInt(customerId);
       const dbData = {
-        inquiry_no: isNew ? generatedInquiryNo : (data.inquiryNo || selectedInquiry?.inquiryNo || null),
+        inquiry_no: isNew ? await generateBusinessNumber(ID_PREFIX.INQUIRY) : (data.inquiryNo || selectedInquiry?.inquiryNo || null),
         customer_id: customerIdForDb,
         company_name: data.companyName,
         customer_name: data.customerName,
         contact: data.contact,
-        source_channel: data.sourceChannel,
+        source_channel: normalizeSourceChannel(data.sourceChannel),
         category: data.category,
         product_series: data.productSeries,
         province: data.province,
@@ -458,7 +463,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
 
       if (data.buyingMode === '困难模式') {
         const newTask: TodoTask = {
-          id: generateBusinessId(ID_PREFIX.TASK, tasks),
+          id: crypto.randomUUID(),
           title: `[困难模式] 立即联系 ${data.customerName} 进行SPIN需求挖掘`,
           description: `该线索处于困难模式，需立即联系进行SPIN需求挖掘。建议提问：${data.suggestedQuestions?.[0] || '客户目前面临的核心痛点是什么？'}`,
           status: '待办',
@@ -1012,7 +1017,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
           currentUser={currentUser}
           onSave={(taskData) => {
             const newTask: TodoTask = {
-              id: generateBusinessId(ID_PREFIX.TASK, tasks),
+              id: crypto.randomUUID(),
               title: taskData.title,
               description: taskData.description || '',
               status: '待办',

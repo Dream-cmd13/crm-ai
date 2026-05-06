@@ -5,7 +5,6 @@ import { ProductCategory, Product, CategoryAttribute, ProductSeries } from '../t
 import DetailModal from '../components/DetailModal';
 import { cn } from '../lib/utils';
 import { fetchProductCategoriesFromSupabase, fetchProductSeriesFromSupabase, fetchProductModuleDataFromSupabase, saveProductToSupabase, deleteProductFromSupabase } from '../lib/productRepository';
-import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 
 interface ProductsProps {
   role?: any;
@@ -168,8 +167,8 @@ export default function Products({ viewParams }: ProductsProps) {
 
   const handleSave = async (data: any) => {
     const payload: Product = isAdding
-      ? { ...data, id: generateBusinessId(ID_PREFIX.PRODUCT, products) }
-      : { ...data, id: data.id || selectedProduct?.id || generateBusinessId(ID_PREFIX.PRODUCT, products) };
+      ? { ...data }
+      : { ...data, id: data.id || selectedProduct?.id };
     if (isAdding) {
       try {
         const saved = await saveProductToSupabase(payload);

@@ -39,15 +39,15 @@ type OpenTab = {
 export default function App() {
   const [currentRole, setCurrentRole] = useState<Role>('业务员');
   const [currentUser, setCurrentUser] = useState<User>({
-    id: 'EMP001',
-    ent_name: '总公司',
-    username: 'admin',
-    name: '系统管理员',
-    role: '管理员',
-    roles: ['管理员'],
-    department_id: 'admin',
-    employeeNo: 'E001',
-    dataPermissions: { customerVisibility: 'all' }
+    id: '',
+    ent_name: '',
+    username: '',
+    name: '未登录',
+    role: '业务员',
+    roles: ['业务员'],
+    department_id: '',
+    employeeNo: '',
+    dataPermissions: { customerVisibility: 'self' }
   });
   const [openTabs, setOpenTabs] = useState<OpenTab[]>([
     { key: 'dashboard', view: 'dashboard', params: null, label: '工作台' }

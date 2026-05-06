@@ -1,6 +1,5 @@
 import { Product, ProductCategory, ProductSeries } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
-import { generateBusinessId, ID_PREFIX } from './idUtils';
 
 const toNullableInt = (value: any): number | null => {
   if (value === null || value === undefined || value === '') return null;
@@ -139,10 +138,10 @@ export const fetchProductCategoriesFromSupabase = async (): Promise<ProductCateg
 export const saveProductCategoryToSupabase = async (category: ProductCategory) => {
   if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
-  const id = category.id || generateBusinessId(ID_PREFIX.PRODUCT);
+  const id = category.id;
   const normalizedParentId = category.parentId && category.parentId !== id ? category.parentId : null;
   const payload = {
-    id,
+    ...(id ? { id } : {}),
     parent_id: normalizedParentId,
     name: category.name,
     image: (category as any).image || null,
@@ -151,9 +150,9 @@ export const saveProductCategoryToSupabase = async (category: ProductCategory) =
     fab_benefits: category.fab?.benefits || '',
     updated_at: new Date().toISOString()
   };
-  const { error } = await supabase.from('ba_cptype').upsert(payload, { onConflict: 'id' });
+  const { data: saved, error } = await supabase.from('ba_cptype').upsert(payload, { onConflict: 'id' }).select('id').single();
   if (error) throw error;
-  return { ...category, id };
+  return { ...category, id: saved?.id || id };
 };
 
 export const saveAllProductCategoriesToSupabase = async (categories: ProductCategory[]) => {
@@ -210,7 +209,7 @@ export const saveProductSeriesToSupabase = async (series: ProductSeries) => {
   if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const payload = {
-    id: series.id || generateBusinessId(ID_PREFIX.PRODUCT),
+    ...(series.id ? { id: Number(series.id) } : {}),
     name: series.name || '',
     category_id: series.categoryId || null,
     description: series.description || '',

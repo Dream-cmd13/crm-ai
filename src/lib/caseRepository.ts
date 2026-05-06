@@ -1,6 +1,5 @@
 import { CustomerCase } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
-import { generateBusinessId, ID_PREFIX } from './idUtils';
 
 const splitList = (value: string | null | undefined) =>
   (value || '')
@@ -47,7 +46,7 @@ export const fetchCasesFromSupabase = async (): Promise<CustomerCase[]> => {
 export async function saveCaseToSupabase(caseItem: CustomerCase): Promise<CustomerCase> {
   if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
-  const id = caseItem.id && caseItem.id !== 'new' ? caseItem.id : generateBusinessId(ID_PREFIX.CASE);
+  const id = caseItem.id && caseItem.id !== 'new' ? caseItem.id : crypto.randomUUID();
   const payload = {
     id,
     title: caseItem.title || '',

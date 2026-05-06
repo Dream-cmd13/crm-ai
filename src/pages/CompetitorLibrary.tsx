@@ -5,7 +5,6 @@ import { Competitor } from '../types';
 import { fetchCompetitors, saveCompetitors } from '../lib/competitorRepository';
 import UniversalSelector from '../components/UniversalSelector';
 import { confirmDialog } from '../lib/toastConfirm';
-import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 
 export default function CompetitorLibrary() {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
@@ -88,7 +87,7 @@ export default function CompetitorLibrary() {
                       toast.error('请输入竞品名称');
                       return;
                     }
-                    const realId = generateBusinessId(ID_PREFIX.COMPETITOR, competitors);
+                    const realId = crypto.randomUUID();
                      const newItem = { ...detailDraft, id: realId };
                     saveAll([newItem, ...competitors]);
                     setActiveId(realId);

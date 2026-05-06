@@ -27,7 +27,7 @@ const mapItemToRow = (item: any, parentKey: string, parentId: number) => {
     baseRow.issue_description = item.issueDescription || null;
     baseRow.return_tracking_no = item.returnTrackingNo || null;
     baseRow.final_handling_method = item.finalHandlingMethod || null;
-    baseRow.return_qty = item.returnQty ?? item.quantity ?? 0;
+    baseRow.return_qty = Number(item.returnQty ?? item.quantity) || 0;
     baseRow.return_method = item.returnMethod || null;
   }
   return baseRow;
@@ -190,7 +190,7 @@ const mapRowToItem = (row: any) => ({
   materialId: row.material_id || '',
   materialNo: row.material_no || '',
   quantity: Number(row.quantity || 0),
-  taxType: row.tax_type || '澧炲€肩◣涓撶エ',
+  taxType: row.tax_type || '增值税专票',
   taxRate: Number(row.tax_rate || 13),
   taxIncludedPrice: Number(row.tax_included_price || 0),
   taxExcludedPrice: Number(row.tax_excluded_price || 0),
@@ -252,7 +252,7 @@ const saveWithItems = async (
       { onConflict: 'id' }
     );
     if (customerError) throw customerError;
-    await updateCustomerLastContactInSupabase(mainRow.customer_id, `${mainTable}鍗曟嵁鏇存柊`);
+    await updateCustomerLastContactInSupabase(mainRow.customer_id, `${mainTable}单据更新`);
   }
   if (typeof mainRow.project_id === 'string') {
     const normalizedProjectId = mainRow.project_id.trim();
@@ -304,7 +304,7 @@ export const fetchQuotationsFromSupabase = async (): Promise<any[]> => {
     projectId: row.project_id || '',
     projectName: row.project_name || '',
     quoteDate: row.quote_date || '',
-    status: row.status || '鑽夌',
+    status: row.status || '草稿',
     taxIncludedTotalAmount: Number(row.tax_included_total_amount || 0),
     taxExcludedTotalAmount: Number(row.tax_excluded_total_amount || 0),
     totalAmount: Number(row.total_amount || 0),
@@ -495,8 +495,8 @@ export const saveReturnOrderToSupabase = async (doc: any) => {
       original_order_no: doc.originalOrderNo,
       customer_id: doc.customerId,
       customer_name: doc.customerName,
-      after_sale_qty: doc.afterSaleQty ?? 0,
-      after_sale_type: doc.afterSaleType,
+      after_sale_qty: Number(doc.afterSaleQty) || 0,
+      after_sale_type: toNullableInt(doc.afterSaleType),
       reason: doc.reason,
       handler: doc.handler,
       sales_rep: doc.salesRep,
@@ -513,36 +513,33 @@ export const saveReturnOrderToSupabase = async (doc: any) => {
   );
 };
 
-const removeWithItems = async (
-  mainTable: string,
-  itemTable: string,
-  parentKey: string,
-  id: string
-) => {
+/**
+ * 删除单据主记录。
+ * 数据库子表（xxx_item）已设置 ON DELETE CASCADE，无需前端手动删除子记录。
+ */
+const deleteMainRecord = async (table: string, id: string) => {
   if (!isSupabaseConfigured()) throw new Error('Supabase environment variables are not configured');
   const numericId = toPersistedId(id);
   if (numericId === null) return;
   const supabase = getSupabaseClient();
-  const { error: itemDeleteError } = await supabase.from(itemTable).delete().eq(parentKey, numericId);
-  if (itemDeleteError) throw itemDeleteError;
-  const { error: mainDeleteError } = await supabase.from(mainTable).delete().eq('id', numericId);
-  if (mainDeleteError) throw mainDeleteError;
+  const { error } = await supabase.from(table).delete().eq('id', numericId);
+  if (error) throw error;
 };
 
 export const deleteQuotationFromSupabase = async (id: string) => {
-  await removeWithItems('crm_quotation', 'crm_quotation_item', 'quotation_id', id);
+  await deleteMainRecord('crm_quotation', id);
 };
 
 export const deleteSalesOrderFromSupabase = async (id: string) => {
-  await removeWithItems('crm_sales_order', 'crm_sales_order_item', 'sales_order_id', id);
+  await deleteMainRecord('crm_sales_order', id);
 };
 
 export const deleteSampleOrderFromSupabase = async (id: string) => {
-  await removeWithItems('crm_sample_order', 'crm_sample_order_item', 'sample_order_id', id);
+  await deleteMainRecord('crm_sample_order', id);
 };
 
 export const deleteReturnOrderFromSupabase = async (id: string) => {
-  await removeWithItems('crm_return_order', 'crm_return_order_item', 'return_order_id', id);
+  await deleteMainRecord('crm_return_order', id);
 };
 
 

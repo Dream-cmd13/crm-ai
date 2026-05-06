@@ -10,7 +10,6 @@ import { callAiProxy } from '../../lib/aiProxy';
 import { fetchCustomerFollowStrategyConfig } from '../../lib/customerFollowStrategyRepository';
 import { saveTasksSnapshotToSupabase } from '../../lib/taskRepository';
 import { parseAiJson } from '../../lib/aiJson';
-import { generateBusinessId, ID_PREFIX } from '../../lib/idUtils';
 
 const SCORE_HELP = {
   roleTag: 'A:审批者（预算/拍板） D:决策者（选型） S:支持者（推动） E:评估者（测试/评审） I:影响者（影响意见）',
@@ -631,7 +630,7 @@ export default function StakeholderMapPanel({
   const generateVisitTask = async () => {
     if (!suggestionTarget) return;
     const task = {
-      id: generateBusinessId(ID_PREFIX.TASK),
+      id: crypto.randomUUID(),
       title: `客户拜访：${suggestionTarget.name}`,
       description: suggestionText || '',
       taskType: '客户拜访',

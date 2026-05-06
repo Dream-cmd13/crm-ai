@@ -7,7 +7,7 @@ import { callAiProxy } from '../lib/aiProxy';
 import { parseAiJson } from '../lib/aiJson';
 import DocumentDetail from '../components/DocumentDetail';
 import { fetchSalesOrdersFromSupabase, saveSalesOrderToSupabase, deleteSalesOrderFromSupabase } from '../lib/documentRepository';
-import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
+import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
 interface SalesOrdersProps {
   role: Role;
@@ -45,7 +45,7 @@ export default function SalesOrders({ role, viewParams, navigateTo, goBack }: Sa
   }, [viewParams, orders]);
 
   const handleSaveOrder = async (updatedData: SalesOrder, shouldClose = true) => {
-    const payload = updatedData.id ? updatedData : { ...updatedData, id: generateBusinessId(ID_PREFIX.SALES_ORDER, orders) };
+    const payload = updatedData.orderNo ? updatedData : { ...updatedData, orderNo: await generateBusinessNumber(ID_PREFIX.SALES_ORDER) };
     try {
       await saveSalesOrderToSupabase(payload as any);
       if (orders.find(o => o.id === payload.id)) {

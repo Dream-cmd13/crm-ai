@@ -205,7 +205,7 @@ export const triggerAutoFlowsForCreate = async (
       .replace('{{sopName}}', String(flow?.name || 'SOP模板'))
       .replace('{{customerName}}', String(customerName || '客户'));
     let task: TodoTask = {
-      id: `WF_${flow.id}_${Date.now()}`,
+      id: crypto.randomUUID(),
       title,
       description,
       status: '待办',

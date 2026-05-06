@@ -9,7 +9,6 @@ import { fetchCustomersModuleDataFromSupabase } from '../lib/customerRepository'
 import { fetchProjectsFromSupabase } from '../lib/projectRepository';
 import { fetchProductSeriesFromSupabase } from '../lib/productRepository';
 import UniversalSelector from './UniversalSelector';
-import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 
 interface CaseLibraryProps {
   onSelect?: (caseItem: CustomerCase) => void;
@@ -120,7 +119,7 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
       } else {
         const newCase: CustomerCase = {
           ...finalCase,
-          id: generateBusinessId(ID_PREFIX.CASE, cases),
+          id: crypto.randomUUID(),
           createDate: new Date().toISOString().split('T')[0],
           creatorName: '张三',
         } as CustomerCase;
@@ -157,23 +156,63 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
       return;
     }
     setIsGenerating(true);
-    // Simulate AI generation
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
+
     const customer = customers.find(c => c.id === editingCase.customerId);
     const project = projects.find((p: any) => p.id === editingCase.projectId);
     const selectedSeries = seriesList.filter(s => (editingCase.productSeriesIds || []).includes(s.id));
 
-    setEditingCase(prev => ({
-      ...prev!,
-      title: `${customer?.name || '客户'}${project?.projectName ? ' - ' + project.projectName : ''} 成功案例`,
-      industry: customer?.industry || '',
-      painPoints: project?.oppSummary ? [project.oppSummary] : ['效率低下', '成本过高'],
-      solution: `针对客户在${project?.projectName || '项目'}中的需求，我们提供了${selectedSeries.map((s: any) => s.name).join('、') || '定制化'}方案...`,
-      metrics: '交付周期缩短20%，综合成本降低15%',
-      valueStatement: '通过高可靠性连接方案，确保了客户核心系统的稳定运行。',
-      tags: ['AI生成', customer?.industry || '通用'].filter(Boolean)
-    }));
+    const prompt = `你是一个专业的B2B制造业案例撰写专家。请根据以下信息，生成一个结构化的客户成功案例（JSON格式）：
+
+客户名称：${customer?.name || '未知'}
+所在行业：${customer?.industry || '未知'}
+关联项目：${project?.projectName || '无'}
+产品系列：${selectedSeries.map((s: any) => s.name).join('、') || '未指定'}
+项目摘要：${project?.oppSummary || '无'}
+
+请返回严格JSON格式（不要包含markdown代码块）：
+{
+  "title": "案例标题（20字以内）",
+  "industry": "行业",
+  "painPoints": ["痛点1", "痛点2"],
+  "solution": "解决方案描述（200字以内）",
+  "metrics": "关键成效指标（一句话）",
+  "valueStatement": "价值陈述（一句话）"
+}`;
+
+    try {
+      const { callAiProxy } = await import('../lib/aiProxy');
+      const raw = await callAiProxy(prompt);
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const aiResult = JSON.parse(jsonMatch[0]);
+        setEditingCase(prev => ({
+          ...prev!,
+          title: aiResult.title || prev!.title,
+          industry: aiResult.industry || prev!.industry,
+          painPoints: Array.isArray(aiResult.painPoints) ? aiResult.painPoints : prev!.painPoints,
+          solution: aiResult.solution || prev!.solution,
+          metrics: aiResult.metrics || prev!.metrics,
+          valueStatement: aiResult.valueStatement || prev!.valueStatement,
+          tags: ['AI生成', customer?.industry || '通用'].filter(Boolean)
+        }));
+        toast.success('AI 案例生成完成');
+      } else {
+        throw new Error('AI 返回格式异常');
+      }
+    } catch {
+      // AI 不可用时使用模板兜底
+      setEditingCase(prev => ({
+        ...prev!,
+        title: `${customer?.name || '客户'}${project?.projectName ? ' - ' + project.projectName : ''} 成功案例`,
+        industry: customer?.industry || '',
+        painPoints: project?.oppSummary ? [project.oppSummary] : ['效率低下', '成本过高'],
+        solution: `针对客户在${project?.projectName || '项目'}中的需求，我们提供了${selectedSeries.map((s: any) => s.name).join('、') || '定制化'}方案...`,
+        metrics: '交付周期缩短20%，综合成本降低15%',
+        valueStatement: '通过高可靠性连接方案，确保了客户核心系统的稳定运行。',
+        tags: ['模板生成', customer?.industry || '通用'].filter(Boolean)
+      }));
+      toast.error('AI 服务不可用，已使用模板生成，可手动修改');
+    }
     setIsGenerating(false);
   };
 

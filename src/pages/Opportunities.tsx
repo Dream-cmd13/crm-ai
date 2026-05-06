@@ -24,12 +24,18 @@ import { saveCustomerContactToSupabase, saveGroupChatToSupabase, fetchCustomerCo
 import { createPotentialCustomerInSupabase } from '../lib/potentialCustomerRepository';
 import { fetchArchitectureDataFromSupabase } from '../lib/architectureRepository';
 import { pushOpportunityToProjectInSupabase, deleteOpportunityFromSupabase } from '../lib/pushdown';
-import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
+import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
 
 const OPPORTUNITY_STATUS_OPTIONS = ['未跟进', '跟进中', '关闭', '转项目'];
 const PRODUCT_INDUSTRY_OPTIONS = ['基础接插件', '新能源', '线束', '定制', '胜蓝', '胜蓝电气', '工业'];
+
+const normalizeProductIndustry = (value: unknown): string | null => {
+  const text = String(value || '').trim();
+  if (PRODUCT_INDUSTRY_OPTIONS.includes(text)) return text;
+  return text || null;
+};
 const PRODUCT_LINE_OPTIONS = ['接插件', '线束', '工业连接器', 'IO连接器', '电子电气', '其他'];
 const normalizeOpportunityStatus = (status?: string): Opportunity['status'] => {
   if (status === '已流失' || status === '已关闭') return '关闭';
@@ -303,8 +309,6 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
             }
           }
           const newOpp: Opportunity = {
-            id: generateBusinessId(ID_PREFIX.OPPORTUNITY, opportunities),
-            opportunityNo: sourceLead?.opportunity_no || generateBusinessId(ID_PREFIX.OPPORTUNITY, opportunities),
             leadId: String(viewParams.sourceId || ''),
             inquiryId: sourceLead?.inquiry_id !== null && sourceLead?.inquiry_id !== undefined ? String(sourceLead.inquiry_id) : undefined,
             customerName: sourceLead?.customer_name || '待定',
@@ -378,7 +382,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
 
       const dbData = {
         opportunity_no: isAdding
-          ? (data.opportunityNo || generateBusinessId(ID_PREFIX.OPPORTUNITY, opportunities))
+          ? (data.opportunityNo || await generateBusinessNumber(ID_PREFIX.OPPORTUNITY))
           : (data.opportunityNo || selectedOpp?.opportunityNo || null),
         customer_id: customerIdForDb,
         customer_type: customerIdForDb !== null ? '老客户' : '新客户',
@@ -401,7 +405,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
         estimated_usage: data.estimatedUsage,
         estimated_mass_production_date: data.estimatedMassProductionDate || null,
         sales_type: data.salesType,
-        product_industry: data.productIndustry,
+        product_industry: normalizeProductIndustry(data.productIndustry),
         product_series: data.productSeries,
         completeness: Number(data.completeness || 0),
         contact_person: data.contactPerson,
@@ -1139,7 +1143,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
             currentUser={currentUser}
             onSave={(taskData) => {
               const newTask: TodoTask = {
-                id: generateBusinessId(ID_PREFIX.TASK, tasks),
+                id: crypto.randomUUID(),
                 ...taskData,
                 status: '待办',
                 importance: '中',

@@ -22,14 +22,44 @@ import { createPotentialCustomerInSupabase } from '../lib/potentialCustomerRepos
 import { fetchArchitectureDataFromSupabase } from '../lib/architectureRepository';
 import { pushLeadToOpportunityInSupabase, deleteLeadFromSupabase } from '../lib/pushdown';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
+import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
-import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 
 const LEAD_STATUS_OPTIONS = ['未跟进', '跟进中', '关闭', '转商机'];
 const LEAD_CUSTOMER_ACTION_OPTIONS = ['寻替代料', '寻替代品', '找货寻料', '指定料号', '指定物料'];
-const LEAD_SOURCE_CHANNEL_OPTIONS = ['万连', '电子谷', '1688', '爱采购', '胜蓝', '新电子谷', '其他', '淘宝'];
+const LEAD_SOURCE_CHANNEL_OPTIONS = ['万连', '电子谷', '1688', '爱采购', '胜蓝', '新电子谷', '其他', '淘宝', '官网', '展会'];
 const LEAD_SOURCE_TYPE_OPTIONS = ['企业微信', '注册', '在线', '微信', '邮件', '电话', '其他'];
 const LEAD_SOURCE_STATUS_OPTIONS = ['客服', '自己开发'];
+
+const normalizeSourceStatus = (value: unknown): string | null => {
+  const text = String(value || '').trim();
+  if (LEAD_SOURCE_STATUS_OPTIONS.includes(text)) return text;
+  return null;
+};
+
+const normalizeCustomerAction = (value: unknown): string | null => {
+  const text = String(value || '').trim();
+  if (LEAD_CUSTOMER_ACTION_OPTIONS.includes(text)) return text;
+  return text || null;
+};
+
+const normalizeSourceType = (value: unknown): string | null => {
+  const text = String(value || '').trim();
+  if (LEAD_SOURCE_TYPE_OPTIONS.includes(text)) return text;
+  return text || null;
+};
+
+const normalizeSourceChannel = (value: unknown): string | null => {
+  const text = String(value || '').trim();
+  if (LEAD_SOURCE_CHANNEL_OPTIONS.includes(text)) return text;
+  return text || null;
+};
+
+const normalizeProductIndustry = (value: unknown): string | null => {
+  const text = String(value || '').trim();
+  if (LEAD_PRODUCT_INDUSTRY_OPTIONS.includes(text)) return text;
+  return text || null;
+};
 const LEAD_PRODUCT_INDUSTRY_OPTIONS = ['基础接插件', '新能源', '线束', '定制', '胜蓝', '胜蓝电气', '工业'];
 
 const parseAttachments = (raw: unknown): FileAttachment[] => {
@@ -288,8 +318,6 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
             }
           }
           const newLead: Lead = {
-            id: generateBusinessId(ID_PREFIX.LEAD, leads),
-            leadNo: sourceInquiry?.lead_no || generateBusinessId(ID_PREFIX.LEAD, leads),
             inquiryId: String(viewParams.sourceId || ''),
             customerName: sourceInquiry?.company_name || '待定',
             name: sourceInquiry?.customer_name || '',
@@ -354,30 +382,30 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
         const customerIdForDb = toNullableInt(customerId);
         const customerType: '新客户' | '老客户' = customerIdForDb !== null ? '老客户' : '新客户';
         const dbData = {
-          lead_no: data.leadNo || generateBusinessId(ID_PREFIX.LEAD, leads),
+          lead_no: data.leadNo || await generateBusinessNumber(ID_PREFIX.LEAD),
           customer_name: data.customerName,
           customer_id: customerIdForDb,
           customer_type: customerType,
           name: data.name,
           phone: data.phone,
-          customer_action: data.customerAction,
-          industry: data.industry,
+          customer_action: normalizeCustomerAction(data.customerAction),
+          industry: data.industry || null,
           status: normalizedStatus,
           assignee: data.assignee,
-          source_type: data.source,
-          source_channel: data.channelPlatform,
+          source_type: normalizeSourceType(data.source),
+          source_channel: normalizeSourceChannel(data.channelPlatform),
           product_category: data.productCategory,
           product_series: data.productSeries,
-          source_status: data.sourceStatus,
-          product_industry: data.productIndustry,
+          source_status: normalizeSourceStatus(data.sourceStatus),
+          product_industry: normalizeProductIndustry(data.productIndustry),
           customer_opportunity: data.customerOpportunity,
           close_time: data.closeTime || null,
           close_reason: data.closeReason,
           inquiry_id: toNullableInt(data.inquiryId),
-          contact_id: data.contactId,
-          buyer_role: data.buyerRole,
-          buying_mode: data.buyingMode,
-          intent_score: data.intentScore,
+          contact_id: data.contactId || null,
+          buyer_role: data.buyerRole || null,
+          buying_mode: data.buyingMode || null,
+          intent_score: toNullableInt(data.intentScore),
           attachments: Array.isArray(data.attachments) ? data.attachments : [],
           creator_id: 'system',
           creator_name: role,
@@ -421,23 +449,23 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           customer_type: customerType,
           name: data.name,
           phone: data.phone,
-          customer_action: data.customerAction,
-          industry: data.industry,
+          customer_action: normalizeCustomerAction(data.customerAction),
+          industry: data.industry || null,
           status: normalizedStatus,
           assignee: data.assignee,
-          source_type: data.source,
-          source_channel: data.channelPlatform,
+          source_type: normalizeSourceType(data.source),
+          source_channel: normalizeSourceChannel(data.channelPlatform),
           product_category: data.productCategory,
           product_series: data.productSeries,
-          source_status: data.sourceStatus,
-          product_industry: data.productIndustry,
+          source_status: normalizeSourceStatus(data.sourceStatus),
+          product_industry: normalizeProductIndustry(data.productIndustry),
           customer_opportunity: data.customerOpportunity,
           close_time: data.closeTime || null,
           close_reason: data.closeReason,
           inquiry_id: toNullableInt(data.inquiryId),
-          contact_id: data.contactId,
-          buyer_role: data.buyerRole,
-          buying_mode: data.buyingMode,
+          contact_id: data.contactId || null,
+          buyer_role: data.buyerRole || null,
+          buying_mode: data.buyingMode || null,
           intent_score: data.intentScore,
           attachments: Array.isArray(data.attachments) ? data.attachments : [],
           entry_time: data.entryTime || selectedLead.entryTime || today,
@@ -1046,7 +1074,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
             currentUser={currentUser}
             onSave={(taskData) => {
               const newTask: TodoTask = {
-                id: generateBusinessId(ID_PREFIX.TASK, tasks),
+                id: crypto.randomUUID(),
                 ...taskData,
                 status: '待办',
                 importance: '中',

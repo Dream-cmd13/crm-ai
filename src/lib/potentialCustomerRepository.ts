@@ -1,6 +1,5 @@
 import { PotentialCustomer } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
-import { generateBusinessId, ID_PREFIX } from './idUtils';
 
 const TABLE = 'crm_potential_customer';
 const CUSTOMER_TABLE = 'ba_manucustinfo';
@@ -50,7 +49,7 @@ export const searchPotentialCustomersByNameFromSupabase = async (name: string, l
 
 export const createPotentialCustomerInSupabase = async (name: string, id?: string): Promise<PotentialCustomer> => {
   if (!isSupabaseConfigured()) {
-    return { id: id || generateBusinessId(ID_PREFIX.CUSTOMER), name: name || '' };
+    return { id: id || crypto.randomUUID(), name: name || '' };
   }
 
   const cleanName = (name || '').trim();
@@ -58,7 +57,7 @@ export const createPotentialCustomerInSupabase = async (name: string, id?: strin
 
   const supabase = getSupabaseClient();
   const payload = {
-    id: id || generateBusinessId(ID_PREFIX.CUSTOMER),
+    id: id || crypto.randomUUID(),
     name: cleanName,
     updated_at: new Date().toISOString()
   };

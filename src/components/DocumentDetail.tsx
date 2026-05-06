@@ -9,7 +9,7 @@ import QuickTaskModal from './QuickTaskModal';
 import TaskDetailModal from './TaskDetailModal';
 import { initialTasks } from '../data';
 import { cn } from '../lib/utils';
-import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
+
 
 import SelectionModal from './SelectionModal';
 import UniversalSelector from './UniversalSelector';
@@ -215,7 +215,7 @@ export default function DocumentDetail({ onBack, document, documentType, onSave,
         .replace('{{sopName}}', String(flow?.name || 'SOP流程'))
         .replace('{{docNo}}', String(getDocNo() || '单据'));
       const task: TodoTask = {
-        id: generateBusinessId(ID_PREFIX.SOP),
+        id: crypto.randomUUID(),
         title,
         description,
         status: '待办',
@@ -264,7 +264,7 @@ export default function DocumentDetail({ onBack, document, documentType, onSave,
     let updatedDoc = { ...formData };
     if (document.id && JSON.stringify(document) !== JSON.stringify(formData)) {
       const record: ChangeRecord = {
-        id: generateBusinessId(ID_PREFIX.MESSAGE),
+        id: crypto.randomUUID(),
         date: new Date().toISOString(),
         user: '当前用户', // Should be actual user
         action: '修改',
@@ -283,7 +283,7 @@ export default function DocumentDetail({ onBack, document, documentType, onSave,
       changeRecords: [
         ...(formData.changeRecords || []),
         {
-          id: generateBusinessId(ID_PREFIX.MESSAGE),
+          id: crypto.randomUUID(),
           date: new Date().toISOString(),
           user: '当前用户',
           action: isReverse ? '反审核' : '审核',
@@ -354,7 +354,7 @@ export default function DocumentDetail({ onBack, document, documentType, onSave,
     setFormData({
       ...formData,
       items: [...(formData.items || []), {
-        id: generateBusinessId(ID_PREFIX.ITEM),
+        id: crypto.randomUUID(),
         productName: '',
         quantity: 1,
         taxType: '增值税专用发票',
@@ -1136,7 +1136,7 @@ export default function DocumentDetail({ onBack, document, documentType, onSave,
           onClose={() => setIsAddingTask(false)}
           onSave={(taskData) => {
             const newTask: TodoTask = {
-              id: generateBusinessId(ID_PREFIX.TASK),
+              id: crypto.randomUUID(),
               ...taskData,
               status: '待办',
               importance: '中',

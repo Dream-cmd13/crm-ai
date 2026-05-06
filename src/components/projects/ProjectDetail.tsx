@@ -16,7 +16,6 @@ import { ProjectNotes } from './ProjectNotes';
 import { ManageMembersModal } from '../customers/CustomerModals';
 import DetailModal from '../DetailModal';
 import { cn } from '../../lib/utils';
-import { generateBusinessId, ID_PREFIX } from '../../lib/idUtils';
 
 interface ProjectDetailProps {
   selectedProject: Project;
@@ -615,7 +614,7 @@ export const ProjectDetail = ({
           onClose={() => setIsAddingTask(false)}
           onSave={(taskData) => {
             const newTask: TodoTask = {
-              id: generateBusinessId(ID_PREFIX.TASK, tasks),
+              id: crypto.randomUUID(),
               ...taskData,
               status: '待办',
               importance: '中',
