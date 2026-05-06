@@ -208,8 +208,9 @@ export const fetchProductSeriesFromSupabase = async (): Promise<ProductSeries[]>
 export const saveProductSeriesToSupabase = async (series: ProductSeries) => {
   if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
+  const rawId = String(series.id || '').trim();
   const payload = {
-    ...(series.id ? { id: Number(series.id) } : {}),
+    ...(rawId ? { id: rawId } : {}),
     name: series.name || '',
     category_id: series.categoryId || null,
     description: series.description || '',
@@ -218,9 +219,23 @@ export const saveProductSeriesToSupabase = async (series: ProductSeries) => {
     fab_benefits: series.fab?.benefits || '',
     updated_at: new Date().toISOString()
   };
-  const { error } = await supabase.from('crm_product_series').upsert(payload, { onConflict: 'id' });
+  const { data, error } = await supabase
+    .from('crm_product_series')
+    .upsert(payload, { onConflict: 'id' })
+    .select('*')
+    .single();
   if (error) throw error;
-  return { ...series, id: payload.id };
+  return {
+    id: String(data?.id || rawId),
+    name: data?.name || series.name || '',
+    categoryId: data?.category_id ? String(data.category_id) : '',
+    description: data?.description || '',
+    fab: {
+      features: data?.fab_features || '',
+      advantages: data?.fab_advantages || '',
+      benefits: data?.fab_benefits || ''
+    }
+  } as ProductSeries;
 };
 
 export const deleteProductSeriesFromSupabase = async (id: string) => {

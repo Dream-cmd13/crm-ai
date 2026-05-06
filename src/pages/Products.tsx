@@ -4,7 +4,7 @@ import { Plus, Search, Filter, ChevronRight, ChevronDown, Edit2, Trash2, FolderT
 import { ProductCategory, Product, CategoryAttribute, ProductSeries } from '../types';
 import DetailModal from '../components/DetailModal';
 import { cn } from '../lib/utils';
-import { fetchProductCategoriesFromSupabase, fetchProductSeriesFromSupabase, fetchProductModuleDataFromSupabase, saveProductToSupabase, deleteProductFromSupabase } from '../lib/productRepository';
+import { fetchProductCategoriesFromSupabase, fetchProductSeriesFromSupabase, fetchProductsFromSupabase, saveProductToSupabase, deleteProductFromSupabase } from '../lib/productRepository';
 
 interface ProductsProps {
   role?: any;
@@ -91,6 +91,18 @@ export default function Products({ viewParams }: ProductsProps) {
   };
 
   const selectedCategoryIds = getSelectedCategoryIds();
+  const getFlatCategories = (nodes: ProductCategory[]): ProductCategory[] => {
+    const result: ProductCategory[] = [];
+    const walk = (items: ProductCategory[]) => {
+      items.forEach((item) => {
+        result.push(item);
+        if (item.children?.length) walk(item.children);
+      });
+    };
+    walk(nodes);
+    return result;
+  };
+  const flatCategoryOptions = getFlatCategories(categories);
 
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.materialName.toLowerCase().includes(searchTerm.toLowerCase()) || p.materialNo.toLowerCase().includes(searchTerm.toLowerCase());
@@ -118,7 +130,7 @@ export default function Products({ viewParams }: ProductsProps) {
     { key: 'materialNo', label: '物料编号', required: true },
     { key: 'materialName', label: '物料名称', required: true },
     { key: 'specification', label: '物料规格' },
-    { key: 'categoryId', label: '产品类别编号', type: 'select', options: categories.map(c => ({ value: c.id, label: `${c.id} - ${c.name}` })), required: true },
+    { key: 'categoryId', label: '产品类别编号', type: 'select', options: flatCategoryOptions.map(c => ({ value: c.id, label: `${c.id} - ${c.name}` })), required: true },
     { key: 'seriesId', label: '产品系列ID', type: 'select', options: seriesList.map(s => ({ value: s.id, label: `${s.id} - ${s.name}` })) },
     { key: 'basicUnit', label: '基本单位', required: true },
     { key: 'creationOrg', label: '创建组织' },
@@ -172,26 +184,34 @@ export default function Products({ viewParams }: ProductsProps) {
     if (isAdding) {
       try {
         const saved = await saveProductToSupabase(payload);
-        setProducts([saved as Product, ...products]);
+        setProducts((prev) => [saved as Product, ...prev.filter((p) => p.id !== String((saved as Product).id))]);
+        toast.success('产品新增成功');
         setIsAdding(false);
+        await fetchProducts();
+        return true;
       } catch (error) {
         console.error('Error adding product:', error);
-        setProducts([payload, ...products]);
-        setIsAdding(false);
+        toast.error(`新增产品失败：${(error as Error)?.message || '请检查数据和配置后重试'}`);
+        setIsAdding(true);
+        return false;
       }
     } else if (selectedProduct) {
       try {
         const saved = await saveProductToSupabase(payload);
-        setProducts(products.map(p => p.id === saved.id ? saved as Product : p));
+        setProducts((prev) => prev.map(p => p.id === saved.id ? saved as Product : p));
         setSelectedProduct(saved as Product);
+        toast.success('产品更新成功');
         setIsEditing(false);
+        await fetchProducts();
+        return true;
       } catch (error) {
         console.error('Error updating product:', error);
-        setProducts(products.map(p => p.id === payload.id ? payload : p));
-        setSelectedProduct(payload);
-        setIsEditing(false);
+        toast.error(`更新产品失败：${(error as Error)?.message || '请检查数据和配置后重试'}`);
+        setIsEditing(true);
+        return false;
       }
     }
+    return false;
   };
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -206,7 +226,7 @@ export default function Products({ viewParams }: ProductsProps) {
   const handleDeleteProduct = async (productId: string) => {
     try {
       await deleteProductFromSupabase(productId);
-      setProducts(products.filter(p => p.id !== productId));
+      setProducts((prev) => prev.filter(p => p.id !== productId));
       if (selectedProduct?.id === productId) {
         setSelectedProduct(null);
       }

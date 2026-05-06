@@ -47,6 +47,16 @@ export default function ProductCategories() {
     fetchRemote();
   }, []);
 
+  const refreshSeries = async () => {
+    try {
+      const rows = await fetchProductSeriesFromSupabase();
+      setSeriesList(rows || []);
+    } catch (error) {
+      console.error('Error fetching product series:', error);
+      toast.error('刷新产品系列失败');
+    }
+  };
+
   const categoryFields = [
     { key: 'id', label: '类别编号', required: true },
     { key: 'name', label: '类别名称', required: true },
@@ -310,10 +320,12 @@ export default function ProductCategories() {
                           onClick={async (e) => {
                             e.stopPropagation();
                             if (!window.confirm(`确认删除系列 ${s.name}？`)) return;
-                            setSeriesList((prev) => prev.filter((x) => x.id !== s.id));
-                            if (selectedSeriesId === s.id) setSelectedSeriesId('');
                             try {
                               await deleteProductSeriesFromSupabase(s.id);
+                              setSeriesList((prev) => prev.filter((x) => x.id !== s.id));
+                              if (selectedSeriesId === s.id) setSelectedSeriesId('');
+                              toast.success('产品系列删除成功');
+                              await refreshSeries();
                             } catch (error) {
                               console.error(error);
                               toast.error('系列删除失败，请稍后重试');
@@ -380,12 +392,12 @@ export default function ProductCategories() {
             const id = String(draft.id || '').trim();
             if (!id) {
               toast.error('类别编号不能为空');
-              return;
+              return false;
             }
             const name = String(draft.name || '').trim();
             if (!name) {
               toast.error('类别名称不能为空');
-              return;
+              return false;
             }
 
             const flat = flattenTree(categories);
@@ -412,6 +424,7 @@ export default function ProductCategories() {
               console.error('Error saving product category:', error);
               toast.error(`产品类别保存失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
             });
+            return true;
           }}
         />
       )}
@@ -429,11 +442,11 @@ export default function ProductCategories() {
             const name = String(draft.name || '').trim();
             if (!id) {
               toast.error('系列ID不能为空');
-              return;
+              return false;
             }
             if (!name) {
               toast.error('系列名称不能为空');
-              return;
+              return false;
             }
             try {
               const saved = await saveProductSeriesToSupabase({
@@ -445,10 +458,14 @@ export default function ProductCategories() {
                 const exists = prev.some((x) => x.id === saved.id);
                 return exists ? prev.map((x) => (x.id === saved.id ? saved : x)) : [saved, ...prev];
               });
-              setEditingSeries(null);
+              setSelectedSeriesId(saved.id);
+              toast.success('产品系列保存成功');
+              await refreshSeries();
+              return true;
             } catch (error) {
               console.error(error);
               toast.error(`产品系列保存失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
+              return false;
             }
           }}
         />

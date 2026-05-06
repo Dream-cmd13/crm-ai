@@ -12,7 +12,7 @@ interface DetailModalProps {
   onClose: () => void;
   title: string;
   data: any;
-  onSave?: (data: any) => void;
+  onSave?: (data: any) => void | boolean | Promise<void | boolean>;
   fields: { key: string; label: string; type?: string; options?: (string | { value: string; label: string })[]; required?: boolean; hidden?: boolean; customerIdKey?: string; disabled?: boolean; allowPotential?: boolean }[];
   isEditing?: boolean;
   onEdit?: () => void;
@@ -144,12 +144,13 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
     return true;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!onSave) return;
     if (!validateRequiredFields()) return;
     const payload = { ...formData };
-    onSave(payload);
+    const result = await Promise.resolve(onSave(payload));
+    if (result === false) return;
     onClose();
   };
 
