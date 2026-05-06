@@ -38,36 +38,39 @@ export default function CompetitorLibrary() {
   const activeCompetitor = activeId ? competitors.find((x) => x.id === activeId) || null : null;
 
   useEffect(() => {
-    setDetailDraft(activeCompetitor ? JSON.parse(JSON.stringify(activeCompetitor)) : null);
+    if (activeId === 'new') {
+      setDetailDraft({
+        id: 'new',
+        name: '',
+        advantages: '',
+        disadvantages: '',
+        positioning: '',
+        productProfiles: [{ productName: '', benchmarkCategory: '', advantages: '', disadvantages: '' }],
+        creatorId: 'system',
+        creatorNo: 'system',
+        creatorName: 'system',
+        createDate: new Date().toISOString().split('T')[0]
+      });
+      setIsEditing(true);
+    } else {
+      setDetailDraft(activeCompetitor ? JSON.parse(JSON.stringify(activeCompetitor)) : null);
+      setIsEditing(false);
+    }
     setSelectingCategoryForIdx(null);
-    setIsEditing(false);
   }, [activeId, activeCompetitor?.id]);
 
   const handleCreate = () => {
-    const item: Competitor = {
-      id: `COMP${Date.now()}`,
-      name: '新竞品',
-      advantages: '',
-      disadvantages: '',
-      positioning: '',
-      productProfiles: [{ productName: '', benchmarkCategory: '', advantages: '', disadvantages: '' }],
-      creatorId: 'system',
-      creatorNo: 'system',
-      creatorName: 'system',
-      createDate: new Date().toISOString().split('T')[0]
-    };
-    saveAll([item, ...competitors]);
-    setActiveId(item.id);
+    setActiveId('new');
   };
 
-  if (activeId && activeCompetitor && detailDraft) {
+  if (activeId && detailDraft) {
     return (
       <div className="h-full flex flex-col gap-6">
         <div className="flex items-center gap-4">
           <button onClick={() => setActiveId(null)} className="p-2 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-indigo-50 transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h2 className="text-2xl font-bold text-gray-900">{detailDraft.name || '未命名竞品'}</h2>
+          <h2 className="text-2xl font-bold text-gray-900">{detailDraft.name || (activeId === 'new' ? '新增竞品' : '未命名竞品')}</h2>
           <div className="ml-auto flex items-center gap-2">
             {!isEditing ? (
               <button
@@ -79,7 +82,18 @@ export default function CompetitorLibrary() {
             ) : (
               <button
                 onClick={() => {
-                  saveAll(competitors.map((x) => (x.id === detailDraft.id ? detailDraft : x)));
+                  if (activeId === 'new') {
+                    if (!detailDraft.name.trim()) {
+                      toast.error('请输入竞品名称');
+                      return;
+                    }
+                    const realId = `COMP${Date.now()}`;
+                    const newItem = { ...detailDraft, id: realId };
+                    saveAll([newItem, ...competitors]);
+                    setActiveId(realId);
+                  } else {
+                    saveAll(competitors.map((x) => (x.id === detailDraft.id ? detailDraft : x)));
+                  }
                   setIsEditing(false);
                 }}
                 className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-indigo-700"

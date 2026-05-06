@@ -33,8 +33,20 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
   const [showCustomerSelector, setShowCustomerSelector] = useState(false);
   const [showProjectSelector, setShowProjectSelector] = useState(false);
   const [showSeriesSelector, setShowSeriesSelector] = useState(false);
+  const [painPointsStr, setPainPointsStr] = useState('');
+  const [tagsStr, setTagsStr] = useState('');
 
   const industries = ['全部', ...new Set(cases.map(c => c.industry))];
+
+  useEffect(() => {
+    if (editingCase) {
+      setPainPointsStr(editingCase.painPoints?.join(', ') || '');
+      setTagsStr(editingCase.tags?.join(', ') || '');
+    } else {
+      setPainPointsStr('');
+      setTagsStr('');
+    }
+  }, [editingCase?.id, isEditing]);
 
   useEffect(() => {
     saveLocalState('crm.case_library', cases);
@@ -83,26 +95,59 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
   });
 
   const handleSave = async () => {
-    if (!editingCase?.title) return;
-
-    if (editingCase.id) {
-      const merged = { ...cases.find((item) => item.id === editingCase.id), ...editingCase } as CustomerCase;
-      const saved = await saveCaseToSupabase(merged);
-      setCases(prev => prev.map(c => c.id === editingCase.id ? saved : c));
-    } else {
-      const newCase: CustomerCase = {
-        ...editingCase,
-        id: `CASE-${Date.now()}`,
-        createDate: new Date().toISOString().split('T')[0],
-        creatorName: '张三',
-        tags: editingCase.tags || [],
-        painPoints: editingCase.painPoints || [],
-      } as CustomerCase;
-      const saved = await saveCaseToSupabase(newCase);
-      setCases(prev => [saved, ...prev]);
+    if (!editingCase?.title) {
+      toast.error('请输入案例标题');
+      return;
     }
-    setIsEditing(false);
-    setEditingCase(null);
+    if (!editingCase?.customerId) {
+      toast.error('请选择关联客户');
+      return;
+    }
+
+    const finalCase = {
+      ...editingCase,
+      painPoints: painPointsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean),
+      tags: tagsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean)
+    };
+
+    try {
+      if (editingCase.id) {
+        const merged = { ...cases.find((item) => item.id === editingCase.id), ...finalCase } as CustomerCase;
+        const saved = await saveCaseToSupabase(merged);
+        setCases(prev => prev.map(c => c.id === editingCase.id ? saved : c));
+        toast.success('案例更新成功');
+      } else {
+        const newCase: CustomerCase = {
+          ...finalCase,
+          id: `CASE-${Date.now()}`,
+          createDate: new Date().toISOString().split('T')[0],
+          creatorName: '张三',
+        } as CustomerCase;
+        const saved = await saveCaseToSupabase(newCase);
+        setCases(prev => [saved, ...prev]);
+        toast.success('案例创建成功');
+      }
+      setIsEditing(false);
+      setEditingCase(null);
+    } catch (error) {
+      console.error('Save case error:', error);
+      toast.error('保存失败，请稍后重试');
+    }
+  };
+
+  const handleFileUpload = (type: 'images' | 'attachments') => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    // Simulate file upload
+    const newUrls = Array.from(files).map(file => URL.createObjectURL(file));
+    
+    setEditingCase(prev => ({
+      ...prev!,
+      [type]: [...(prev?.[type] || []), ...newUrls]
+    }));
+    
+    toast.success(`${type === 'images' ? '图片' : '附件'}上传成功`);
   };
 
   const handleAiGenerate = async () => {
@@ -514,9 +559,10 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">核心痛点 (逗号分隔)</label>
                   <input 
                     type="text" 
-                    value={editingCase?.painPoints?.join(', ') || ''} 
-                    onChange={e => setEditingCase(prev => ({ ...prev!, painPoints: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
+                    value={painPointsStr} 
+                    onChange={e => setPainPointsStr(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    placeholder="请输入痛点，多个用逗号分隔"
                   />
                 </div>
 
@@ -541,13 +587,47 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
                 <div className="col-span-2">
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">配图与附件</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <button className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:border-indigo-500 hover:text-indigo-500 transition-all">
+                    <input
+                      type="file"
+                      id="case-image-upload"
+                      className="hidden"
+                      accept="image/*"
+                      multiple
+                      onChange={handleFileUpload('images')}
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => document.getElementById('case-image-upload')?.click()}
+                      className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:border-indigo-500 hover:text-indigo-500 transition-all"
+                    >
                       <ImageIcon className="w-5 h-5" />
-                      <span className="text-xs font-medium">上传配图</span>
+                      <div className="flex flex-col items-center">
+                        <span className="text-xs font-medium">上传配图</span>
+                        {editingCase?.images && editingCase.images.length > 0 && (
+                          <span className="text-[10px] text-indigo-500">已上传 {editingCase.images.length} 张</span>
+                        )}
+                      </div>
                     </button>
-                    <button className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:border-indigo-500 hover:text-indigo-500 transition-all">
+
+                    <input
+                      type="file"
+                      id="case-attachment-upload"
+                      className="hidden"
+                      multiple
+                      onChange={handleFileUpload('attachments')}
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => document.getElementById('case-attachment-upload')?.click()}
+                      className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:border-indigo-500 hover:text-indigo-500 transition-all"
+                    >
                       <Paperclip className="w-5 h-5" />
-                      <span className="text-xs font-medium">上传附件</span>
+                      <div className="flex flex-col items-center">
+                        <span className="text-xs font-medium">上传附件</span>
+                        {editingCase?.attachments && editingCase.attachments.length > 0 && (
+                          <span className="text-[10px] text-indigo-500">已上传 {editingCase.attachments.length} 个</span>
+                        )}
+                      </div>
                     </button>
                   </div>
                 </div>
@@ -556,9 +636,10 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">标签 (逗号分隔)</label>
                   <input 
                     type="text" 
-                    value={editingCase?.tags?.join(', ') || ''} 
-                    onChange={e => setEditingCase(prev => ({ ...prev!, tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
+                    value={tagsStr} 
+                    onChange={e => setTagsStr(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    placeholder="请输入标签，多个用逗号分隔"
                   />
                 </div>
               </div>
