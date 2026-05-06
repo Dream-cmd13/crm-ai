@@ -1,15 +1,16 @@
 import React from 'react';
-import { Plus, Edit2 } from 'lucide-react';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { ProcessingNode } from '../../types/ontology';
 
 interface FlowNodesProps {
   nodes: ProcessingNode[];
   onAddNode: () => void;
   onEditNode: (node: ProcessingNode) => void;
+  onDeleteNode?: (node: ProcessingNode) => void;
   readOnly?: boolean;
 }
 
-export const FlowNodes = ({ nodes, onAddNode, onEditNode, readOnly }: FlowNodesProps) => (
+export const FlowNodes = ({ nodes, onAddNode, onEditNode, onDeleteNode, readOnly }: FlowNodesProps) => (
   <div className="space-y-3">
     <h5 className="text-sm font-bold text-gray-700 mb-3">SOP 处理节点 ({nodes.length})</h5>
     {nodes.map((node, index) => (
@@ -38,13 +39,24 @@ export const FlowNodes = ({ nodes, onAddNode, onEditNode, readOnly }: FlowNodesP
                 {node.manualConfig?.isAiAssisted && ' (AI辅助)'}
               </span>
             </div>
-            <button 
-              onClick={() => onEditNode(node)}
-              className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-white rounded transition-colors"
-              title={readOnly ? '查看块配置' : '编辑块配置'}
-            >
-              <Edit2 className="w-3 h-3" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={() => onEditNode(node)}
+                className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-white rounded transition-colors"
+                title={readOnly ? '查看块配置' : '编辑块配置'}
+              >
+                <Edit2 className="w-3 h-3" />
+              </button>
+              {!readOnly && onDeleteNode && (
+                <button
+                  onClick={() => onDeleteNode(node)}
+                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-white rounded transition-colors"
+                  title="删除块"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           </div>
           <p className="text-sm text-gray-600 mb-3">{node.description}</p>
           

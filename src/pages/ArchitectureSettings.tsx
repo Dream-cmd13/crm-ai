@@ -264,6 +264,15 @@ export default function ArchitectureSettings() {
     return false;
   };
 
+  const ensureDraftEditable = () => {
+    if (!ensureDesignMode()) return false;
+    if (flowDesignViewSource !== 'draft') {
+      toast.error('当前是“查看正式”状态，请先切换到“查看草稿”再编辑');
+      return false;
+    }
+    return true;
+  };
+
   const handleViewDraftFlow = async () => {
     if (!isFlowDesignMode) return;
     await refreshActiveObjectFlows('draft');
@@ -391,7 +400,7 @@ export default function ArchitectureSettings() {
   };
 
   const handleAddFlow = () => {
-    if (!ensureDesignMode()) return;
+    if (!ensureDraftEditable()) return;
     setEditingFlowId(null);
     const isCustomerObject = activeObject?.code === 'ba_manucustinfo';
     setNewFlowName(isCustomerObject ? '客户激活流程' : '');
@@ -420,7 +429,7 @@ export default function ArchitectureSettings() {
   };
 
   const handleEditFlowMetadata = (flow: WorkflowFlow) => {
-    if (!ensureDesignMode()) return;
+    if (!ensureDraftEditable()) return;
     setEditingFlowId(flow.id);
     setNewFlowName(flow.name);
     setNewFlowDesc(flow.description);
@@ -453,7 +462,7 @@ export default function ArchitectureSettings() {
   };
 
   const handleSaveFlow = () => {
-    if (!ensureDesignMode()) return;
+    if (!ensureDraftEditable()) return;
     if (!newFlowName) return;
     const effectiveTriggerType = newFlowIsActivation
       ? 'auto'
@@ -473,7 +482,7 @@ export default function ArchitectureSettings() {
         : undefined;
     const unifiedPrompt = String(newFlowOqarReplyPrompt || '').trim() || DEFAULT_SOP_OQAR_UNIFIED_PROMPT;
     if (editingFlowId) {
-      setObjects(objects.map(obj => {
+      setObjects(prev => prev.map(obj => {
         if (obj.id === activeObjectId) {
           return {
             ...obj,
@@ -552,7 +561,7 @@ export default function ArchitectureSettings() {
         nodes: []
       };
 
-      setObjects(objects.map(obj => {
+      setObjects(prev => prev.map(obj => {
         if (obj.id === activeObjectId) {
           return { ...obj, flows: [...(obj.flows || []), newFlow] };
         }
@@ -566,7 +575,7 @@ export default function ArchitectureSettings() {
   };
 
   const handleAddNode = (flowId: string) => {
-    if (!ensureDesignMode()) return;
+    if (!ensureDraftEditable()) return;
     setIsNodeReadOnly(false);
     setActiveFlowId(flowId);
     setEditingNodeId(null);
@@ -623,7 +632,7 @@ export default function ArchitectureSettings() {
   };
 
   const handleEditNode = (flowId: string, node: ProcessingNode) => {
-    setIsNodeReadOnly(!isFlowDesignMode);
+    setIsNodeReadOnly(!(isFlowDesignMode && flowDesignViewSource === 'draft'));
     setActiveFlowId(flowId);
     setEditingNodeId(node.id);
     setNewNodeName(node.name);
@@ -695,8 +704,85 @@ export default function ArchitectureSettings() {
   };
 
   const handleSaveNode = () => {
-    if (!ensureDesignMode()) return;
+    if (!ensureDraftEditable()) return;
     if (!newNodeName || !activeFlowId) return;
+
+    const existingNode =
+      activeObject?.flows
+        ?.find((flow) => flow.id === activeFlowId)
+        ?.nodes?.find((node) => node.id === editingNodeId) || null;
+    const parseJsonSafely = <T,>(raw: string, fallback: T): T => {
+      const text = String(raw || '').trim();
+      if (!text) return fallback;
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        return fallback;
+      }
+    };
+    const manualDiscoveryCanvas = parseJsonSafely<any>(discoveryCanvasJson, { enabled: true, items: [] });
+    const manualOqarAssist = parseJsonSafely<any>(oqarAssistJson, {
+      enabled: true,
+      globalTemplate: '',
+      minClosedQuestions: 1,
+      minOpenQuestions: 1,
+      feedbackTypePrompts: {}
+    });
+    const manualFields = selectedPropertyIds.map((id) => {
+      const prop = (activeObject?.properties || []).find((p) => p.id === id);
+      return {
+        fieldId: id,
+        label: prop?.name || '',
+        type: prop?.type || 'String',
+        updateTarget: prop?.code || ''
+      };
+    });
+    const manualTaskBinding = {
+      customerMode: taskCustomerMode,
+      customerIdField: taskCustomerIdField,
+      customerNameField: taskCustomerNameField,
+      fixedCustomerId: taskFixedCustomerId,
+      fixedCustomerName: taskFixedCustomerName,
+      assigneeMode: taskAssigneeMode,
+      assigneeIdField: taskAssigneeIdField,
+      assigneeNameField: taskAssigneeNameField,
+      fixedAssigneeId: taskFixedAssigneeId,
+      fixedAssigneeName: taskFixedAssigneeName,
+      dueDateMode: taskDueDateMode,
+      dueDateField: taskDueDateField,
+      fixedDueDate: taskFixedDueDate,
+      offsetDays: parseInt(taskOffsetDays, 10) || 0,
+      requireConfirm: taskRequireConfirm,
+      generateTask: taskGenerateTask
+    };
+    const manualConfig = newNodeType === 'manual'
+      ? {
+          ...(existingNode?.manualConfig || {}),
+          isAiAssisted,
+          aiApiEndpoint: undefined,
+          aiApiKey: undefined,
+          aiConfig: isAiAssisted
+            ? {
+                ...(existingNode?.manualConfig?.aiConfig || {}),
+                model: aiNodeApiEndpoint || undefined,
+                apiEndpoint: aiNodeApiEndpoint || undefined,
+                promptTemplate: String(aiPromptTemplate || '').trim(),
+                spinPromptByAction: leadSpinPromptByAction,
+                inputs: aiInputs,
+                goals: aiGoals
+              }
+            : undefined,
+          fields: manualFields,
+          templateId: manualTemplateId,
+          fieldDefaults: newNodeFieldDefaults,
+          personaFieldIds,
+          discoveryCanvas: manualDiscoveryCanvas,
+          oqarAssist: manualOqarAssist,
+          taskBinding: manualTaskBinding,
+          // 与SOP标准展示保持一致：块目标优先使用节点描述
+          stageOutput: String(newNodeDesc || '').trim() || existingNode?.manualConfig?.stageOutput || ''
+        }
+      : undefined;
 
     const nodeData: ProcessingNode = {
       id: editingNodeId || `pn${Date.now()}`,
@@ -711,14 +797,7 @@ export default function ArchitectureSettings() {
         actions: autoActions,
         promptTemplate: autoPromptTemplate
       } : undefined,
-      manualConfig: newNodeType === 'manual' ? {
-        // SOP块极简模式：仅保留目标(节点描述)与块提示词
-        isAiAssisted: true,
-        aiConfig: {
-          promptTemplate: String(aiPromptTemplate || '').trim()
-        },
-        fields: []
-      } : undefined,
+      manualConfig,
       pushDownConfig: newNodeType === 'push_down' ? {
         targetOntologyCode: pushDownTarget,
         mapping: pushDownMapping.split(',').map(m => {
@@ -736,7 +815,7 @@ export default function ArchitectureSettings() {
       condition: newNodeType === 'condition' ? newNodeCondition : undefined
     };
 
-    setObjects(objects.map(obj => {
+    setObjects(prev => prev.map(obj => {
       if (obj.id === activeObjectId) {
         return {
           ...obj,
@@ -783,7 +862,7 @@ export default function ArchitectureSettings() {
       actionMessage: newRuleActionMessage
     };
 
-    setObjects(objects.map(obj => {
+    setObjects(prev => prev.map(obj => {
       if (obj.id === activeObjectId) {
         return { ...obj, rules: [...(obj.rules || []), newRule] };
       }
@@ -804,7 +883,7 @@ export default function ArchitectureSettings() {
   };
 
   const handleSaveProperty = (prop: Property) => {
-    setObjects(objects.map(obj => {
+    setObjects(prev => prev.map(obj => {
       if (obj.id === activeObjectId) {
         const existingPropIndex = obj.properties.findIndex(p => p.id === prop.id);
         if (existingPropIndex > -1) {
@@ -822,12 +901,43 @@ export default function ArchitectureSettings() {
   };
 
   const handleDeleteProperty = (propId: string) => {
-    setObjects(objects.map(obj => {
+    setObjects(prev => prev.map(obj => {
       if (obj.id === activeObjectId) {
         return { ...obj, properties: obj.properties.filter(p => p.id !== propId) };
       }
       return obj;
     }));
+  };
+
+  const handleDeleteFlow = (flowId: string) => {
+    if (!ensureDraftEditable()) return;
+    const confirmed = window.confirm('确认删除该 SOP 模板？此操作会同步到草稿。');
+    if (!confirmed) return;
+    setObjects((prev) =>
+      prev.map((obj) => {
+        if (obj.id !== activeObjectId) return obj;
+        return { ...obj, flows: (obj.flows || []).filter((flow) => flow.id !== flowId) };
+      })
+    );
+    if (designFlowId === flowId) setDesignFlowId(null);
+  };
+
+  const handleDeleteNode = (flowId: string, nodeId: string) => {
+    if (!ensureDraftEditable()) return;
+    const confirmed = window.confirm('确认删除该 SOP 处理块？');
+    if (!confirmed) return;
+    setObjects((prev) =>
+      prev.map((obj) => {
+        if (obj.id !== activeObjectId) return obj;
+        return {
+          ...obj,
+          flows: (obj.flows || []).map((flow) => {
+            if (flow.id !== flowId) return flow;
+            return { ...flow, nodes: (flow.nodes || []).filter((n) => n.id !== nodeId) };
+          })
+        };
+      })
+    );
   };
 
   const handleEditObjectBasic = () => {
@@ -836,8 +946,8 @@ export default function ArchitectureSettings() {
     if (!name) return;
     const description = window.prompt('请输入对象描述', current.description || '') ?? current.description;
     const systemLink = window.prompt('请输入系统关联', current.systemLink || '') ?? current.systemLink;
-    setObjects(
-      objects.map((obj) =>
+    setObjects((prev) =>
+      prev.map((obj) =>
         obj.id === activeObjectId
           ? { ...obj, name: name.trim(), description: description || '', systemLink: systemLink || '' }
           : obj
@@ -896,6 +1006,8 @@ export default function ArchitectureSettings() {
           handleEditFlowMetadata={handleEditFlowMetadata}
           handleAddNode={handleAddNode}
           handleEditNode={handleEditNode}
+          handleDeleteNode={handleDeleteNode}
+          handleDeleteFlow={handleDeleteFlow}
           handleAddProperty={handleAddProperty}
           handleEditProperty={handleEditProperty}
           handleDeleteProperty={handleDeleteProperty}

@@ -1673,6 +1673,151 @@ create table if not exists public.crm_ontology_flow_publish_history (
   created_at timestamptz not null default now()
 );
 
+drop function if exists public.crm_prepare_flow_draft(text);
+create or replace function public.crm_prepare_flow_draft(p_object_code text)
+returns void
+language plpgsql
+as $$
+declare
+  v_object_code text;
+begin
+  v_object_code := btrim(coalesce(p_object_code, ''));
+  if v_object_code = '' then
+    raise exception 'p_object_code is required';
+  end if;
+
+  delete from public.crm_ontology_node_draft
+   where flow_id in (select id from public.crm_ontology_flow_draft where object_code = v_object_code);
+  delete from public.crm_ontology_flow_draft where object_code = v_object_code;
+
+  insert into public.crm_ontology_flow_draft (id, object_code, name, description, trigger_type, trigger_condition, trigger_frequency)
+  select id, object_code, name, description, trigger_type, trigger_condition, trigger_frequency
+    from public.crm_ontology_flow
+   where object_code = v_object_code;
+
+  insert into public.crm_ontology_node_draft (id, flow_id, name, description, type, config_json)
+  select n.id, n.flow_id, n.name, n.description, n.type, coalesce(n.config_json, '{}'::jsonb)
+    from public.crm_ontology_node n
+    join public.crm_ontology_flow f on f.id = n.flow_id
+   where f.object_code = v_object_code;
+end;
+$$;
+
+drop function if exists public.crm_discard_flow_draft(text);
+create or replace function public.crm_discard_flow_draft(p_object_code text)
+returns void
+language plpgsql
+as $$
+declare
+  v_object_code text;
+begin
+  v_object_code := btrim(coalesce(p_object_code, ''));
+  if v_object_code = '' then
+    raise exception 'p_object_code is required';
+  end if;
+  delete from public.crm_ontology_node_draft
+   where flow_id in (select id from public.crm_ontology_flow_draft where object_code = v_object_code);
+  delete from public.crm_ontology_flow_draft where object_code = v_object_code;
+end;
+$$;
+
+drop function if exists public.crm_publish_flow_draft(text);
+create or replace function public.crm_publish_flow_draft(p_object_code text)
+returns void
+language plpgsql
+as $$
+declare
+  v_object_code text;
+begin
+  v_object_code := btrim(coalesce(p_object_code, ''));
+  if v_object_code = '' then
+    raise exception 'p_object_code is required';
+  end if;
+
+  insert into public.crm_ontology_flow_publish_history(object_code, snapshot_json)
+  values (
+    v_object_code,
+    jsonb_build_object(
+      'flows', coalesce((select jsonb_agg(to_jsonb(f)) from public.crm_ontology_flow f where f.object_code = v_object_code), '[]'::jsonb),
+      'nodes', coalesce((
+        select jsonb_agg(to_jsonb(n))
+          from public.crm_ontology_node n
+          join public.crm_ontology_flow f on f.id = n.flow_id
+         where f.object_code = v_object_code
+      ), '[]'::jsonb),
+      'created_at', now()
+    )
+  );
+
+  delete from public.crm_ontology_node
+   where flow_id in (select id from public.crm_ontology_flow where object_code = v_object_code);
+  delete from public.crm_ontology_flow where object_code = v_object_code;
+
+  insert into public.crm_ontology_flow (id, object_code, name, description, trigger_type, trigger_condition, trigger_frequency)
+  select id, object_code, name, description, trigger_type, trigger_condition, trigger_frequency
+    from public.crm_ontology_flow_draft
+   where object_code = v_object_code;
+
+  insert into public.crm_ontology_node (id, flow_id, name, description, type, config_json)
+  select n.id, n.flow_id, n.name, n.description, n.type, coalesce(n.config_json, '{}'::jsonb)
+    from public.crm_ontology_node_draft n
+    join public.crm_ontology_flow_draft f on f.id = n.flow_id
+   where f.object_code = v_object_code;
+end;
+$$;
+
+drop function if exists public.crm_rollback_flow_published(text);
+create or replace function public.crm_rollback_flow_published(p_object_code text)
+returns void
+language plpgsql
+as $$
+declare
+  v_object_code text;
+  v_snapshot jsonb;
+begin
+  v_object_code := btrim(coalesce(p_object_code, ''));
+  if v_object_code = '' then
+    raise exception 'p_object_code is required';
+  end if;
+
+  select snapshot_json
+    into v_snapshot
+    from public.crm_ontology_flow_publish_history
+   where object_code = v_object_code
+   order by created_at desc
+   limit 1;
+
+  if v_snapshot is null then
+    return;
+  end if;
+
+  delete from public.crm_ontology_node
+   where flow_id in (select id from public.crm_ontology_flow where object_code = v_object_code);
+  delete from public.crm_ontology_flow where object_code = v_object_code;
+
+  insert into public.crm_ontology_flow (id, object_code, name, description, trigger_type, trigger_condition, trigger_frequency)
+  select
+    (f->>'id')::text,
+    (f->>'object_code')::text,
+    (f->>'name')::text,
+    (f->>'description')::text,
+    (f->>'trigger_type')::text,
+    (f->>'trigger_condition')::text,
+    (f->>'trigger_frequency')::text
+  from jsonb_array_elements(coalesce(v_snapshot->'flows', '[]'::jsonb)) as f;
+
+  insert into public.crm_ontology_node (id, flow_id, name, description, type, config_json)
+  select
+    (n->>'id')::text,
+    (n->>'flow_id')::text,
+    (n->>'name')::text,
+    (n->>'description')::text,
+    (n->>'type')::text,
+    coalesce(n->'config_json', '{}'::jsonb)
+  from jsonb_array_elements(coalesce(v_snapshot->'nodes', '[]'::jsonb)) as n;
+end;
+$$;
+
 create table if not exists public.crm_system_config (
   id text primary key,
   name text,

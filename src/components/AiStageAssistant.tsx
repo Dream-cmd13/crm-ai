@@ -713,9 +713,9 @@ export default function AiStageAssistant({
   const buildCardsFromFlow = (flow: any): StageItem[] => {
     const cards: StageItem[] = [];
     (flow?.nodes || [])
-      .filter((node: any) => node?.type === 'manual')
       .forEach((node: any) => {
         const manual = node?.manualConfig || {};
+        const automatic = node?.automaticConfig || {};
         const canvasItems = Array.isArray(manual?.discoveryCanvas?.items) ? manual.discoveryCanvas.items : [];
         const goals = Array.isArray(manual?.aiConfig?.goals) ? manual.aiConfig.goals : [];
         const goalText =
@@ -723,7 +723,9 @@ export default function AiStageAssistant({
           String(node?.description || '').trim() ||
           String(node?.name || 'SOP标准').trim();
         const approachParts: string[] = [];
-        const blockPrompt = String(manual?.aiConfig?.promptTemplate || '').trim();
+        const blockPrompt =
+          String(manual?.aiConfig?.promptTemplate || '').trim() ||
+          String(automatic?.promptTemplate || '').trim();
         if (blockPrompt) approachParts.push(blockPrompt);
         goals.forEach((goal: any) => {
           const goalPrompt = String(goal?.prompt || '').trim();

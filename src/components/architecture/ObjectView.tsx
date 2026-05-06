@@ -17,6 +17,8 @@ interface ObjectViewProps {
   handleEditFlowMetadata: (flow: WorkflowFlow) => void;
   handleAddNode: (flowId: string) => void;
   handleEditNode: (flowId: string, node: ProcessingNode) => void;
+  handleDeleteNode: (flowId: string, nodeId: string) => void;
+  handleDeleteFlow: (flowId: string) => void;
   handleAddProperty: () => void;
   handleEditProperty: (prop: Property) => void;
   handleDeleteProperty: (propId: string) => void;
@@ -34,7 +36,7 @@ interface ObjectViewProps {
 
 export const ObjectView = ({
   objects, activeObjectId, setActiveObjectId, activeObject,
-  activeTab, setActiveTab, handleAddFlow, handleEditFlowMetadata, handleAddNode, handleEditNode,
+  activeTab, setActiveTab, handleAddFlow, handleEditFlowMetadata, handleAddNode, handleEditNode, handleDeleteNode, handleDeleteFlow,
   handleAddProperty, handleEditProperty, handleDeleteProperty,
   handleEditObjectBasic,
   isFlowDesignMode,
@@ -52,6 +54,7 @@ export const ObjectView = ({
   const flowList = activeObject.flows || [];
   const activeFlow = flowList.find((f) => f.id === activeFlowId) || flowList[0] || null;
   const flowInDesign = Boolean(isFlowDesignMode);
+  const canEditFlow = flowInDesign && flowDesignViewSource === 'draft';
 
   React.useEffect(() => {
     if (!flowList.length) {
@@ -401,8 +404,8 @@ export const ObjectView = ({
                           <div className="flex gap-2">
                             <button 
                               onClick={() => {
-                                if (!isFlowDesignMode) {
-                                  toast('当前为查看模式，可点击“开启设计”后编辑SOP模板');
+                                if (!canEditFlow) {
+                                  toast('请切到“查看草稿”后再编辑SOP模板');
                                   return;
                                 }
                                 handleEditFlowMetadata(activeFlow);
@@ -411,7 +414,20 @@ export const ObjectView = ({
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
-                            <button className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" disabled={!flowInDesign}><Trash2 className="w-4 h-4" /></button>
+                            <button
+                              onClick={() => {
+                                if (!canEditFlow) {
+                                  toast('请切到“查看草稿”后再删除SOP模板');
+                                  return;
+                                }
+                                handleDeleteFlow(activeFlow.id);
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              disabled={!canEditFlow}
+                              title={canEditFlow ? '删除SOP模板' : '切换到草稿后可删除'}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
                         <div className="p-4 space-y-4">
@@ -419,7 +435,8 @@ export const ObjectView = ({
                             nodes={activeFlow.nodes || []}
                             onAddNode={() => handleAddNode(activeFlow.id)}
                             onEditNode={(node) => handleEditNode(activeFlow.id, node)}
-                            readOnly={!isFlowDesignMode}
+                            onDeleteNode={(node) => handleDeleteNode(activeFlow.id, node.id)}
+                            readOnly={!canEditFlow}
                           />
                         </div>
                       </div>

@@ -143,16 +143,18 @@ const resolveTaskAssignee = (
 
 const buildSopBlocks = (nodes: any[]) => {
   return (nodes || [])
-    .filter((node) => node?.type === 'manual')
     .map((node, idx) => {
       const manual = node?.manualConfig || {};
+      const automatic = node?.automaticConfig || {};
       return {
         id: String(node?.id || `node_${idx + 1}`),
         name: String(node?.name || `块${idx + 1}`),
         goal:
           String(manual?.stageOutput || manual?.output || '').trim() ||
           String(node?.description || node?.name || '').trim(),
-        blockPrompt: String(manual?.aiConfig?.promptTemplate || '').trim(),
+        blockPrompt:
+          String(manual?.aiConfig?.promptTemplate || '').trim() ||
+          String(automatic?.promptTemplate || '').trim(),
         taskCanvas: [],
         oqarAssist: null
       };

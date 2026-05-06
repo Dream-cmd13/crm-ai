@@ -680,32 +680,229 @@ export const fetchFlowsForObjectFromSupabase = async (
   return flows;
 };
 
+const isRpcMissingError = (error: any, functionName: string) => {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '');
+  return code === 'PGRST202' && message.includes(functionName);
+};
+
+const clearDraftForObject = async (canonical: string) => {
+  const supabase = getSupabaseClient();
+  const { data: draftFlows, error: draftFlowError } = await supabase
+    .from('crm_ontology_flow_draft')
+    .select('id')
+    .eq('object_code', canonical);
+  if (draftFlowError) throw draftFlowError;
+  const draftFlowIds = (draftFlows || []).map((f: any) => String(f.id));
+  if (draftFlowIds.length > 0) {
+    const { error: delDraftNodeError } = await supabase
+      .from('crm_ontology_node_draft')
+      .delete()
+      .in('flow_id', draftFlowIds);
+    if (delDraftNodeError) throw delDraftNodeError;
+  }
+  const { error: delDraftFlowError } = await supabase
+    .from('crm_ontology_flow_draft')
+    .delete()
+    .eq('object_code', canonical);
+  if (delDraftFlowError) throw delDraftFlowError;
+};
+
+const fallbackPrepareFlowDraftForObject = async (canonical: string) => {
+  const supabase = getSupabaseClient();
+  await clearDraftForObject(canonical);
+  const { data: publishedFlows, error: publishedFlowError } = await supabase
+    .from('crm_ontology_flow')
+    .select('*')
+    .eq('object_code', canonical);
+  if (publishedFlowError) throw publishedFlowError;
+  const flowRows = (publishedFlows || []).map((f: any) => ({
+    id: f.id,
+    object_code: f.object_code,
+    name: f.name,
+    description: f.description,
+    trigger_type: f.trigger_type,
+    trigger_condition: f.trigger_condition,
+    trigger_frequency: f.trigger_frequency
+  }));
+  if (flowRows.length > 0) {
+    const { error: insertDraftFlowError } = await supabase
+      .from('crm_ontology_flow_draft')
+      .upsert(flowRows, { onConflict: 'id' });
+    if (insertDraftFlowError) throw insertDraftFlowError;
+  }
+  const flowIds = flowRows.map((f) => String(f.id));
+  if (flowIds.length === 0) return;
+  const { data: publishedNodes, error: publishedNodeError } = await supabase
+    .from('crm_ontology_node')
+    .select('*')
+    .in('flow_id', flowIds);
+  if (publishedNodeError) throw publishedNodeError;
+  const nodeRows = (publishedNodes || []).map((n: any) => ({
+    id: n.id,
+    flow_id: n.flow_id,
+    name: n.name,
+    description: n.description,
+    type: n.type,
+    config_json: n.config_json || {}
+  }));
+  if (nodeRows.length > 0) {
+    const { error: insertDraftNodeError } = await supabase
+      .from('crm_ontology_node_draft')
+      .upsert(nodeRows, { onConflict: 'id' });
+    if (insertDraftNodeError) throw insertDraftNodeError;
+  }
+};
+
+const fallbackPublishFlowDraftForObject = async (canonical: string) => {
+  const supabase = getSupabaseClient();
+  const { data: existingFlows, error: existingFlowError } = await supabase
+    .from('crm_ontology_flow')
+    .select('*')
+    .eq('object_code', canonical);
+  if (existingFlowError) throw existingFlowError;
+  const existingFlowIds = (existingFlows || []).map((f: any) => String(f.id));
+  let existingNodes: any[] = [];
+  if (existingFlowIds.length > 0) {
+    const { data, error } = await supabase.from('crm_ontology_node').select('*').in('flow_id', existingFlowIds);
+    if (error) throw error;
+    existingNodes = data || [];
+  }
+  const snapshot = {
+    flows: existingFlows || [],
+    nodes: existingNodes || [],
+    created_at: new Date().toISOString()
+  };
+  const { error: historyError } = await supabase.from('crm_ontology_flow_publish_history').insert({
+    object_code: canonical,
+    snapshot_json: snapshot
+  });
+  if (historyError) throw historyError;
+
+  const { data: draftFlows, error: draftFlowError } = await supabase
+    .from('crm_ontology_flow_draft')
+    .select('*')
+    .eq('object_code', canonical);
+  if (draftFlowError) throw draftFlowError;
+  const draftFlowRows = (draftFlows || []).map((f: any) => ({
+    id: f.id,
+    object_code: f.object_code,
+    name: f.name,
+    description: f.description,
+    trigger_type: f.trigger_type,
+    trigger_condition: f.trigger_condition,
+    trigger_frequency: f.trigger_frequency
+  }));
+  if (existingFlowIds.length > 0) {
+    const { error: delNodeError } = await supabase.from('crm_ontology_node').delete().in('flow_id', existingFlowIds);
+    if (delNodeError) throw delNodeError;
+  }
+  const { error: delFlowError } = await supabase.from('crm_ontology_flow').delete().eq('object_code', canonical);
+  if (delFlowError) throw delFlowError;
+  if (draftFlowRows.length > 0) {
+    const { error: insertFlowError } = await supabase.from('crm_ontology_flow').upsert(draftFlowRows, { onConflict: 'id' });
+    if (insertFlowError) throw insertFlowError;
+    const draftFlowIds = draftFlowRows.map((f) => String(f.id));
+    const { data: draftNodes, error: draftNodeError } = await supabase
+      .from('crm_ontology_node_draft')
+      .select('*')
+      .in('flow_id', draftFlowIds);
+    if (draftNodeError) throw draftNodeError;
+    const nodeRows = (draftNodes || []).map((n: any) => ({
+      id: n.id,
+      flow_id: n.flow_id,
+      name: n.name,
+      description: n.description,
+      type: n.type,
+      config_json: n.config_json || {}
+    }));
+    if (nodeRows.length > 0) {
+      const { error: insertNodeError } = await supabase.from('crm_ontology_node').upsert(nodeRows, { onConflict: 'id' });
+      if (insertNodeError) throw insertNodeError;
+    }
+  }
+};
+
+const fallbackRollbackFlowPublishedForObject = async (canonical: string) => {
+  const supabase = getSupabaseClient();
+  const { data: historyRows, error: historyError } = await supabase
+    .from('crm_ontology_flow_publish_history')
+    .select('*')
+    .eq('object_code', canonical)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (historyError) throw historyError;
+  const latest = historyRows?.[0];
+  if (!latest?.snapshot_json) return;
+  const snapshot = latest.snapshot_json as any;
+  const flows = Array.isArray(snapshot?.flows) ? snapshot.flows : [];
+  const nodes = Array.isArray(snapshot?.nodes) ? snapshot.nodes : [];
+  const currentFlowIds = (await supabase.from('crm_ontology_flow').select('id').eq('object_code', canonical)).data?.map((f: any) => String(f.id)) || [];
+  if (currentFlowIds.length > 0) {
+    const { error: delNodeError } = await supabase.from('crm_ontology_node').delete().in('flow_id', currentFlowIds);
+    if (delNodeError) throw delNodeError;
+  }
+  const { error: delFlowError } = await supabase.from('crm_ontology_flow').delete().eq('object_code', canonical);
+  if (delFlowError) throw delFlowError;
+  if (flows.length > 0) {
+    const { error: insertFlowError } = await supabase.from('crm_ontology_flow').upsert(flows, { onConflict: 'id' });
+    if (insertFlowError) throw insertFlowError;
+  }
+  if (nodes.length > 0) {
+    const { error: insertNodeError } = await supabase.from('crm_ontology_node').upsert(nodes, { onConflict: 'id' });
+    if (insertNodeError) throw insertNodeError;
+  }
+};
+
 export const prepareFlowDraftForObject = async (objectCode: string) => {
   if (!isSupabaseConfigured()) return;
   const canonical = canonicalizeOntologyCode(objectCode);
   await ensurePresetPublishedFlowsForObject(canonical);
   const supabase = getSupabaseClient();
   const { error } = await supabase.rpc('crm_prepare_flow_draft', { p_object_code: canonical });
-  if (error) throw error;
+  if (!error) return;
+  if (isRpcMissingError(error, 'crm_prepare_flow_draft')) {
+    await fallbackPrepareFlowDraftForObject(canonical);
+    return;
+  }
+  throw error;
 };
 
 export const discardFlowDraftForObject = async (objectCode: string) => {
   if (!isSupabaseConfigured()) return;
   const supabase = getSupabaseClient();
-  const { error } = await supabase.rpc('crm_discard_flow_draft', { p_object_code: canonicalizeOntologyCode(objectCode) });
-  if (error) throw error;
+  const canonical = canonicalizeOntologyCode(objectCode);
+  const { error } = await supabase.rpc('crm_discard_flow_draft', { p_object_code: canonical });
+  if (!error) return;
+  if (isRpcMissingError(error, 'crm_discard_flow_draft')) {
+    await clearDraftForObject(canonical);
+    return;
+  }
+  throw error;
 };
 
 export const publishFlowDraftForObject = async (objectCode: string) => {
   if (!isSupabaseConfigured()) return;
   const supabase = getSupabaseClient();
-  const { error } = await supabase.rpc('crm_publish_flow_draft', { p_object_code: canonicalizeOntologyCode(objectCode) });
-  if (error) throw error;
+  const canonical = canonicalizeOntologyCode(objectCode);
+  const { error } = await supabase.rpc('crm_publish_flow_draft', { p_object_code: canonical });
+  if (!error) return;
+  if (isRpcMissingError(error, 'crm_publish_flow_draft')) {
+    await fallbackPublishFlowDraftForObject(canonical);
+    return;
+  }
+  throw error;
 };
 
 export const rollbackFlowPublishedForObject = async (objectCode: string) => {
   if (!isSupabaseConfigured()) return;
   const supabase = getSupabaseClient();
-  const { error } = await supabase.rpc('crm_rollback_flow_published', { p_object_code: canonicalizeOntologyCode(objectCode) });
-  if (error) throw error;
+  const canonical = canonicalizeOntologyCode(objectCode);
+  const { error } = await supabase.rpc('crm_rollback_flow_published', { p_object_code: canonical });
+  if (!error) return;
+  if (isRpcMissingError(error, 'crm_rollback_flow_published')) {
+    await fallbackRollbackFlowPublishedForObject(canonical);
+    return;
+  }
+  throw error;
 };
