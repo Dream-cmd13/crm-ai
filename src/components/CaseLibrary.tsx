@@ -9,6 +9,7 @@ import { fetchCustomersModuleDataFromSupabase } from '../lib/customerRepository'
 import { fetchProjectsFromSupabase } from '../lib/projectRepository';
 import { fetchProductSeriesFromSupabase } from '../lib/productRepository';
 import UniversalSelector from './UniversalSelector';
+import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 
 interface CaseLibraryProps {
   onSelect?: (caseItem: CustomerCase) => void;
@@ -119,7 +120,7 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
       } else {
         const newCase: CustomerCase = {
           ...finalCase,
-          id: `CASE-${Date.now()}`,
+          id: generateBusinessId(ID_PREFIX.CASE, cases),
           createDate: new Date().toISOString().split('T')[0],
           creatorName: '张三',
         } as CustomerCase;

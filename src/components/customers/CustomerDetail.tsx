@@ -10,6 +10,7 @@ import CustomerPersonaPanel from '../CustomerPersonaPanel';
 import SwotMatrixPanel from '../SwotMatrixPanel';
 import StakeholderMapPanel from '../stakeholder/StakeholderMapPanel';
 import { loadLocalState, saveLocalState } from '../../lib/localState';
+import { generateBusinessId, ID_PREFIX } from '../../lib/idUtils';
 import { toast } from 'react-hot-toast';
 import { callAiProxy } from '../../lib/aiProxy';
 import { fetchPersonaAiConfig } from '../../lib/personaAiConfigRepository';
@@ -157,7 +158,7 @@ export const CustomerDetail = ({
     const isMerged = stageTitles.length > 1;
     const stageLabel = stageTitles.join('、');
     const task: TodoTask = {
-      id: `T${Date.now()}`,
+      id: generateBusinessId(ID_PREFIX.TASK, customerTasks),
       title: stageTitles.length > 0 ? `${isMerged ? '合并阶段拜访任务' : '阶段拜访任务'}：${stageLabel}` : `拜访任务：${selectedCustomer.name}`,
       description: stageTitles.length > 0 ? `基于客户阶次拜访框架阶段【${stageLabel}】生成` : '不对应阶段的拜访任务',
       dueDate: new Date().toISOString().slice(0, 10),

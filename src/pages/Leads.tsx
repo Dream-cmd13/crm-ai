@@ -23,6 +23,7 @@ import { fetchArchitectureDataFromSupabase } from '../lib/architectureRepository
 import { pushLeadToOpportunityInSupabase, deleteLeadFromSupabase } from '../lib/pushdown';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
+import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 
 const LEAD_STATUS_OPTIONS = ['未跟进', '跟进中', '关闭', '转商机'];
 const LEAD_CUSTOMER_ACTION_OPTIONS = ['寻替代料', '寻替代品', '找货寻料', '指定料号', '指定物料'];
@@ -252,6 +253,23 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
             }
           })();
         }
+      } else if (viewParams.action === 'open_existing' && viewParams.id) {
+        (async () => {
+          try {
+            const supabase = getSupabaseClient();
+            const leadId = toNullableInt(viewParams.id);
+            if (leadId === null) return;
+            const { data, error } = await supabase.from('crm_lead').select('*').eq('id', leadId).limit(1);
+            if (error) throw error;
+            const row = data?.[0];
+            if (!row) return;
+            const fetched = mapDbLeadToUi(row);
+            setLeads((prev) => [fetched, ...prev.filter((l) => l.id !== fetched.id)]);
+            setSelectedLead(fetched);
+          } catch (error) {
+            console.error('Error opening lead by id:', error);
+          }
+        })();
       } else if (viewParams.action === 'new_from_inquiry') {
         (async () => {
           let sourceInquiry: any = null;
@@ -270,8 +288,8 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
             }
           }
           const newLead: Lead = {
-            id: `L${new Date().getFullYear()}${String(leads.length + 1).padStart(3, '0')}`,
-            leadNo: sourceInquiry?.lead_no || '',
+            id: generateBusinessId(ID_PREFIX.LEAD, leads),
+            leadNo: sourceInquiry?.lead_no || generateBusinessId(ID_PREFIX.LEAD, leads),
             inquiryId: String(viewParams.sourceId || ''),
             customerName: sourceInquiry?.company_name || '待定',
             name: sourceInquiry?.customer_name || '',
@@ -336,6 +354,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
         const customerIdForDb = toNullableInt(customerId);
         const customerType: '新客户' | '老客户' = customerIdForDb !== null ? '老客户' : '新客户';
         const dbData = {
+          lead_no: data.leadNo || generateBusinessId(ID_PREFIX.LEAD, leads),
           customer_name: data.customerName,
           customer_id: customerIdForDb,
           customer_type: customerType,
@@ -396,6 +415,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
         const customerType: '新客户' | '老客户' = customerIdForDb !== null ? '老客户' : '新客户';
         const selectedLeadDbId = toNullableInt(selectedLead.id);
         const dbData = {
+          lead_no: data.leadNo || selectedLead.leadNo || null,
           customer_name: data.customerName,
           customer_id: customerIdForDb,
           customer_type: customerType,
@@ -457,8 +477,11 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
 
   const [isConvertingToOpportunity, setIsConvertingToOpportunity] = useState(false);
   const [conversionOpportunityData, setConversionOpportunityData] = useState<any>(null);
+  const [conversionLead, setConversionLead] = useState<Lead | null>(null);
 
   const handleConvertToOpportunity = (lead: Lead) => {
+    setConversionLead(lead);
+    setSelectedLead(lead);
     setConversionOpportunityData({
       customerName: lead.customerName,
       name: `商机-${lead.customerName}`,
@@ -473,14 +496,19 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
   };
 
   const confirmConvertToOpportunity = async (data: any) => {
-    if (!selectedLead) return;
+    const sourceLead = conversionLead || selectedLead;
+    if (!sourceLead) {
+      toast.error('未找到待转换线索，请重试');
+      return;
+    }
     try {
-      const oppId = await pushLeadToOpportunityInSupabase(selectedLead, data);
-      const updatedLead = { ...selectedLead, status: '转商机' as const };
+      const oppId = await pushLeadToOpportunityInSupabase(sourceLead, data);
+      const updatedLead = { ...sourceLead, status: '转商机' as const };
       setLeads(leads.map(l => l.id === updatedLead.id ? updatedLead : l));
       setSelectedLead(updatedLead);
       setIsConvertingToOpportunity(false);
-      navigateTo?.('opportunities', oppId);
+      setConversionLead(null);
+      navigateTo?.('opportunities', { action: 'open_existing', id: String(oppId), refreshTs: Date.now() });
     } catch (error) {
       console.error('Error converting lead to opportunity:', error);
       toast.error(`线索转商机失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
@@ -1000,7 +1028,10 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
 
         <DetailModal
           isOpen={isConvertingToOpportunity}
-          onClose={() => setIsConvertingToOpportunity(false)}
+          onClose={() => {
+            setIsConvertingToOpportunity(false);
+            setConversionLead(null);
+          }}
           title="线索转商机 - 补充资料"
           data={conversionOpportunityData}
           onSave={confirmConvertToOpportunity}
@@ -1015,7 +1046,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
             currentUser={currentUser}
             onSave={(taskData) => {
               const newTask: TodoTask = {
-                id: `T${Date.now()}`,
+                id: generateBusinessId(ID_PREFIX.TASK, tasks),
                 ...taskData,
                 status: '待办',
                 importance: '中',
@@ -1270,7 +1301,10 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                     <td className="px-6 py-4 sticky right-0 bg-white z-10">
                       {lead.status !== '转商机' && lead.status !== '关闭' && (
                         <button 
-                          onClick={() => handleConvertToOpportunity(lead)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleConvertToOpportunity(lead);
+                          }}
                           className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium mb-2"
                         >
                           <Target className="w-4 h-4" />

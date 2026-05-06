@@ -1,5 +1,6 @@
 import { CommunicationDetail, Customer, CustomerPersona, TodoTask } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
+import { generateBusinessId, ID_PREFIX } from './idUtils';
 
 const visitFallback: TodoTask[] = [];
 
@@ -167,7 +168,7 @@ const mapUiCustomerToDb = (customer: Customer) => {
 };
 
 const mapUiPersonaToDb = (persona: CustomerPersona) => ({
-  id: persona.id || `PER${Date.now()}`,
+  id: persona.id || generateBusinessId(ID_PREFIX.PERSONA),
   customer_id: persona.customerId,
   scale: persona.scale || '',
   main_products: persona.mainProducts || '',
@@ -296,7 +297,7 @@ export const saveCustomerCommunicationToSupabase = async (
   const supabase = getSupabaseClient();
   const now = new Date();
   const payload = {
-    id: String(comm.id || `LOG${Date.now()}`),
+    id: String(comm.id || generateBusinessId(ID_PREFIX.MESSAGE)),
     source_id: String(comm.sourceId || id),
     customer_id: id,
     date: String(comm.date || now.toISOString()),
@@ -426,7 +427,7 @@ export const saveCustomersSnapshotToSupabase = async (customers: Customer[]): Pr
     if (!dbCustomerId) return [];
     
     return (customer.contacts || []).map((contact) => ({
-      id: contact.id || `CON${Date.now()}${Math.floor(Math.random() * 1000)}`,
+      id: contact.id || generateBusinessId(ID_PREFIX.CONTACT),
       customer_id: dbCustomerId,
       name: contact.name || '',
       position: contact.position || '',
@@ -453,7 +454,7 @@ export const saveCustomersSnapshotToSupabase = async (customers: Customer[]): Pr
     if (!dbCustomerId) return [];
     
     return (customer.followUps || []).map((follow) => ({
-      id: follow.id || `FU${Date.now()}${Math.floor(Math.random() * 1000)}`,
+      id: follow.id || generateBusinessId(ID_PREFIX.FOLLOW_UP),
       source_id: String(dbCustomerId),
       customer_id: dbCustomerId,
       date: follow.date || '',
@@ -537,7 +538,7 @@ export const saveVisitPlansSnapshotToSupabase = async (plans: TodoTask[]) => {
   if (!isSupabaseConfigured()) return;
   const supabase = getSupabaseClient();
   const payload = plans.map((plan) => ({
-    id: plan.id || `VT${Date.now()}`,
+    id: plan.id || generateBusinessId(ID_PREFIX.FOLLOW_UP),
     title: plan.title || '',
     description: plan.description || '',
     module: 'customer_visit',
@@ -568,7 +569,7 @@ export const addCustomerContactQuickToSupabase = async (
 ) => {
   if (!isSupabaseConfigured()) {
     return {
-      id: `CON${Date.now()}`,
+      id: generateBusinessId(ID_PREFIX.CONTACT),
       customer_id: customerId,
       name: contact.name || '',
       phone: contact.phone || '',
@@ -580,7 +581,7 @@ export const addCustomerContactQuickToSupabase = async (
   }
   const supabase = getSupabaseClient();
   const payload = {
-    id: `CON${Date.now()}${Math.floor(Math.random() * 1000)}`,
+    id: generateBusinessId(ID_PREFIX.CONTACT),
     customer_id: customerId,
     name: String(contact.name || '').trim(),
     phone: String(contact.phone || '').trim(),

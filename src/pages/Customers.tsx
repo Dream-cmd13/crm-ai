@@ -11,6 +11,7 @@ import PotentialCustomerList from '../components/customers/PotentialCustomerList
 import QuickTaskModal from '../components/QuickTaskModal';
 import TaskDetailModal from '../components/TaskDetailModal';
 import { fetchCustomersModuleDataFromSupabase, saveCustomersSnapshotToSupabase, savePersonasSnapshotToSupabase, saveVisitPlansSnapshotToSupabase, deleteCustomerFromSupabase, fetchCustomerCommunicationsFromSupabase, saveCustomerCommunicationToSupabase } from '../lib/customerRepository';
+import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 import { convertPotentialCustomerToCustomerInSupabase, fetchPotentialCustomersFromSupabase } from '../lib/potentialCustomerRepository';
 import { saveCustomerContactToSupabase, fetchCustomerContactsFromSupabase } from '../lib/customerInteractionRepository';
 import { parseAiJson, parsePersonaDimensions } from '../lib/aiJson';
@@ -254,7 +255,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
       return;
     }
     const contactData = {
-      id: source.id || `c${Date.now()}`,
+      id: source.id || generateBusinessId(ID_PREFIX.CONTACT),
       name: source.name,
       position: source.position || '',
       phone: source.phone,
@@ -308,7 +309,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
   const handleAddPlan = () => {
     if (!selectedCustomer || !newPlan.title) return;
     const plan: TodoTask = {
-      id: `FP${Date.now()}`,
+      id: generateBusinessId(ID_PREFIX.FOCUS_POINT),
       associatedCustomerId: selectedCustomer.id,
       associatedCustomerName: selectedCustomer.name,
       associatedContactId: newPlan.associatedContactId,
@@ -404,7 +405,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
         ].join('\n');
       };
       const newPersona: any = {
-        id: `p${Date.now()}`,
+        id: generateBusinessId(ID_PREFIX.PERSONA),
         customerId: selectedCustomer.id,
         lastUpdated: new Date().toISOString().split('T')[0]
       };
@@ -684,7 +685,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
           currentUser={currentUser}
           onSave={(taskData) => {
             const plan: TodoTask = {
-              id: `T${Date.now()}`,
+              id: generateBusinessId(ID_PREFIX.TASK, followUpPlans),
               title: taskData.title,
               description: taskData.description,
               dueDate: taskData.dueDate,

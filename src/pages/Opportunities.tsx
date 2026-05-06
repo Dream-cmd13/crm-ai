@@ -24,6 +24,7 @@ import { saveCustomerContactToSupabase, saveGroupChatToSupabase, fetchCustomerCo
 import { createPotentialCustomerInSupabase } from '../lib/potentialCustomerRepository';
 import { fetchArchitectureDataFromSupabase } from '../lib/architectureRepository';
 import { pushOpportunityToProjectInSupabase, deleteOpportunityFromSupabase } from '../lib/pushdown';
+import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
 
@@ -67,9 +68,10 @@ const parseAttachments = (raw: unknown): FileAttachment[] => {
   return [];
 };
 
-const isMissingOpportunityCustomerTypeColumn = (error: any): boolean => {
+const getMissingOpportunityColumn = (error: any): string => {
   const message = String(error?.message || '');
-  return error?.code === 'PGRST204' && message.includes("'customer_type'") && message.includes("'crm_opportunity'");
+  if (error?.code !== 'PGRST204') return '';
+  return message.match(/Could not find the '([^']+)' column of 'crm_opportunity'/)?.[1] || '';
 };
 
 interface OpportunitiesProps {
@@ -176,28 +178,30 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
 
   const insertOpportunityWithSchemaFallback = async (dbData: any) => {
     const supabase = getSupabaseClient();
-    const primaryResult = await supabase.from('crm_opportunity').insert(dbData).select('*');
-    if (!isMissingOpportunityCustomerTypeColumn(primaryResult.error)) return primaryResult;
-
-    const { customer_type: _ignored, ...fallbackData } = dbData;
-    const fallbackResult = await supabase.from('crm_opportunity').insert(fallbackData).select('*');
-    if (!fallbackResult.error) {
-      console.warn("Column 'crm_opportunity.customer_type' missing, retried insert without this field.");
+    const payload = { ...dbData };
+    for (let i = 0; i < 8; i += 1) {
+      const result = await supabase.from('crm_opportunity').insert(payload).select('*');
+      if (!result.error) return result;
+      const missingColumn = getMissingOpportunityColumn(result.error);
+      if (!missingColumn) return result;
+      delete payload[missingColumn];
+      console.warn(`Column 'crm_opportunity.${missingColumn}' missing, retried insert without this field.`);
     }
-    return fallbackResult;
+    return await supabase.from('crm_opportunity').insert(payload).select('*');
   };
 
   const updateOpportunityWithSchemaFallback = async (id: number, dbData: any) => {
     const supabase = getSupabaseClient();
-    const primaryResult = await supabase.from('crm_opportunity').update(dbData).eq('id', id).select('*');
-    if (!isMissingOpportunityCustomerTypeColumn(primaryResult.error)) return primaryResult;
-
-    const { customer_type: _ignored, ...fallbackData } = dbData;
-    const fallbackResult = await supabase.from('crm_opportunity').update(fallbackData).eq('id', id).select('*');
-    if (!fallbackResult.error) {
-      console.warn("Column 'crm_opportunity.customer_type' missing, retried update without this field.");
+    const payload = { ...dbData };
+    for (let i = 0; i < 8; i += 1) {
+      const result = await supabase.from('crm_opportunity').update(payload).eq('id', id).select('*');
+      if (!result.error) return result;
+      const missingColumn = getMissingOpportunityColumn(result.error);
+      if (!missingColumn) return result;
+      delete payload[missingColumn];
+      console.warn(`Column 'crm_opportunity.${missingColumn}' missing, retried update without this field.`);
     }
-    return fallbackResult;
+    return await supabase.from('crm_opportunity').update(payload).eq('id', id).select('*');
   };
 
   useEffect(() => {
@@ -264,6 +268,23 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
             }
           })();
         }
+      } else if (viewParams.action === 'open_existing' && viewParams.id) {
+        (async () => {
+          try {
+            const supabase = getSupabaseClient();
+            const oppId = toNullableInt(viewParams.id);
+            if (oppId === null) return;
+            const { data, error } = await supabase.from('crm_opportunity').select('*').eq('id', oppId).limit(1);
+            if (error) throw error;
+            const row = data?.[0];
+            if (!row) return;
+            const fetched = mapDbOppToUi(row);
+            setOpportunities((prev) => [fetched, ...prev.filter((o) => o.id !== fetched.id)]);
+            setSelectedOpp(fetched);
+          } catch (error) {
+            console.error('Error opening opportunity by id:', error);
+          }
+        })();
       } else if (viewParams.action === 'new_from_lead') {
         (async () => {
           let sourceLead: any = null;
@@ -282,8 +303,8 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
             }
           }
           const newOpp: Opportunity = {
-            id: `O${new Date().getFullYear()}${String(opportunities.length + 1).padStart(3, '0')}`,
-            opportunityNo: '',
+            id: generateBusinessId(ID_PREFIX.OPPORTUNITY, opportunities),
+            opportunityNo: sourceLead?.opportunity_no || generateBusinessId(ID_PREFIX.OPPORTUNITY, opportunities),
             leadId: String(viewParams.sourceId || ''),
             inquiryId: sourceLead?.inquiry_id !== null && sourceLead?.inquiry_id !== undefined ? String(sourceLead.inquiry_id) : undefined,
             customerName: sourceLead?.customer_name || '待定',
@@ -356,6 +377,9 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
       const selectedOppDbId = toNullableInt(selectedOpp?.id);
 
       const dbData = {
+        opportunity_no: isAdding
+          ? (data.opportunityNo || generateBusinessId(ID_PREFIX.OPPORTUNITY, opportunities))
+          : (data.opportunityNo || selectedOpp?.opportunityNo || null),
         customer_id: customerIdForDb,
         customer_type: customerIdForDb !== null ? '老客户' : '新客户',
         customer_name: cleanCustomerName,
@@ -636,7 +660,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
       const updatedOpp = { ...opp, status: '转项目' as const, associatedProject: projectId };
       setOpportunities(opportunities.map(o => o.id === updatedOpp.id ? updatedOpp : o));
       setSelectedOpp(updatedOpp);
-      navigateTo?.('projects', projectId);
+      navigateTo?.('projects', { action: 'open_existing', id: String(projectId), refreshTs: Date.now() });
     } catch (error) {
       console.error('Error converting opportunity to project:', error);
       toast.error(`商机转项目失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
@@ -1115,7 +1139,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
             currentUser={currentUser}
             onSave={(taskData) => {
               const newTask: TodoTask = {
-                id: `T${Date.now()}`,
+                id: generateBusinessId(ID_PREFIX.TASK, tasks),
                 ...taskData,
                 status: '待办',
                 importance: '中',

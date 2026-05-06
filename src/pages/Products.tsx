@@ -4,7 +4,8 @@ import { Plus, Search, Filter, ChevronRight, ChevronDown, Edit2, Trash2, FolderT
 import { ProductCategory, Product, CategoryAttribute, ProductSeries } from '../types';
 import DetailModal from '../components/DetailModal';
 import { cn } from '../lib/utils';
-import { fetchProductCategoriesFromSupabase, fetchProductsFromSupabase, fetchProductSeriesFromSupabase, saveProductToSupabase, deleteProductFromSupabase } from '../lib/productRepository';
+import { fetchProductCategoriesFromSupabase, fetchProductSeriesFromSupabase, fetchProductModuleDataFromSupabase, saveProductToSupabase, deleteProductFromSupabase } from '../lib/productRepository';
+import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 
 interface ProductsProps {
   role?: any;
@@ -167,8 +168,8 @@ export default function Products({ viewParams }: ProductsProps) {
 
   const handleSave = async (data: any) => {
     const payload: Product = isAdding
-      ? { ...data, id: `P${Date.now()}` }
-      : { ...data, id: data.id || selectedProduct?.id || `P${Date.now()}` };
+      ? { ...data, id: generateBusinessId(ID_PREFIX.PRODUCT, products) }
+      : { ...data, id: data.id || selectedProduct?.id || generateBusinessId(ID_PREFIX.PRODUCT, products) };
     if (isAdding) {
       try {
         const saved = await saveProductToSupabase(payload);

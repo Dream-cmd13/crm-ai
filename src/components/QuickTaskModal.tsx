@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { X, Mic, Square, Save, User, Tag, FileText, Building2, Briefcase, Users, Calendar, Search, Plus } from 'lucide-react';
 import { TodoTask, TaskType, User as UserType } from '../types';
 import { loadLocalState } from '../lib/localState';
+import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 import UniversalSelector from './UniversalSelector';
 import SelectionModal from './SelectionModal';
 import { fetchProjectsFromSupabase } from '../lib/projectRepository';
@@ -227,7 +228,7 @@ export default function QuickTaskModal({ isOpen, onClose, onSave, currentUser, i
     const project = projectOptions.find(p => p.id === finalProjectId);
 
     const newTask: TodoTask = {
-      id: `T${Date.now()}`,
+      id: generateBusinessId(ID_PREFIX.TASK),
       title: isVisit ? `拜访: ${customerName || '未知客户'} - ${contactName}` : content.slice(0, 20) + (content.length > 20 ? '...' : ''),
       assignee: isVisit ? (currentUser?.name || '系统管理员') : (targetUserName || ''),
       assigneeId: isVisit ? (currentUser?.id || 'EMP001') : String(finalAssigneeId || ''),

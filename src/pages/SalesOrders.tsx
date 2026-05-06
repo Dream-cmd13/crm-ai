@@ -1,12 +1,13 @@
 import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Package, Loader2 } from 'lucide-react';
-import { Role, SalesOrder } from '../types';
+import { Role, SalesOrder, User } from '../types';
 import { cn } from '../lib/utils';
 import { callAiProxy } from '../lib/aiProxy';
 import { parseAiJson } from '../lib/aiJson';
 import DocumentDetail from '../components/DocumentDetail';
 import { fetchSalesOrdersFromSupabase, saveSalesOrderToSupabase, deleteSalesOrderFromSupabase } from '../lib/documentRepository';
+import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
 interface SalesOrdersProps {
   role: Role;
@@ -44,7 +45,7 @@ export default function SalesOrders({ role, viewParams, navigateTo, goBack }: Sa
   }, [viewParams, orders]);
 
   const handleSaveOrder = async (updatedData: SalesOrder, shouldClose = true) => {
-    const payload = updatedData.id ? updatedData : { ...updatedData, id: `ORD${Date.now()}` };
+    const payload = updatedData.id ? updatedData : { ...updatedData, id: generateBusinessId(ID_PREFIX.SALES_ORDER, orders) };
     try {
       await saveSalesOrderToSupabase(payload as any);
       if (orders.find(o => o.id === payload.id)) {

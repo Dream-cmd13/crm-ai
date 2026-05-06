@@ -10,6 +10,7 @@ import { ProcessingNode } from '../components/ProcessingFlow';
 import { ProjectList } from '../components/projects/ProjectList';
 import { ProjectDetail } from '../components/projects/ProjectDetail';
 import { fetchProjectByIdFromSupabase, fetchProjectsFromSupabase, saveProjectToSupabase, deleteProjectFromSupabase } from '../lib/projectRepository';
+import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
 import { fetchQuotationsFromSupabase, fetchSalesOrdersFromSupabase, fetchSampleOrdersFromSupabase, fetchReturnOrdersFromSupabase } from '../lib/documentRepository';
 import { fetchUsersFromSupabase } from '../lib/userRepository';
@@ -244,6 +245,14 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
             console.error('Error fetching project by id:', error);
           });
         }
+      } else if (viewParams.action === 'open_existing' && viewParams.id) {
+        fetchProjectByIdFromSupabase(String(viewParams.id)).then((fetched) => {
+          if (!fetched) return;
+          setProjects((prev) => [fetched, ...prev.filter((p) => p.id !== fetched.id)]);
+          setSelectedProject(fetched);
+        }).catch((error) => {
+          console.error('Error opening project by id:', error);
+        });
       } else if (viewParams.action === 'new_from_opportunity') {
         (async () => {
           let sourceOpp: any = null;
@@ -262,8 +271,8 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
             }
           }
           const newProject: Project = {
-            id: `P${new Date().getFullYear()}${String(projects.length + 1).padStart(3, '0')}`,
-            projectNo: sourceOpp?.project_no || '',
+            id: generateBusinessId(ID_PREFIX.PROJECT, projects),
+            projectNo: sourceOpp?.project_no || generateBusinessId(ID_PREFIX.PROJECT, projects),
             projectName: sourceOpp ? `${sourceOpp.customer_name}-定制项目` : '新项目 (来自商机)',
             projectType: '研发型项目',
             customerName: sourceOpp?.customer_name || '待定',
@@ -404,6 +413,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
   const handleSaveProject = (updatedData: Project) => {
     const normalizedProject: Project = {
       ...updatedData,
+      projectNo: updatedData.projectNo || generateBusinessId(ID_PREFIX.PROJECT, projects),
       projectType: updatedData.projectType || '研发型项目',
       projectLevel: updatedData.projectLevel || 'B级',
       wechatGroup: updatedData.wechatGroup || '',
@@ -427,10 +437,10 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
 
   const handleCreateProject = async (data: any) => {
     const today = new Date().toISOString().split('T')[0];
-    const id = data.id || `PRJ_${Date.now()}`;
+    const id = data.id || generateBusinessId(ID_PREFIX.PROJECT, projects);
     const newProject: Project = {
       id,
-      projectNo: data.projectNo || '',
+      projectNo: data.projectNo || generateBusinessId(ID_PREFIX.PROJECT, projects),
       projectName: String(data.projectName || '').trim(),
       name: String(data.projectName || '').trim(),
       projectType: data.projectType || '研发型项目',
@@ -655,7 +665,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
   const handleAddTask = () => {
     if (!selectedProject || !newTask.title || !newTask.assignee || !newTask.endTime || !newTask.stage) return;
     const task: TodoTask = {
-      id: `t${Date.now()}`,
+      id: generateBusinessId(ID_PREFIX.TASK, selectedProject.tasks || []),
       title: newTask.title,
       assignee: newTask.assignee,
       assigneeId: '',
@@ -750,7 +760,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
         <ProjectDetail 
           selectedProject={selectedProject}
           role={role}
-          onBack={() => { setSelectedProject(null); if (viewParams) goBack?.(); }}
+          onBack={() => { setSelectedProject(null); }}
           onEdit={() => setIsEditing(true)}
           onNavigateTo={navigateTo!}
           getProjectFlowNodes={getProjectFlowNodes}

@@ -2,6 +2,7 @@ import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Trash2, Package, Loader2 } from 'lucide-react';
 import { Role, ReturnOrder } from '../types';
+import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 import { cn } from '../lib/utils';
 import DocumentDetail from '../components/DocumentDetail';
 import { deleteReturnOrderFromSupabase, fetchReturnOrdersFromSupabase, saveReturnOrderToSupabase } from '../lib/documentRepository';
@@ -48,7 +49,7 @@ export default function ReturnOrders({ role, viewParams, navigateTo, goBack }: R
   }, [viewParams, orders]);
 
   const handleSaveOrder = async (updatedData: ReturnOrder, shouldClose = true) => {
-    const payload = updatedData.id ? updatedData : { ...updatedData, id: `RET${Date.now()}` };
+    const payload = updatedData.id ? updatedData : { ...updatedData, id: generateBusinessId(ID_PREFIX.RETURN_ORDER, orders) };
     try {
       await saveReturnOrderToSupabase(payload as any);
       if (payload.id && orders.find(o => o.id === payload.id)) {

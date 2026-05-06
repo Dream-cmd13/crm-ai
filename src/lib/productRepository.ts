@@ -1,5 +1,6 @@
 import { Product, ProductCategory, ProductSeries } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
+import { generateBusinessId, ID_PREFIX } from './idUtils';
 
 const toNullableInt = (value: any): number | null => {
   if (value === null || value === undefined || value === '') return null;
@@ -138,7 +139,7 @@ export const fetchProductCategoriesFromSupabase = async (): Promise<ProductCateg
 export const saveProductCategoryToSupabase = async (category: ProductCategory) => {
   if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
-  const id = category.id || `CAT${Date.now()}`;
+  const id = category.id || generateBusinessId(ID_PREFIX.PRODUCT);
   const normalizedParentId = category.parentId && category.parentId !== id ? category.parentId : null;
   const payload = {
     id,
@@ -209,7 +210,7 @@ export const saveProductSeriesToSupabase = async (series: ProductSeries) => {
   if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const payload = {
-    id: series.id || `SER${Date.now()}`,
+    id: series.id || generateBusinessId(ID_PREFIX.PRODUCT),
     name: series.name || '',
     category_id: series.categoryId || null,
     description: series.description || '',

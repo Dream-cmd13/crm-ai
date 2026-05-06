@@ -93,6 +93,45 @@ const ensureCustomerId = async (customerId: string | undefined, customerName: st
   }
 };
 
+const insertOpportunityWithSchemaFallback = async (payload: Record<string, any>) => {
+  const supabase = getSupabaseClient();
+  const workPayload: Record<string, any> = { ...payload };
+  for (let i = 0; i < 8; i += 1) {
+    const result = await supabase.from('crm_opportunity').insert(workPayload).select('id').single();
+    if (!result.error) return result;
+    const err: any = result.error;
+    const message = String(err?.message || '');
+    const missingColumn = err?.code === 'PGRST204'
+      ? (message.match(/Could not find the '([^']+)' column of 'crm_opportunity'/)?.[1] || '')
+      : '';
+    if (!missingColumn) return result;
+    delete workPayload[missingColumn];
+  }
+  return await supabase.from('crm_opportunity').insert(workPayload).select('id').single();
+};
+
+const generateBusinessNo = async (prefix: string, tableName: string, columnName: string): Promise<string | null> => {
+  const supabase = getSupabaseClient();
+  try {
+    const withColumn = await supabase.rpc('generate_business_number', {
+      prefix,
+      table_name: tableName,
+      column_name: columnName,
+      pad_len: 4
+    });
+    if (!withColumn.error && typeof withColumn.data === 'string' && withColumn.data) return withColumn.data;
+  } catch {}
+  try {
+    const shortSig = await supabase.rpc('generate_business_number', {
+      prefix,
+      table_name: tableName,
+      pad_len: 4
+    });
+    if (!shortSig.error && typeof shortSig.data === 'string' && shortSig.data) return shortSig.data;
+  } catch {}
+  return null;
+};
+
 export const pushInquiryToLeadInSupabase = async (source: Inquiry, leadData: any) => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase 环境变量未配置');
@@ -102,7 +141,9 @@ export const pushInquiryToLeadInSupabase = async (source: Inquiry, leadData: any
   const resolvedCustomerId = await ensureCustomerId(leadData?.customerId || source.customerId, customerName);
   const inquiryId = toNullableInt(source.id);
   const now = new Date().toISOString();
+  const leadNo = await generateBusinessNo('XS', 'crm_lead', 'lead_no');
   const leadRow = {
+    lead_no: leadNo || null,
     customer_id: resolvedCustomerId || null,
     customer_type: resolvedCustomerId ? '老客户' : '新客户',
     customer_name: customerName,
@@ -175,8 +216,10 @@ export const pushLeadToOpportunityInSupabase = async (source: Lead, oppData: any
   ].filter(Boolean);
   const oppSummary = summaryParts.join('；') || `来自线索 ${source.id}`;
   const intentAmount = Number(oppData?.expectedAmount || 0);
+  const opportunityNo = await generateBusinessNo('JH', 'crm_opportunity', 'opportunity_no');
 
   const oppRow = {
+    opportunity_no: opportunityNo || null,
     customer_id: resolvedCustomerId || null,
     customer_type: resolvedCustomerId ? '老客户' : '新客户',
     customer_name: customerName,
@@ -205,7 +248,7 @@ export const pushLeadToOpportunityInSupabase = async (source: Lead, oppData: any
     updated_at: now
   };
 
-  const { data: insertedOpp, error: oppError } = await supabase.from('crm_opportunity').insert(oppRow).select('id').single();
+  const { data: insertedOpp, error: oppError } = await insertOpportunityWithSchemaFallback(oppRow);
   if (oppError) throw oppError;
   const oppId = String(insertedOpp?.id || '');
   if (!oppId) throw new Error('商机创建成功但未返回ID');
@@ -249,8 +292,10 @@ export const pushOpportunityToProjectInSupabase = async (source: Opportunity) =>
   const now = new Date().toISOString();
   const amount = Number(source.intentAmount || 0);
   const projectName = `${customerName}-项目`;
+  const projectNo = await generateBusinessNo('XM', 'crm_project', 'project_no');
 
   const projectRow = {
+    project_no: projectNo || null,
     customer_id: resolvedCustomerId || null,
     customer_name: customerName,
     project_name: projectName,

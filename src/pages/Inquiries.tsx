@@ -21,6 +21,7 @@ import { saveCustomerContactToSupabase, saveGroupChatToSupabase, fetchCustomerCo
 import { createPotentialCustomerInSupabase } from '../lib/potentialCustomerRepository';
 import { pushInquiryToLeadInSupabase } from '../lib/pushdown';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
+import { generateBusinessId, ID_PREFIX } from '../lib/idUtils';
 
 const INQUIRY_SOURCE_CHANNEL_OPTIONS = ['万连', '电子谷', '1688', '爱采购', '胜蓝', '新电子谷', '其他', '淘宝'];
 const LEAD_CUSTOMER_ACTION_OPTIONS = ['寻替代料', '寻替代品', '找货寻料', '指定料号', '指定物料'];
@@ -240,8 +241,10 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       }
     }
     try {
+      const generatedInquiryNo = isNew ? generateBusinessId(ID_PREFIX.INQUIRY, inquiries) : undefined;
       const customerIdForDb = toNullableInt(customerId);
       const dbData = {
+        inquiry_no: isNew ? generatedInquiryNo : (data.inquiryNo || selectedInquiry?.inquiryNo || null),
         customer_id: customerIdForDb,
         company_name: data.companyName,
         customer_name: data.customerName,
@@ -341,6 +344,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     const today = new Date().toISOString().split('T')[0];
     const dbData = {
       id: inquiry.id,
+      inquiry_no: inquiry.inquiryNo || null,
       customer_id: inquiry.customerId || null,
       company_name: inquiry.companyName || '',
       customer_name: inquiry.customerName || '',
@@ -421,6 +425,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   };
 
   const handleConvertToLead = (inquiry: Inquiry) => {
+    setSelectedInquiry(inquiry);
     setConversionInquiry(inquiry);
     setConversionLeadData({
       customerId: inquiry.customerId,
@@ -453,7 +458,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
 
       if (data.buyingMode === '困难模式') {
         const newTask: TodoTask = {
-          id: `T${Date.now()}`,
+          id: generateBusinessId(ID_PREFIX.TASK, tasks),
           title: `[困难模式] 立即联系 ${data.customerName} 进行SPIN需求挖掘`,
           description: `该线索处于困难模式，需立即联系进行SPIN需求挖掘。建议提问：${data.suggestedQuestions?.[0] || '客户目前面临的核心痛点是什么？'}`,
           status: '待办',
@@ -474,7 +479,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
 
       setIsConvertingToLead(false);
       setConversionInquiry(null);
-      navigateTo?.('leads', leadId);
+      navigateTo?.('leads', { action: 'open_existing', id: String(leadId), refreshTs: Date.now() });
     } catch (error) {
       console.error('Error converting inquiry to lead:', error);
       toast.error(`询盘转线索失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
@@ -1007,7 +1012,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
           currentUser={currentUser}
           onSave={(taskData) => {
             const newTask: TodoTask = {
-              id: `T${Date.now()}`,
+              id: generateBusinessId(ID_PREFIX.TASK, tasks),
               title: taskData.title,
               description: taskData.description || '',
               status: '待办',
@@ -1266,7 +1271,10 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                       <div className="flex items-center gap-3">
                         {canConvertInquiry(inq) && (
                           <button 
-                            onClick={() => handleConvertToLead(inq)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleConvertToLead(inq);
+                            }}
                             className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium"
                           >
                             <Target className="w-4 h-4" />
