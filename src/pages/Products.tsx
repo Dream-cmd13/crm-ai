@@ -21,10 +21,8 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [seriesList, setSeriesList] = useState<ProductSeries[]>([]);
   const [displayCount, setDisplayCount] = useState(20);
-  const [isEditing, setIsEditing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ProductCategory | null>(null);
@@ -108,39 +106,16 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
 
   const flatCategoryOptions = useMemo(() => getFlatCategories(categories), [categories]);
 
-  const nextCategoryCode = () => {
-    const flat = getFlatCategories(categories);
-    const roots = flat.filter((c) => /^[0-9]+$/.test(c.id) && c.id.length === 2).map((c) => Number(c.id));
-    const next = roots.length > 0 ? Math.max(...roots) + 1 : 1;
-    return String(next).padStart(2, '0');
-  };
-
-  const nextChildCategoryCode = (parentId: string) => {
-    const flat = getFlatCategories(categories);
-    const targetLen = parentId.length + 2;
-    const children = flat
-      .filter((c) => c.id.startsWith(parentId) && c.id.length === targetLen)
-      .map((c) => c.id.slice(parentId.length))
-      .filter((suffix) => /^[0-9]{2}$/.test(suffix))
-      .map((suffix) => Number(suffix));
-    const next = children.length > 0 ? Math.max(...children) + 1 : 1;
-    return `${parentId}${String(next).padStart(2, '0')}`;
-  };
-
   const categoryFields = [
-    { key: 'id', label: '类别编号', required: true },
     { key: 'name', label: '类别名称', required: true },
+    { key: 'status', label: '状态', type: 'select', options: [{ value: '1', label: '启用' }, { value: '0', label: '禁用' }] },
     { key: 'fab.features', label: '产品特征 (Features)', type: 'textarea' },
     { key: 'fab.advantages', label: '产品优势 (Advantages)', type: 'textarea' },
     { key: 'fab.benefits', label: '客户利益 (Benefits)', type: 'textarea' },
   ];
 
   const handleSaveCategory = async (data: any) => {
-    const id = String(data.id || '').trim();
-    if (!id) {
-      toast.error('类别编号不能为空');
-      return false;
-    }
+    const isEditingExisting = Boolean(editingCategory?.id);
     const name = String(data.name || '').trim();
     if (!name) {
       toast.error('类别名称不能为空');
@@ -149,16 +124,17 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
 
     try {
       const saved = await saveProductCategoryToSupabase({
-        id,
+        id: isEditingExisting ? String(editingCategory?.id || '') : '',
         name,
         parentId: editingCategory?.parentId || null,
+        status: data.status !== undefined ? data.status : 1,
         fab: {
           features: data.fab?.features || '',
           advantages: data.fab?.advantages || '',
           benefits: data.fab?.benefits || ''
         },
         children: []
-      });
+      }, { forceInsert: !isEditingExisting });
       await fetchCategories();
       setIsAddingCategory(false);
       setEditingCategory(null);
@@ -171,6 +147,22 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
     }
   };
 
+  const getAllDescendantIds = (nodes: ProductCategory[], parentId: string): string[] => {
+    const result: string[] = [];
+    const walk = (items: ProductCategory[]) => {
+      items.forEach((item) => {
+        if (item.parentId === parentId) {
+          result.push(item.id);
+          if (item.children?.length) {
+            result.push(...getAllDescendantIds(item.children, item.id));
+          }
+        }
+      });
+    };
+    walk(nodes);
+    return result;
+  };
+
   const handleDeleteCategory = async (categoryId: string, categoryName: string) => {
     if (isDeletingCategory) return;
     if (!(await confirmDialog(`确认删除类别 "${categoryName}" 及其所有子类别吗？此操作不可撤销。`))) {
@@ -179,11 +171,8 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
 
     try {
       setIsDeletingCategory(true);
-      const flat = getFlatCategories(categories);
-      const deleteIds = flat
-        .filter(c => c.id === categoryId || c.id.startsWith(categoryId))
-        .map(c => c.id)
-        .sort((a, b) => b.length - a.length);
+      const descendantIds = getAllDescendantIds(categories, categoryId);
+      const deleteIds = [categoryId, ...descendantIds];
       const needResetSelection = selectedCategory && deleteIds.includes(selectedCategory);
 
       if (needResetSelection) {
@@ -229,7 +218,7 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
     { key: 'materialName', label: '物料名称', required: true },
     { key: 'specification', label: '物料规格' },
     { key: 'categoryId', label: '产品类别编号', type: 'select', options: flatCategoryOptions.map(c => ({ value: c.id, label: `${c.id} - ${c.name}` })), required: true },
-    { key: 'seriesId', label: '产品系列ID', type: 'select', options: seriesList.map(s => ({ value: s.id, label: `${s.id} - ${s.name}` })) },
+    { key: 'seriesId', label: '产品系列ID', type: 'select', options: seriesList.map(s => ({ value: s.id, label: `${s.seriesNo || s.id} - ${s.name}` })) },
     { key: 'basicUnit', label: '基本单位', required: true },
     { key: 'creationOrg', label: '创建组织' },
     { key: 'inventoryCategory', label: '存货类别' },
@@ -276,9 +265,7 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
   };
 
   const handleSave = async (data: any) => {
-    const payload: Product = isAdding
-      ? { ...data }
-      : { ...data, id: data.id || selectedProduct?.id };
+    const payload: Product = { ...data };
     if (isAdding) {
       try {
         const saved = await saveProductToSupabase(payload);
@@ -291,21 +278,6 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
         console.error('Error adding product:', error);
         toast.error(`新增产品失败：${(error as Error)?.message || '请检查数据和配置后重试'}`);
         setIsAdding(true);
-        return false;
-      }
-    } else if (selectedProduct) {
-      try {
-        const saved = await saveProductToSupabase(payload);
-        setProducts((prev) => prev.map(p => p.id === saved.id ? saved as Product : p));
-        setSelectedProduct(saved as Product);
-        toast.success('产品更新成功');
-        setIsEditing(false);
-        await fetchProducts();
-        return true;
-      } catch (error) {
-        console.error('Error updating product:', error);
-        toast.error(`更新产品失败：${(error as Error)?.message || '请检查数据和配置后重试'}`);
-        setIsEditing(true);
         return false;
       }
     }
@@ -325,9 +297,6 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
     try {
       await deleteProductFromSupabase(productId);
       setProducts((prev) => prev.filter(p => p.id !== productId));
-      if (selectedProduct?.id === productId) {
-        setSelectedProduct(null);
-      }
       toast.success('产品删除成功');
     } catch (error) {
       console.error('Error deleting product:', error);
@@ -353,7 +322,13 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
                 "w-4 h-4 shrink-0",
                 selectedCategory === category.id ? "text-indigo-500" : "text-gray-400"
               )} />
-              <span className="truncate text-sm">{category.name}</span>
+              <span className={cn(
+                "truncate text-sm",
+                category.status === 0 ? "line-through text-gray-400" : ""
+              )}>{category.name}</span>
+              {category.status === 0 && (
+                <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-500 rounded shrink-0">已禁用</span>
+              )}
             </div>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
@@ -373,9 +348,10 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
                 onClick={(e) => {
                   e.stopPropagation();
                   setEditingCategory({
-                    id: nextChildCategoryCode(category.id),
+                    id: '',
                     name: '',
                     parentId: category.id,
+                    status: 1,
                     fab: { features: '', advantages: '', benefits: '' },
                     children: []
                   });
@@ -447,7 +423,7 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
             <h3 className="font-semibold text-gray-900 text-sm">产品类别</h3>
             <button
               onClick={() => {
-                setEditingCategory({ id: nextCategoryCode(), name: '', parentId: null, fab: { features: '', advantages: '', benefits: '' }, children: [] });
+                setEditingCategory({ id: '', name: '', parentId: null, status: 1, fab: { features: '', advantages: '', benefits: '' }, children: [] });
                 setIsAddingCategory(true);
               }}
               className="p-1 hover:bg-gray-100 rounded text-gray-500"
@@ -479,26 +455,43 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
                 <tbody>
                   {filteredProducts.slice(0, displayCount).map(product => (
                     <tr key={product.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="p-4 text-sm text-indigo-600 cursor-pointer hover:underline" onClick={() => setSelectedProduct(product)}>{product.materialNo}</td>
+                      <td
+                        className="p-4 text-sm text-indigo-600 cursor-pointer hover:underline"
+                        onClick={() => navigateTo?.('product-detail', { id: product.id, name: product.materialName, mode: 'view' })}
+                      >
+                        {product.materialNo}
+                      </td>
                       <td className="p-4 text-sm text-gray-900">{product.materialName}</td>
                       <td className="p-4 text-sm text-gray-500">{product.specification}</td>
                       <td className="p-4 text-sm text-gray-500">{product.seriesId || '-'}</td>
                       <td className="p-4 text-sm text-gray-500">{product.basicUnit}</td>
                       <td className="p-4 text-sm">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm('确定要删除这个产品吗？')) {
-                              handleDeleteProduct(product.id);
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-800 flex items-center gap-1"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          删除
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigateTo?.('product-detail', { id: product.id, name: product.materialName, mode: 'edit' });
+                            }}
+                            className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                            编辑
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm('确定要删除这个产品吗？')) {
+                                handleDeleteProduct(product.id);
+                              }
+                            }}
+                            className="text-red-600 hover:text-red-800 flex items-center gap-1"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            删除
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -512,7 +505,7 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
                 <div 
                   key={product.id} 
                   className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3"
-                  onClick={() => setSelectedProduct(product)}
+                  onClick={() => navigateTo?.('product-detail', { id: product.id, name: product.materialName, mode: 'view' })}
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
@@ -558,11 +551,20 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedProduct(product);
+                        navigateTo?.('product-detail', { id: product.id, name: product.materialName, mode: 'view' });
                       }}
                       className="text-indigo-600 text-sm font-medium"
                     >
                       详情
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigateTo?.('product-detail', { id: product.id, name: product.materialName, mode: 'edit' });
+                      }}
+                      className="text-gray-600 text-sm font-medium"
+                    >
+                      编辑
                     </button>
                   </div>
                 </div>
@@ -578,30 +580,16 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
         </div>
       </div>
 
-      {/* Product Detail Modal */}
-      {selectedProduct && !isEditing && (
-        <DetailModal
-          isOpen={true}
-          onClose={() => setSelectedProduct(null)}
-          title="产品详情"
-          data={selectedProduct}
-          fields={getProductFields(selectedProduct)}
-          onEdit={() => setIsEditing(true)}
-          moduleCode="product_management"
-        />
-      )}
-
-      {/* Product Edit Modal */}
-      {(isEditing || isAdding) && (
+      {/* Product Add Modal */}
+      {isAdding && (
         <DetailModal
           isOpen={true}
           onClose={() => {
-            setIsEditing(false);
             setIsAdding(false);
           }}
-          title={isAdding ? "新增产品" : "编辑产品"}
-          data={isAdding ? {} : selectedProduct}
-          fields={getProductFields(isAdding ? {} : selectedProduct)}
+          title="新增产品"
+          data={{}}
+          fields={getProductFields({})}
           onSave={handleSave}
           isEditing={true}
         />

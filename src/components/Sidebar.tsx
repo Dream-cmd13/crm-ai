@@ -53,7 +53,12 @@ export default function Sidebar({ currentView, setCurrentView, isOpen, onClose, 
         { id: 'competitor-library', label: '竞品库', icon: Swords },
         { id: 'case-library', label: '客户案例库', icon: BookOpen },
         { id: 'products', label: '产品资料', icon: Package },
-        { id: 'product-categories', label: '产品系列', icon: FolderKanban },
+        { id: 'product-spu', label: '产品品类', icon: FolderKanban },
+        { id: 'product-categories', label: '产品类别', icon: FolderKanban },
+        { id: 'product-series', label: '产品系列', icon: ListTodo },
+        { id: 'brands', label: '品牌管理', icon: ListTodo },
+        { id: 'groups', label: '归属小组', icon: Users },
+        { id: 'product-lines', label: '产品线', icon: FolderKanban },
       ]
     },
     {

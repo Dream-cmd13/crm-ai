@@ -20,11 +20,14 @@ export const fetchStakeholders = async (customerId: string): Promise<CustomerSta
   if (!customerId) return [];
   if (!isSupabaseConfigured()) return local.filter((x) => x.customerId === customerId);
 
+  const dbId = await resolveCustomerDbIdFromSupabase(customerId);
+  if (!dbId) return local.filter((x) => x.customerId === customerId);
+
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('crm_customer_stakeholder')
     .select('*')
-    .eq('customer_id', customerId)
+    .eq('customer_id', dbId)
     .order('updated_at', { ascending: false });
   if (error) throw error;
 
@@ -63,10 +66,13 @@ export const upsertStakeholder = async (entry: CustomerStakeholder) => {
   saveLocal(LOCAL_STAKEHOLDER_KEY, next);
   if (!isSupabaseConfigured()) return;
 
+  const dbId = await resolveCustomerDbIdFromSupabase(entry.customerId);
+  if (!dbId) throw new Error(`无法识别客户ID：${entry.customerId}`);
+
   const supabase = getSupabaseClient();
   const payload = {
     id: entry.id,
-    customer_id: entry.customerId,
+    customer_id: dbId,
     name: entry.name,
     title: entry.title || '',
     department: entry.department || '',

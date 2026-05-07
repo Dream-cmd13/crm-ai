@@ -1,5 +1,5 @@
-﻿import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
-import { updateCustomerLastContactInSupabase } from './customerRepository';
+import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
+import { resolveCustomerDbIdFromSupabase, updateCustomerLastContactInSupabase } from './customerRepository';
 
 const mapItemToRow = (item: any, parentKey: string, parentId: number) => {
   const baseRow: Record<string, any> = {
@@ -236,7 +236,12 @@ const saveWithItems = async (
   const normalizedItems = await normalizeItemsWithValidProducts(supabase, items);
   if (typeof mainRow.customer_id === 'string') {
     const normalizedCustomerId = mainRow.customer_id.trim();
-    mainRow.customer_id = normalizedCustomerId || null;
+    if (!normalizedCustomerId) {
+      mainRow.customer_id = null;
+    } else {
+      const resolvedCustomerId = await resolveCustomerDbIdFromSupabase(normalizedCustomerId);
+      mainRow.customer_id = resolvedCustomerId ?? null;
+    }
   }
   if (mainRow.customer_id && mainRow.customer_name) {
     const { error: customerError } = await supabase.from('ba_manucustinfo').upsert(
@@ -541,6 +546,5 @@ export const deleteSampleOrderFromSupabase = async (id: string) => {
 export const deleteReturnOrderFromSupabase = async (id: string) => {
   await deleteMainRecord('crm_return_order', id);
 };
-
 
 

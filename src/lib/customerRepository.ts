@@ -578,10 +578,16 @@ export const addCustomerContactQuickToSupabase = async (
       is_primary: false
     };
   }
+
+  const dbCustomerId = await resolveCustomerDbIdFromSupabase(customerId);
+  if (!dbCustomerId) {
+    throw new Error(`无法识别客户ID：${customerId}`);
+  }
+
   const supabase = getSupabaseClient();
   const payload = {
     id: crypto.randomUUID(),
-    customer_id: customerId,
+    customer_id: dbCustomerId,
     name: String(contact.name || '').trim(),
     phone: String(contact.phone || '').trim(),
     position: String(contact.position || '').trim(),

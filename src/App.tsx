@@ -20,7 +20,14 @@ const CustomerVisitCalendar = lazy(() => import('./pages/CustomerVisitCalendar')
 const SalesQuotations = lazy(() => import('./pages/SalesQuotations'));
 const SalesOrders = lazy(() => import('./pages/SalesOrders'));
 const Products = lazy(() => import('./pages/Products'));
+const ProductSpu = lazy(() => import('./pages/ProductSpu'));
 const ProductCategories = lazy(() => import('./pages/ProductCategories'));
+const ProductSeries = lazy(() => import('./pages/ProductSeries'));
+const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+const ProductCategoryDetail = lazy(() => import('./pages/ProductCategoryDetail'));
+const Brands = lazy(() => import('./pages/Brands'));
+const Groups = lazy(() => import('./pages/Groups'));
+const ProductLines = lazy(() => import('./pages/ProductLines'));
 const SampleOrders = lazy(() => import('./pages/SampleOrders'));
 const ReturnOrders = lazy(() => import('./pages/ReturnOrders'));
 const SystemSettings = lazy(() => import('./pages/SystemSettings'));
@@ -99,7 +106,14 @@ export default function App() {
       quotations: '报价单',
       sales: '订单',
       products: '产品资料',
-      'product-categories': '产品系列',
+      'product-spu': '产品品类',
+      'product-categories': '产品类别',
+      'product-series': '产品系列',
+      'product-detail': '产品详情',
+      'product-category-detail': '产品类别详情',
+      brands: '品牌管理',
+      groups: '归属小组',
+      'product-lines': '产品线',
       'sample-orders': '样品单',
       'return-orders': '退货单',
       settings: '系统设置',
@@ -177,7 +191,14 @@ export default function App() {
       case 'quotations': return <SalesQuotations {...props} />;
       case 'sales': return <SalesOrders {...props} />;
       case 'products': return <Products {...props} />;
-      case 'product-categories': return <ProductCategories />;
+      case 'product-spu': return <ProductSpu />;
+      case 'product-categories': return <ProductCategories {...props} />;
+      case 'product-series': return <ProductSeries {...props} />;
+      case 'product-detail': return <ProductDetail {...props} />;
+      case 'product-category-detail': return <ProductCategoryDetail {...props} />;
+      case 'brands': return <Brands />;
+      case 'groups': return <Groups />;
+      case 'product-lines': return <ProductLines />;
       case 'sample-orders': return <SampleOrders {...props} />;
       case 'return-orders': return <ReturnOrders {...props} />;
       case 'settings': return <SystemSettings {...props} />;
