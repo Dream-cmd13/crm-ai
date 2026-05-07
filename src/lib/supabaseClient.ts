@@ -16,9 +16,29 @@ export const isSupabaseConfigured = () => {
 export const getSupabaseClient = () => {
   if (client) return client;
   const { url, anonKey } = getSupabaseConfig();
-  if (!url || !anonKey) {
-    throw new Error('Supabase 环境变量未配置');
-  }
-  client = createClient(url, anonKey);
+  client = createClient(
+    url || 'https://placeholder.supabase.co',
+    anonKey || 'placeholder',
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      }
+    }
+  );
   return client;
 };
+
+export const supabase = (() => {
+  const { url, anonKey } = getSupabaseConfig();
+  return createClient(
+    url || 'https://placeholder.supabase.co',
+    anonKey || 'placeholder',
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      }
+    }
+  );
+})();

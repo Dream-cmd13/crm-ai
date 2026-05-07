@@ -7,9 +7,10 @@ interface SidebarProps {
   setCurrentView: (view: string) => void;
   isOpen?: boolean;
   onClose?: () => void;
+  currentUserName?: string;
 }
 
-export default function Sidebar({ currentView, setCurrentView, isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ currentView, setCurrentView, isOpen, onClose, currentUserName }: SidebarProps) {
   const [expandedGroups, setExpandedGroups] = useState<string[]>(['AI大脑', '业务流转', '过程单据', '资源中心', '系统设置']);
 
   const toggleGroup = (label: string) => {
@@ -155,10 +156,10 @@ export default function Sidebar({ currentView, setCurrentView, isOpen, onClose }
       <div className="p-4 border-t border-gray-200 flex items-center justify-between">
         <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-50 flex-1">
           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm">
-            U
+            {currentUserName?.charAt(0) || 'U'}
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-medium text-gray-900">当前用户</span>
+            <span className="text-sm font-medium text-gray-900">{currentUserName || '当前用户'}</span>
             <span className="text-xs text-gray-500">在线</span>
           </div>
         </div>

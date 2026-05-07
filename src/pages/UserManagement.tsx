@@ -3,12 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Search, FolderTree, Edit2, Trash2, Settings, Users, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import DetailModal from '../components/DetailModal';
-import { fetchUsersFromSupabase, saveUserToSupabase, deleteUserFromSupabase } from '../lib/userRepository';
+import { fetchUsersFromSupabase, fetchDepartmentsFromSupabase, saveUserToSupabase, deleteUserFromSupabase } from '../lib/userRepository';
+import { Department } from '../types';
 
 import { confirmDialog } from '../lib/toastConfirm';
 
 export default function UserManagement() {
   const [users, setUsers] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -16,35 +18,34 @@ export default function UserManagement() {
   const [editingUser, setEditingUser] = useState<any | null>(null);
 
   useEffect(() => {
-    const loadUsers = async () => {
+    const loadData = async () => {
       try {
-        const fetched = await fetchUsersFromSupabase();
-        setUsers(fetched);
+        const [fetchedUsers, fetchedDepts] = await Promise.all([
+          fetchUsersFromSupabase(),
+          fetchDepartmentsFromSupabase()
+        ]);
+        setUsers(fetchedUsers);
+        setDepartments(fetchedDepts);
       } catch (e) {
-        console.error('Failed to fetch users', e);
+        console.error('Failed to fetch data', e);
         setUsers([]);
+        setDepartments([]);
       } finally {
         setLoading(false);
       }
     };
-    loadUsers();
+    loadData();
   }, []);
 
-  const departments = [
-    { id: 'all', name: '全部部门' },
-    { id: 'sales', name: '销售部', children: [
-      { id: 'sales-1', name: '销售一部' },
-      { id: 'sales-2', name: '销售二部' }
-    ]},
-    { id: 'marketing', name: '市场部' },
-    { id: 'tech', name: '技术部' },
-    { id: 'admin', name: '行政部' }
-  ];
+  // 构建部门树（将扁平列表转为树结构用于显示）
+  const buildDeptTree = (): Department[] => {
+    const allDept: Department = { id: 'all', name: '全部部门' };
+    return [allDept, ...departments.filter(d => !d.parent_id)];
+  };
 
   const filteredUsers = users.filter(u => {
-    const matchesSearch = u.name.includes(searchTerm) || u.username.includes(searchTerm);
-    const matchesDept = selectedDepartment === 'all' || u.department_id === selectedDepartment || 
-      (selectedDepartment === 'sales' && u.department_id?.startsWith('sales'));
+    const matchesSearch = !searchTerm || u.name.includes(searchTerm) || u.username.includes(searchTerm);
+    const matchesDept = !selectedDepartment || selectedDepartment === 'all' || u.department_id === selectedDepartment;
     return matchesSearch && matchesDept;
   });
 
@@ -77,25 +78,19 @@ export default function UserManagement() {
   const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'data'>('users');
 
   const userFields = [
-    { key: 'name', label: '姓名', required: true },
     { key: 'username', label: '用户名', required: true },
-    { key: 'roles', label: '角色', type: 'multi-select', options: ['管理员', '业务员', '经理', '财务', '供应链'] },
-    { key: 'department_id', label: '部门', type: 'select', options: ['sales', 'sales-1', 'sales-2', 'marketing', 'tech', 'admin'] },
+    { key: 'name', label: '姓名', required: true },
+    { key: 'employeeNo', label: '工号' },
+    { key: 'phone', label: '手机号' },
+    { key: 'english_name', label: '英文名' },
+    { key: 'role', label: '角色', type: 'select', options: ['Admin', 'User'] },
+    { key: 'department_id', label: '部门', type: 'select', options: departments.map(d => ({ value: d.id, label: d.name })) },
   ];
 
   const handleSaveUser = async (data: any) => {
     try {
-      const updatedData = {
-        ...data,
-        role: data.roles?.[0] || '业务员',
-        dataPermissions: {
-          customerVisibility: data.customerVisibility === '全部' ? 'all' : 
-                             data.customerVisibility === '本部门' ? 'department' :
-                             data.customerVisibility === '本人' ? 'own' : 'custom'
-        }
-      };
-      const savedUser = await saveUserToSupabase(updatedData);
-      
+      const savedUser = await saveUserToSupabase(data);
+
       if (editingUser) {
         setUsers(users.map(u => u.id === data.id ? savedUser : u));
       } else {
@@ -103,6 +98,7 @@ export default function UserManagement() {
       }
       setIsAddingUser(false);
       setEditingUser(null);
+      toast.success(editingUser ? '用户更新成功' : '用户创建成功');
     } catch (e) {
       console.error('Failed to save user', e);
       toast.error('保存用户失败');
@@ -158,12 +154,9 @@ export default function UserManagement() {
         <div className="w-64 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col shrink-0">
           <div className="p-4 border-b border-gray-200 flex justify-between items-center">
             <h3 className="font-semibold text-gray-900 text-sm">组织架构</h3>
-            <button className="p-1 hover:bg-gray-100 rounded text-gray-500">
-              <Plus className="w-4 h-4" />
-            </button>
           </div>
           <div className="p-2 flex-1 overflow-y-auto">
-            {renderDepartmentTree(departments)}
+            {renderDepartmentTree(buildDeptTree())}
           </div>
         </div>
 
@@ -173,17 +166,19 @@ export default function UserManagement() {
             <table className="w-full text-left border-collapse whitespace-nowrap">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="p-4 text-sm font-medium text-gray-500">姓名</th>
                   <th className="p-4 text-sm font-medium text-gray-500">用户名</th>
                   <th className="p-4 text-sm font-medium text-gray-500">工号</th>
                   <th className="p-4 text-sm font-medium text-gray-500">角色</th>
                   <th className="p-4 text-sm font-medium text-gray-500">部门</th>
+                  <th className="p-4 text-sm font-medium text-gray-500">状态</th>
                   <th className="p-4 text-sm font-medium text-gray-500 text-right">操作</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-gray-500">
+                    <td colSpan={7} className="p-8 text-center text-gray-500">
                       <div className="flex justify-center items-center gap-2">
                         <Loader2 className="w-5 h-5 animate-spin" /> 加载中...
                       </div>
@@ -191,36 +186,39 @@ export default function UserManagement() {
                   </tr>
                 ) : filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-gray-500">没有找到用户</td>
+                    <td colSpan={7} className="p-8 text-center text-gray-500">没有找到用户</td>
                   </tr>
                 ) : filteredUsers.map(user => (
                   <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="p-4">
                       <div className="font-medium text-gray-900 text-sm">{user.name}</div>
-                      <div className="text-xs text-gray-500">{user.username}</div>
+                      {user.english_name && <div className="text-xs text-gray-500">{user.english_name}</div>}
                     </td>
-                    <td className="p-4 text-gray-600 text-sm">{user.id}</td>
+                    <td className="p-4 text-gray-600 text-sm">{user.username}</td>
+                    <td className="p-4 text-gray-600 text-sm">{user.employeeNo || user.id}</td>
                     <td className="p-4">
-                      <div className="flex flex-wrap gap-1">
-                        {(user.roles || [user.role]).map((r: string) => (
-                          <span key={r} className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            r === '管理员' ? 'bg-purple-100 text-purple-700' :
-                            r === '业务员' ? 'bg-blue-100 text-blue-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {r}
-                          </span>
-                        ))}
-                      </div>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        user.role === 'Admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {user.role === 'Admin' ? '管理员' : '普通用户'}
+                      </span>
                     </td>
-                    <td className="p-4 text-gray-600 text-sm">{user.department_id}</td>
+                    <td className="p-4 text-gray-600 text-sm">
+                      {departments.find(d => d.id === user.department_id)?.name || user.department_id || '-'}
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        user.is_active !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}>
+                        {user.is_active !== false ? '启用' : '禁用'}
+                      </span>
+                    </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button 
+                        <button
                           onClick={() => {
                             setEditingUser({
                               ...user,
-                              roles: user.roles || [user.role]
                             });
                             setIsAddingUser(true);
                           }}
@@ -228,7 +226,7 @@ export default function UserManagement() {
                         >
                           编辑
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleDeleteUser(user.id)}
                           className="text-red-600 hover:text-red-800 text-sm font-medium"
                         >
@@ -248,7 +246,7 @@ export default function UserManagement() {
         <DetailModal
           isOpen={true}
           title={editingUser ? "编辑用户" : "新增用户"}
-          data={editingUser || { name: '', username: '', role: '业务员', department_id: 'sales' }}
+          data={editingUser || { username: '', name: '', role: 'User', department_id: '' }}
           fields={userFields}
           onSave={handleSaveUser}
           onClose={() => {

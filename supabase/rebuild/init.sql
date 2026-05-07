@@ -81,15 +81,46 @@ end
 $$;
 
 -- ========= BASE TABLES =========
-create table if not exists public.ba_employeeinfo (
+-- 用户表（与 okr-ai 共用，在 okr-ai users 表基础上扩展）
+create table if not exists public.users (
   id text primary key,
-  no text,
-  name text not null,
+  auth_id uuid unique,              -- 关联 Supabase Auth
   username text not null,
+  name text not null,
   email text,
-  role text,
-  department text,
+  phone text,                       -- 手机号
+  english_name text,                -- 英文名
+  employee_no text,                 -- 工号
+  role text not null default 'User',
+  department_id text,
   is_active boolean default true,
+  legacy_wanlian_id integer,        -- wanlian 原系统用户 ID
+  pad_permissions jsonb,
+  reviews jsonb,
+  system_role_ids jsonb,
+  custom_permissions jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_users_auth_id on public.users(auth_id);
+create index if not exists idx_users_username on public.users(username);
+create index if not exists idx_users_department_id on public.users(department_id);
+
+-- 部门表（与 okr-ai 共用）
+create table if not exists public.departments (
+  id text primary key,
+  name text not null,
+  manager_name text,
+  responsibilities text,
+  roles jsonb,
+  role_members jsonb,
+  attributes text,
+  sub_departments jsonb,
+  parent_id text,                   -- 父部门ID（兼容 wanlian pid 树）
+  type smallint default 0,          -- 0=部门 1=办事处（兼容 wanlian）
+  legacy_wanlian_id integer,        -- wanlian 原系统部门 ID
+  okrs jsonb,
+  reviews jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -415,7 +446,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_inquiry_no();
+drop function if exists public.set_inquiry_no() cascade;
 create or replace function public.set_inquiry_no()
 returns trigger
 language plpgsql
@@ -428,7 +459,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_lead_no();
+drop function if exists public.set_lead_no() cascade;
 create or replace function public.set_lead_no()
 returns trigger
 language plpgsql
@@ -441,7 +472,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_opportunity_no();
+drop function if exists public.set_opportunity_no() cascade;
 create or replace function public.set_opportunity_no()
 returns trigger
 language plpgsql
@@ -454,7 +485,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_project_no();
+drop function if exists public.set_project_no() cascade;
 create or replace function public.set_project_no()
 returns trigger
 language plpgsql
@@ -467,7 +498,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_quote_no();
+drop function if exists public.set_quote_no() cascade;
 create or replace function public.set_quote_no()
 returns trigger
 language plpgsql
@@ -480,7 +511,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_sales_order_no();
+drop function if exists public.set_sales_order_no() cascade;
 create or replace function public.set_sales_order_no()
 returns trigger
 language plpgsql
@@ -493,7 +524,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_sample_no();
+drop function if exists public.set_sample_no() cascade;
 create or replace function public.set_sample_no()
 returns trigger
 language plpgsql
@@ -506,7 +537,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_return_no();
+drop function if exists public.set_return_no() cascade;
 create or replace function public.set_return_no()
 returns trigger
 language plpgsql
@@ -519,7 +550,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_purchase_quote_no();
+drop function if exists public.set_purchase_quote_no() cascade;
 create or replace function public.set_purchase_quote_no()
 returns trigger
 language plpgsql
@@ -1942,7 +1973,7 @@ do $$
 declare
   t text;
   updated_tables text[] := array[
-    'ba_employeeinfo','ba_cptype','crm_product_series','ba_cpinfo','ba_manucustinfo','ba_customer_user',
+    'users','departments','ba_cptype','crm_product_series','ba_cpinfo','ba_manucustinfo','ba_customer_user',
     'crm_customer_contact','crm_customer_persona','crm_inquiry','crm_lead','crm_opportunity','crm_project',
     'crm_task_type','crm_task','crm_competitor','crm_customer_competitor','crm_customer_focus_swot',
     'crm_customer_focus_competitor','crm_customer_follow_strategy_config','crm_customer_faq_library_config','crm_quotation','crm_quotation_item',
@@ -1985,11 +2016,52 @@ begin
     from pg_tables
     where schemaname = 'public'
       and tablename not like 'pg_%'
+      and tablename not in ('users', 'departments')
   loop
     perform app_meta.apply_open_policies(r.tablename);
   end loop;
 end
 $$;
+
+-- ========= AUTH-BASED RLS POLICIES (users + departments) =========
+create or replace function public.is_admin()
+returns boolean as $$
+begin
+  return exists (
+    select 1 from public.users
+    where auth_id = auth.uid() and role = 'Admin'
+  );
+end;
+$$ language plpgsql security definer stable;
+
+create or replace function public.current_user_id()
+returns text as $$
+  select id from public.users where auth_id = auth.uid() limit 1;
+$$ language sql security definer stable;
+
+-- users 表：所有认证用户可读，仅管理员可写/删，用户可更新自身
+alter table public.users enable row level security;
+drop policy if exists users_select on public.users;
+drop policy if exists users_insert on public.users;
+drop policy if exists users_update on public.users;
+drop policy if exists users_delete on public.users;
+create policy users_select on public.users for select to authenticated using (true);
+create policy users_insert on public.users for insert to authenticated with check (public.is_admin());
+create policy users_update on public.users for update to authenticated
+  using (auth_id = auth.uid() or public.is_admin())
+  with check (auth_id = auth.uid() or public.is_admin());
+create policy users_delete on public.users for delete to authenticated using (public.is_admin());
+
+-- departments 表：所有认证用户可读，仅管理员可写
+alter table public.departments enable row level security;
+drop policy if exists departments_select on public.departments;
+drop policy if exists departments_insert on public.departments;
+drop policy if exists departments_update on public.departments;
+drop policy if exists departments_delete on public.departments;
+create policy departments_select on public.departments for select to authenticated using (true);
+create policy departments_insert on public.departments for insert to authenticated with check (public.is_admin());
+create policy departments_update on public.departments for update to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy departments_delete on public.departments for delete to authenticated using (public.is_admin());
 
 -- ========= IDENTITY SEQUENCE RESYNC =========
 do $$

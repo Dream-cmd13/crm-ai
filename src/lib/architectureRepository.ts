@@ -17,7 +17,7 @@ const toSnake = (value: string) =>
 const canonicalizeOntologyCode = (code: string) => {
   const raw = String(code || '').trim();
   if (!raw) return raw;
-  if (raw === 'Employee') return 'ba_employeeinfo';
+  if (raw === 'Employee') return 'users';
   if (raw === 'Product') return 'ba_cpinfo';
   if (raw === 'ProductCategory') return 'ba_cptype';
   if (raw === 'Customer') return 'ba_manucustinfo';
@@ -397,7 +397,7 @@ export const fetchArchitectureDataFromSupabase = async (options?: { flowSource?:
   // Merge missing objects from initialObjects into finalObjects
   if (objects.length > 0) {
     const mapOntologyCode = (code: string) => {
-      if (code === 'Employee') return 'ba_employeeinfo';
+      if (code === 'Employee') return 'users';
       if (code === 'Product') return 'ba_cpinfo';
       if (code === 'ProductCategory') return 'ba_cptype';
       if (code === 'Customer') return 'ba_manucustinfo';

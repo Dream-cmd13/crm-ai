@@ -39,7 +39,7 @@ const mapOntologyCode = (code: string) => {
       .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
       .replace(/[\s-]+/g, '_')
       .toLowerCase();
-  if (code === 'Employee') return 'ba_employeeinfo';
+  if (code === 'Employee') return 'users';
   if (code === 'Product') return 'ba_cpinfo';
   if (code === 'ProductCategory') return 'ba_cptype';
   if (code === 'Customer') return 'ba_manucustinfo';

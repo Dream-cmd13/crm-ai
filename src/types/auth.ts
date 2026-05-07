@@ -2,14 +2,22 @@ export type Role = '运营' | '业务员' | 'FAE' | '产品部' | '供应链' | 
 
 export interface User {
   id: string;
-  ent_name: string;
+  auth_id?: string;
   username: string;
   name: string;
   email?: string;
+  phone?: string;
+  english_name?: string;
+  employeeNo?: string;
   role: string;
   roles?: string[];
   department_id: string;
-  employeeNo: string;
+  is_active?: boolean;
+  legacy_wanlian_id?: number;
+  pad_permissions?: string[];
+  reviews?: Record<string, any>;
+  system_role_ids?: string[];
+  custom_permissions?: Record<string, any>;
   dataPermissions?: {
     customerVisibility: 'all' | 'department' | 'own' | 'custom';
     allowedCustomerIds?: string[];
@@ -18,8 +26,16 @@ export interface User {
 
 export interface Department {
   id: string;
-  ent_name: string;
   name: string;
-  manager_name: string;
+  manager_name?: string;
+  responsibilities?: string;
+  roles?: string[];
+  role_members?: Record<string, string[]>;
+  attributes?: string;
   sub_departments?: Department[];
+  parent_id?: string;
+  type?: number;
+  legacy_wanlian_id?: number;
+  okrs?: Record<string, any>;
+  reviews?: Record<string, any>;
 }

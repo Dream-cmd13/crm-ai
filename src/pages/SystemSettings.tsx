@@ -12,7 +12,8 @@ import { fetchChatAssistConfigFromSupabase, saveChatAssistConfigToSupabase, defa
 
 import CustomerTypes from './CustomerTypes';
 import SystemWechatQuery from '../components/SystemWechatQuery';
-import { fetchUsersFromSupabase, saveUserToSupabase, deleteUserFromSupabase } from '../lib/userRepository';
+import { fetchUsersFromSupabase, saveUserToSupabase, deleteUserFromSupabase, fetchDepartmentsFromSupabase } from '../lib/userRepository';
+import { Department } from '../types';
 
 import { confirmDialog } from '../lib/toastConfirm';
 
@@ -86,13 +87,14 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [users, setUsers] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [newUser, setNewUser] = useState({
     name: '',
     username: '',
     email: '',
     no: '',
     role: '业务员',
-    department: '销售部'
+    department: 'dept-sales'
   });
   const [newModel, setNewModel] = useState({ key: '', name: '', provider: 'gemini', endpoint: '' });
   const [isCheckingAi, setIsCheckingAi] = useState(false);
@@ -110,6 +112,13 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
       .then((remoteUsers) => setUsers(remoteUsers || []))
       .catch((error) => {
         console.error('Error fetching users:', error);
+      });
+  }, []);
+  useEffect(() => {
+    fetchDepartmentsFromSupabase()
+      .then((depts) => setDepartments(depts || []))
+      .catch((error) => {
+        console.error('Error fetching departments:', error);
       });
   }, []);
 
@@ -274,7 +283,7 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
                 <button 
                   onClick={() => {
                     setEditingUser(null);
-                    setNewUser({ name: '', username: '', email: '', no: '', role: '业务员', department: '销售部' });
+                    setNewUser({ name: '', username: '', email: '', no: '', role: '业务员', department: 'dept-sales' });
                     setIsAddingUser(true);
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
@@ -311,7 +320,7 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
                           </div>
                         </td>
                         <td className="p-4 text-sm text-gray-600">{user.employeeNo || '-'}</td>
-                        <td className="p-4 text-sm text-gray-600">{user.department_id}</td>
+                        <td className="p-4 text-sm text-gray-600">{departments.find(d => d.id === user.department_id)?.name || user.department_id || '-'}</td>
                         <td className="p-4">
                           <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
                             {user.role}
@@ -408,16 +417,15 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">部门</label>
-                          <select 
+                          <select
                             className="w-full p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                             value={newUser.department}
                             onChange={(e) => setNewUser({...newUser, department: e.target.value})}
                           >
-                            <option>销售部</option>
-                            <option>研发部</option>
-                            <option>品质部</option>
-                            <option>财务部</option>
-                            <option>供应链部</option>
+                            <option value="">请选择部门</option>
+                            {departments.map(d => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
                           </select>
                         </div>
                         <div>
@@ -443,7 +451,6 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
                           try {
                             const payload = {
                               id: editingUser?.id,
-                              ent_name: editingUser?.ent_name || 'crm',
                               username: newUser.username,
                               name: newUser.name,
                               role: newUser.role,
@@ -1091,14 +1098,15 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-1">部门</label>
-                      <select 
+                      <select
                         value={newUser.department}
                         onChange={(e) => setNewUser({...newUser, department: e.target.value})}
                         className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                       >
-                        <option value="总经办">总经办</option>
-                        <option value="销售部">销售部</option>
-                        <option value="研发部">研发部</option>
+                        <option value="">请选择部门</option>
+                        {departments.map(d => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -1115,7 +1123,6 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
                       try {
                         const payload = {
                           id: editingUser?.id,
-                          ent_name: editingUser?.ent_name || 'crm',
                           username: newUser.username,
                           name: newUser.name,
                           role: newUser.role,

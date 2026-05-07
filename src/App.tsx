@@ -1,10 +1,13 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
-import { Role } from './types';
+import { Role, User } from './types';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
+import LoginPage from './pages/LoginPage';
+import ChangePasswordModal from './components/ChangePasswordModal';
 import { fetchLlmConfigFromSupabase } from './lib/llmConfigRepository';
-import { fetchUsersFromSupabase } from './lib/userRepository';
-import { User } from './types';
+import { fetchUserByAuthId } from './lib/userRepository';
+import { useAuthStore } from './store/useAuthStore';
+import { supabase } from './lib/supabaseClient';
 import { Toaster } from 'react-hot-toast';
 
 const TodoCenter = lazy(() => import('./pages/TodoCenter'));
@@ -37,37 +40,49 @@ type OpenTab = {
 };
 
 export default function App() {
+  const { isAuthenticated, currentUser, login, logout } = useAuthStore();
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const [currentRole, setCurrentRole] = useState<Role>('业务员');
-  const [currentUser, setCurrentUser] = useState<User>({
-    id: '',
-    ent_name: '',
-    username: '',
-    name: '未登录',
-    role: '业务员',
-    roles: ['业务员'],
-    department_id: '',
-    employeeNo: '',
-    dataPermissions: { customerVisibility: 'self' }
-  });
   const [openTabs, setOpenTabs] = useState<OpenTab[]>([
     { key: 'dashboard', view: 'dashboard', params: null, label: '工作台' }
   ]);
   const [activeTabKey, setActiveTabKey] = useState<string>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // 认证初始化
   useEffect(() => {
-    fetchLlmConfigFromSupabase().catch(() => {});
-  }, []);
+    const handleAuthChange = async (session: any) => {
+      const userId = session?.user?.id;
+
+      if (userId) {
+        const user = await fetchUserByAuthId(userId);
+        if (user) {
+          login(user);
+          setCurrentRole((user.role as Role) || '业务员');
+        }
+      }
+      setIsInitializing(false);
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleAuthChange(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleAuthChange(session);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [login]);
 
   useEffect(() => {
-    fetchUsersFromSupabase().then((users) => {
-      const admin = (users || []).find((u) => String(u.username) === 'admin') || (users || []).find((u) => String(u.id) === 'EMP001');
-      if (admin) {
-        setCurrentUser(admin);
-        setCurrentRole((admin.role as any) || '业务员');
-      }
-    }).catch(() => {});
-  }, []);
+    if (isAuthenticated) {
+      fetchLlmConfigFromSupabase().catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   const getViewLabel = (view: string, params?: any) => {
     const map: Record<string, string> = {
@@ -177,21 +192,49 @@ export default function App() {
 
   const pageLoadingFallback = <div className="p-4 text-sm text-gray-500">页面加载中...</div>;
 
+  // 初始化中
+  if (isInitializing) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+        <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+        <p className="text-slate-500 font-bold text-xs uppercase tracking-widest animate-pulse">正在初始化系统...</p>
+      </div>
+    );
+  }
+
+  // 未登录 → 显示登录页
+  if (!isAuthenticated || !currentUser) {
+    return (
+      <>
+        <LoginPage onLoginSuccess={() => {}} />
+        <Toaster position="top-center" />
+      </>
+    );
+  }
+
+  // 已登录 → 主应用
+  const handleLogout = async () => {
+    await logout();
+    setOpenTabs([{ key: 'dashboard', view: 'dashboard', params: null, label: '工作台' }]);
+    setActiveTabKey('dashboard');
+  };
+
   return (
     <div className="flex h-screen bg-gray-50 text-gray-900 font-sans overflow-hidden">
-      <Sidebar 
-        currentView={currentView} 
+      <Sidebar
+        currentView={currentView}
         setCurrentView={(view) => {
           handleSidebarNav(view);
           setIsSidebarOpen(false);
-        }} 
+        }}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        currentUserName={currentUser.name}
       />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-0">
-        <Header 
-          currentRole={currentRole} 
-          setCurrentRole={setCurrentRole} 
+        <Header
+          currentRole={currentRole}
+          setCurrentRole={setCurrentRole}
           onMenuClick={() => setIsSidebarOpen(true)}
           currentView={currentView}
           onNavigate={(view) => handleSidebarNav(view)}
@@ -199,7 +242,9 @@ export default function App() {
           activeTabKey={activeTabKey}
           onActivateTab={(key) => setActiveTabKey(key)}
           onCloseTab={closeTab}
-          currentUserName="张三"
+          currentUserName={currentUser.name}
+          onChangePassword={() => setShowChangePassword(true)}
+          onLogout={handleLogout}
         />
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-3 md:p-4">
           {openTabs.map((tab) => (
@@ -211,6 +256,9 @@ export default function App() {
           ))}
         </main>
       </div>
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
       <Toaster position="top-center" />
     </div>
   );
