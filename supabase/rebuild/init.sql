@@ -415,7 +415,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_inquiry_no();
+drop function if exists public.set_inquiry_no() cascade;
 create or replace function public.set_inquiry_no()
 returns trigger
 language plpgsql
@@ -428,7 +428,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_lead_no();
+drop function if exists public.set_lead_no() cascade;
 create or replace function public.set_lead_no()
 returns trigger
 language plpgsql
@@ -441,7 +441,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_opportunity_no();
+drop function if exists public.set_opportunity_no() cascade;
 create or replace function public.set_opportunity_no()
 returns trigger
 language plpgsql
@@ -454,7 +454,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_project_no();
+drop function if exists public.set_project_no() cascade;
 create or replace function public.set_project_no()
 returns trigger
 language plpgsql
@@ -467,7 +467,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_quote_no();
+drop function if exists public.set_quote_no() cascade;
 create or replace function public.set_quote_no()
 returns trigger
 language plpgsql
@@ -480,7 +480,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_sales_order_no();
+drop function if exists public.set_sales_order_no() cascade;
 create or replace function public.set_sales_order_no()
 returns trigger
 language plpgsql
@@ -493,7 +493,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_sample_no();
+drop function if exists public.set_sample_no() cascade;
 create or replace function public.set_sample_no()
 returns trigger
 language plpgsql
@@ -506,7 +506,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_return_no();
+drop function if exists public.set_return_no() cascade;
 create or replace function public.set_return_no()
 returns trigger
 language plpgsql
@@ -519,7 +519,7 @@ begin
 end;
 $$;
 
-drop function if exists public.set_purchase_quote_no();
+drop function if exists public.set_purchase_quote_no() cascade;
 create or replace function public.set_purchase_quote_no()
 returns trigger
 language plpgsql
@@ -1140,6 +1140,8 @@ create table if not exists crm_case_library (
   id text primary key,
   title text not null,
   customer_name text,
+  customer_id text,
+  project_id text,
   industry text,
   pain_points text,
   solution text,
@@ -1150,6 +1152,7 @@ create table if not exists crm_case_library (
   images text,
   product_category_ids text,
   product_series_ids text,
+  product_ids text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -1157,6 +1160,12 @@ alter table if exists crm_case_library
   add column if not exists product_category_ids text;
 alter table if exists crm_case_library
   add column if not exists product_series_ids text;
+alter table if exists crm_case_library
+  add column if not exists customer_id text;
+alter table if exists crm_case_library
+  add column if not exists project_id text;
+alter table if exists crm_case_library
+  add column if not exists product_ids text;
 create table if not exists crm_case_product_rel (
   id uuid primary key default gen_random_uuid(),
   case_id text not null references crm_case_library(id) on delete cascade,

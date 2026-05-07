@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { Plus, Search, Filter, ChevronRight, ChevronDown, Edit2, Trash2, FolderTree, Settings, Loader2 } from 'lucide-react';
 import { ProductCategory, Product, CategoryAttribute, ProductSeries } from '../types';
 import DetailModal from '../components/DetailModal';
 import { cn } from '../lib/utils';
-import { fetchProductCategoriesFromSupabase, fetchProductSeriesFromSupabase, fetchProductsFromSupabase, saveProductToSupabase, deleteProductFromSupabase } from '../lib/productRepository';
+import { fetchProductCategoriesFromSupabase, fetchProductSeriesFromSupabase, fetchProductsFromSupabase, saveProductToSupabase, deleteProductFromSupabase, saveProductCategoryToSupabase, deleteProductCategoryFromSupabase } from '../lib/productRepository';
+import { initialProductCategories, initialProducts } from '../data/products';
+import { confirmDialog } from '../lib/toastConfirm';
 
 interface ProductsProps {
   role?: any;
@@ -13,7 +15,7 @@ interface ProductsProps {
   goBack?: () => void;
 }
 
-export default function Products({ viewParams }: ProductsProps) {
+export default function Products({ viewParams, navigateTo }: ProductsProps) {
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,6 +26,9 @@ export default function Products({ viewParams }: ProductsProps) {
   const [displayCount, setDisplayCount] = useState(20);
   const [isEditing, setIsEditing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<ProductCategory | null>(null);
+  const [isDeletingCategory, setIsDeletingCategory] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -34,10 +39,10 @@ export default function Products({ viewParams }: ProductsProps) {
   const fetchCategories = async () => {
     try {
       const remote = await fetchProductCategoriesFromSupabase();
-      setCategories(remote);
+      setCategories(remote.length > 0 ? remote : initialProductCategories);
     } catch (err) {
       console.error('Error fetching categories:', err);
-      setCategories([]);
+      setCategories(initialProductCategories);
     }
   };
 
@@ -45,10 +50,10 @@ export default function Products({ viewParams }: ProductsProps) {
     try {
       setIsLoading(true);
       const remote = await fetchProductsFromSupabase();
-      setProducts(remote);
+      setProducts(remote.length > 0 ? remote : initialProducts);
     } catch (error) {
       console.error('Error fetching products:', error);
-      setProducts([]);
+      setProducts(initialProducts);
     } finally {
       setIsLoading(false);
     }
@@ -63,17 +68,19 @@ export default function Products({ viewParams }: ProductsProps) {
     }
   };
 
-  const getCategoryIds = (category: ProductCategory): string[] => {
-    let ids = [category.id];
-    if (category.children) {
-      category.children.forEach(child => {
-        ids = [...ids, ...getCategoryIds(child)];
+  const getFlatCategories = (nodes: ProductCategory[]): ProductCategory[] => {
+    const result: ProductCategory[] = [];
+    const walk = (items: ProductCategory[]) => {
+      items.forEach((item) => {
+        result.push(item);
+        if (item.children?.length) walk(item.children);
       });
-    }
-    return ids;
+    };
+    walk(nodes);
+    return result;
   };
-
-  const getSelectedCategoryIds = () => {
+  
+  const selectedCategoryIds = useMemo(() => {
     if (!selectedCategory) return [];
     const findCategory = (nodes: ProductCategory[], id: string): ProductCategory | null => {
       for (const node of nodes) {
@@ -86,23 +93,114 @@ export default function Products({ viewParams }: ProductsProps) {
       return null;
     };
     const category = findCategory(categories, selectedCategory);
-    if (category) return getCategoryIds(category);
-    return [selectedCategory];
+    if (!category) return [selectedCategory];
+    const getIds = (cat: ProductCategory): string[] => {
+      let ids = [cat.id];
+      if (cat.children) {
+        cat.children.forEach(child => {
+          ids = [...ids, ...getIds(child)];
+        });
+      }
+      return ids;
+    };
+    return getIds(category);
+  }, [selectedCategory, categories]);
+  
+  const flatCategoryOptions = useMemo(() => getFlatCategories(categories), [categories]);
+
+  const nextCategoryCode = () => {
+    const flat = getFlatCategories(categories);
+    const roots = flat.filter((c) => /^[0-9]+$/.test(c.id) && c.id.length === 2).map((c) => Number(c.id));
+    const next = roots.length > 0 ? Math.max(...roots) + 1 : 1;
+    return String(next).padStart(2, '0');
   };
 
-  const selectedCategoryIds = getSelectedCategoryIds();
-  const getFlatCategories = (nodes: ProductCategory[]): ProductCategory[] => {
-    const result: ProductCategory[] = [];
-    const walk = (items: ProductCategory[]) => {
-      items.forEach((item) => {
-        result.push(item);
-        if (item.children?.length) walk(item.children);
-      });
-    };
-    walk(nodes);
-    return result;
+  const nextChildCategoryCode = (parentId: string) => {
+    const flat = getFlatCategories(categories);
+    const targetLen = parentId.length + 2;
+    const children = flat
+      .filter((c) => c.id.startsWith(parentId) && c.id.length === targetLen)
+      .map((c) => c.id.slice(parentId.length))
+      .filter((suffix) => /^[0-9]{2}$/.test(suffix))
+      .map((suffix) => Number(suffix));
+    const next = children.length > 0 ? Math.max(...children) + 1 : 1;
+    return `${parentId}${String(next).padStart(2, '0')}`;
   };
-  const flatCategoryOptions = getFlatCategories(categories);
+
+  const categoryFields = [
+    { key: 'id', label: '类别编号', required: true },
+    { key: 'name', label: '类别名称', required: true },
+    { key: 'fab.features', label: '产品特征 (Features)', type: 'textarea' },
+    { key: 'fab.advantages', label: '产品优势 (Advantages)', type: 'textarea' },
+    { key: 'fab.benefits', label: '客户利益 (Benefits)', type: 'textarea' },
+  ];
+
+  const handleSaveCategory = async (data: any) => {
+    const id = String(data.id || '').trim();
+    if (!id) {
+      toast.error('类别编号不能为空');
+      return false;
+    }
+    const name = String(data.name || '').trim();
+    if (!name) {
+      toast.error('类别名称不能为空');
+      return false;
+    }
+
+    try {
+      const saved = await saveProductCategoryToSupabase({
+        id,
+        name,
+        parentId: editingCategory?.parentId || null,
+        fab: {
+          features: data.fab?.features || '',
+          advantages: data.fab?.advantages || '',
+          benefits: data.fab?.benefits || ''
+        },
+        children: []
+      });
+      await fetchCategories();
+      setIsAddingCategory(false);
+      setEditingCategory(null);
+      toast.success('产品类别保存成功');
+      return true;
+    } catch (error) {
+      console.error('Error saving category:', error);
+      toast.error(`保存类别失败：${(error as Error)?.message || '请检查数据和配置后重试'}`);
+      return false;
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId: string, categoryName: string) => {
+    if (isDeletingCategory) return;
+    if (!(await confirmDialog(`确认删除类别 "${categoryName}" 及其所有子类别吗？此操作不可撤销。`))) {
+      return;
+    }
+
+    try {
+      setIsDeletingCategory(true);
+      const flat = getFlatCategories(categories);
+      const deleteIds = flat
+        .filter(c => c.id === categoryId || c.id.startsWith(categoryId))
+        .map(c => c.id)
+        .sort((a, b) => b.length - a.length);
+      const needResetSelection = selectedCategory && deleteIds.includes(selectedCategory);
+
+      if (needResetSelection) {
+        setSelectedCategory(null);
+      }
+
+      await Promise.all(deleteIds.map(id => deleteProductCategoryFromSupabase(id)));
+      await fetchCategories();
+
+      toast.success('产品类别删除成功');
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      toast.error(`删除类别失败：${(error as Error)?.message || '请检查数据和配置后重试'}`);
+    } finally {
+      setIsDeletingCategory(false);
+    }
+  };
 
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.materialName.toLowerCase().includes(searchTerm.toLowerCase()) || p.materialNo.toLowerCase().includes(searchTerm.toLowerCase());
@@ -257,6 +355,49 @@ export default function Products({ viewParams }: ProductsProps) {
               )} />
               <span className="truncate text-sm">{category.name}</span>
             </div>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingCategory({ ...category, children: [] });
+                  setIsAddingCategory(true);
+                }}
+                className="p-1 text-gray-400 hover:text-indigo-600"
+                title="编辑类别"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingCategory({ 
+                    id: nextChildCategoryCode(category.id), 
+                    name: '', 
+                    parentId: category.id, 
+                    fab: { features: '', advantages: '', benefits: '' }, 
+                    children: [] 
+                  });
+                  setIsAddingCategory(true);
+                }}
+                className="p-1 text-gray-400 hover:text-indigo-600"
+                title="新增子类别"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteCategory(category.id, category.name);
+                }}
+                className="p-1 text-gray-400 hover:text-rose-600"
+                title="删除类别"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         {category.children && renderCategoryTree(category.children, level + 1)}
       </div>
@@ -304,7 +445,14 @@ export default function Products({ viewParams }: ProductsProps) {
         <div className="w-full md:w-64 shrink-0 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-48 md:h-auto">
           <div className="p-4 border-b border-gray-200 flex justify-between items-center">
             <h3 className="font-semibold text-gray-900 text-sm">产品类别</h3>
-            <button className="p-1 hover:bg-gray-100 rounded text-gray-500">
+            <button 
+              onClick={() => {
+                setEditingCategory({ id: nextCategoryCode(), name: '', parentId: null, fab: { features: '', advantages: '', benefits: '' }, children: [] });
+                setIsAddingCategory(true);
+              }}
+              className="p-1 hover:bg-gray-100 rounded text-gray-500"
+              title="新增产品类别"
+            >
               <Plus className="w-4 h-4" />
             </button>
           </div>
@@ -455,6 +603,22 @@ export default function Products({ viewParams }: ProductsProps) {
           data={isAdding ? {} : selectedProduct}
           fields={getProductFields(isAdding ? {} : selectedProduct)}
           onSave={handleSave}
+          isEditing={true}
+        />
+      )}
+
+      {/* Category Add Modal */}
+      {isAddingCategory && editingCategory && (
+        <DetailModal
+          isOpen={true}
+          onClose={() => {
+            setIsAddingCategory(false);
+            setEditingCategory(null);
+          }}
+          title={editingCategory.parentId ? "新增子类别" : editingCategory.id && categories.some(c => c.id === editingCategory.id || c.children?.some(ch => ch.id === editingCategory.id)) ? "编辑产品类别" : "新增产品类别"}
+          data={editingCategory}
+          fields={categoryFields}
+          onSave={handleSaveCategory}
           isEditing={true}
         />
       )}
