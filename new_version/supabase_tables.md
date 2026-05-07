@@ -170,46 +170,46 @@
 
 ### users (用户表)
 
-| 字段名              | 数据类型        | 约束          | 默认值    | 描述          |
-| ---------------- | ----------- | ----------- | ------ | ----------- |
-| id               | text        | primary key | <br /> | 用户ID        |
-| auth\_id          | uuid        | unique      | <br /> | Supabase Auth 关联 |
-| username         | text        | not null    | <br /> | 用户名         |
-| name             | text        | not null    | <br /> | 用户姓名        |
-| email            | text        | <br />      | <br /> | 邮箱          |
-| phone            | text        | <br />      | <br /> | 手机号         |
-| english\_name     | text        | <br />      | <br /> | 英文名         |
-| employee\_no      | text        | <br />      | <br /> | 工号          |
-| role             | text        | not null    | 'User' | 角色 (Admin/User) |
-| department\_id    | text        | <br />      | <br /> | 部门ID        |
-| is\_active        | boolean     | <br />      | true   | 是否激活        |
-| legacy\_wanlian\_id | integer    | <br />      | <br /> | wanlian 原系统用户ID |
-| pad\_permissions  | jsonb       | <br />      | <br /> | 可见部门权限      |
-| reviews          | jsonb       | <br />      | <br /> | 用户考核记录      |
-| system\_role\_ids  | jsonb       | <br />      | <br /> | 系统角色ID数组    |
-| custom\_permissions | jsonb     | <br />      | <br /> | 自定义菜单权限     |
-| created\_at       | timestamptz | not null    | now()  | 创建时间        |
-| updated\_at       | timestamptz | not null    | now()  | 更新时间        |
+| 字段名                 | 数据类型        | 约束          | 默认值    | 描述               |
+| ------------------- | ----------- | ----------- | ------ | ---------------- |
+| id                  | text        | primary key | <br /> | 用户ID             |
+| auth\_id            | uuid        | unique      | <br /> | Supabase Auth 关联 |
+| username            | text        | not null    | <br /> | 用户名              |
+| name                | text        | not null    | <br /> | 用户姓名             |
+| email               | text        | <br />      | <br /> | 邮箱               |
+| phone               | text        | <br />      | <br /> | 手机号              |
+| english\_name       | text        | <br />      | <br /> | 英文名              |
+| employee\_no        | text        | <br />      | <br /> | 工号               |
+| role                | text        | not null    | 'User' | 角色 (Admin/User)  |
+| department\_id      | text        | <br />      | <br /> | 部门ID             |
+| is\_active          | boolean     | <br />      | true   | 是否激活             |
+| legacy\_wanlian\_id | integer     | <br />      | <br /> | wanlian 原系统用户ID  |
+| pad\_permissions    | jsonb       | <br />      | <br /> | 可见部门权限           |
+| reviews             | jsonb       | <br />      | <br /> | 用户考核记录           |
+| system\_role\_ids   | jsonb       | <br />      | <br /> | 系统角色ID数组         |
+| custom\_permissions | jsonb       | <br />      | <br /> | 自定义菜单权限          |
+| created\_at         | timestamptz | not null    | now()  | 创建时间             |
+| updated\_at         | timestamptz | not null    | now()  | 更新时间             |
 
 ### departments (部门表)
 
-| 字段名              | 数据类型        | 约束          | 默认值    | 描述          |
-| ---------------- | ----------- | ----------- | ------ | ----------- |
-| id               | text        | primary key | <br /> | 部门ID        |
-| name             | text        | not null    | <br /> | 部门名称        |
-| manager\_name     | text        | <br />      | <br /> | 部门主管姓名      |
-| responsibilities | text        | <br />      | <br /> | 核心权力与职责描述   |
-| roles            | jsonb       | <br />      | <br /> | 岗位名称数组      |
-| role\_members     | jsonb       | <br />      | <br /> | 岗位→用户ID映射   |
-| attributes       | text        | <br />      | <br /> | 职能属性描述      |
-| sub\_departments  | jsonb       | <br />      | <br /> | 递归子部门数组     |
-| parent\_id        | text        | <br />      | <br /> | 父部门ID（wanlian兼容） |
-| type             | smallint    | <br />      | 0      | 0=部门 1=办事处   |
-| legacy\_wanlian\_id | integer    | <br />      | <br /> | wanlian 原系统部门ID |
-| okrs             | jsonb       | <br />      | <br /> | 部门OKR       |
-| reviews          | jsonb       | <br />      | <br /> | 部门考核记录      |
-| created\_at       | timestamptz | not null    | now()  | 创建时间        |
-| updated\_at       | timestamptz | not null    | now()  | 更新时间        |
+| 字段名                 | 数据类型        | 约束          | 默认值    | 描述               |
+| ------------------- | ----------- | ----------- | ------ | ---------------- |
+| id                  | text        | primary key | <br /> | 部门ID             |
+| name                | text        | not null    | <br /> | 部门名称             |
+| manager\_name       | text        | <br />      | <br /> | 部门主管姓名           |
+| responsibilities    | text        | <br />      | <br /> | 核心权力与职责描述        |
+| roles               | jsonb       | <br />      | <br /> | 岗位名称数组           |
+| role\_members       | jsonb       | <br />      | <br /> | 岗位→用户ID映射        |
+| attributes          | text        | <br />      | <br /> | 职能属性描述           |
+| sub\_departments    | jsonb       | <br />      | <br /> | 递归子部门数组          |
+| parent\_id          | text        | <br />      | <br /> | 父部门ID（wanlian兼容） |
+| type                | smallint    | <br />      | 0      | 0=部门 1=办事处       |
+| legacy\_wanlian\_id | integer     | <br />      | <br /> | wanlian 原系统部门ID  |
+| okrs                | jsonb       | <br />      | <br /> | 部门OKR            |
+| reviews             | jsonb       | <br />      | <br /> | 部门考核记录           |
+| created\_at         | timestamptz | not null    | now()  | 创建时间             |
+| updated\_at         | timestamptz | not null    | now()  | 更新时间             |
 
 ### ba\_cptype (产品分类表)
 
@@ -842,39 +842,39 @@
 
 ### crm\_case\_library (案例库表)
 
-| 字段名                    | 数据类型        | 约束          | 默认值    | 描述              |
-| ---------------------- | ----------- | ----------- | ------ | --------------- |
-| id                     | text        | primary key | <br /> | 案例ID            |
-| title                  | text        | not null    | <br /> | 标题              |
+| 字段名                    | 数据类型        | 约束          | 默认值    | 描述               |
+| ---------------------- | ----------- | ----------- | ------ | ---------------- |
+| id                     | text        | primary key | <br /> | 案例ID             |
+| title                  | text        | not null    | <br /> | 标题               |
 | customer\_name         | text        | <br />      | <br /> | 客户名称（或客户ID）      |
-| industry               | text        | <br />      | <br /> | 行业              |
+| industry               | text        | <br />      | <br /> | 行业               |
 | pain\_points           | text        | <br />      | <br /> | 核心痛点（多值建议用 \|\|） |
-| solution               | text        | <br />      | <br /> | 解决方案            |
-| metrics                | text        | <br />      | <br /> | 指标结果            |
-| value\_statement       | text        | <br />      | <br /> | 价值陈述            |
+| solution               | text        | <br />      | <br /> | 解决方案             |
+| metrics                | text        | <br />      | <br /> | 指标结果             |
+| value\_statement       | text        | <br />      | <br /> | 价值陈述             |
 | tags                   | text        | <br />      | <br /> | 标签（多值建议用 \|\|）   |
 | attachments            | text        | <br />      | <br /> | 附件（多值建议用 \|\|）   |
 | images                 | text        | <br />      | <br /> | 图片（多值建议用 \|\|）   |
-| product\_category\_ids | text        | <br />      | <br /> | 产品分类ID（多值）      |
-| product\_series\_ids   | text        | <br />      | <br /> | 产品系列ID（多值）      |
-| created\_at            | timestamptz | <br />      | now()  | 创建时间            |
-| updated\_at            | timestamptz | <br />      | now()  | 更新时间            |
+| product\_category\_ids | text        | <br />      | <br /> | 产品分类ID（多值）       |
+| product\_series\_ids   | text        | <br />      | <br /> | 产品系列ID（多值）       |
+| created\_at            | timestamptz | <br />      | now()  | 创建时间             |
+| updated\_at            | timestamptz | <br />      | now()  | 更新时间             |
 
 ### crm\_case\_product\_rel (案例-产品关系表)
 
-| 字段名         | 数据类型 | 约束                                                     | 默认值              | 描述    |
-| ----------- | ---- | ------------------------------------------------------ | ---------------- | ----- |
-| id          | uuid | primary key                                            | gen\_random\_uuid() | 关系ID  |
-| case\_id    | text | not null references crm\_case\_library(id) on delete cascade | <br />           | 案例ID  |
-| product\_id | int  | not null references ba\_cpinfo(id) on delete cascade   | <br />           | 产品ID  |
+| 字段名         | 数据类型 | 约束                                                           | 默认值                 | 描述   |
+| ----------- | ---- | ------------------------------------------------------------ | ------------------- | ---- |
+| id          | uuid | primary key                                                  | gen\_random\_uuid() | 关系ID |
+| case\_id    | text | not null references crm\_case\_library(id) on delete cascade | <br />              | 案例ID |
+| product\_id | int  | not null references ba\_cpinfo(id) on delete cascade         | <br />              | 产品ID |
 
 ### crm\_case\_category\_rel (案例-分类关系表)
 
-| 字段名          | 数据类型 | 约束                                                     | 默认值              | 描述    |
-| ------------ | ---- | ------------------------------------------------------ | ---------------- | ----- |
-| id           | uuid | primary key                                            | gen\_random\_uuid() | 关系ID  |
-| case\_id     | text | not null references crm\_case\_library(id) on delete cascade | <br />           | 案例ID  |
-| category\_id | int  | not null references ba\_cptype(id) on delete cascade   | <br />           | 分类ID  |
+| 字段名          | 数据类型 | 约束                                                           | 默认值                 | 描述   |
+| ------------ | ---- | ------------------------------------------------------------ | ------------------- | ---- |
+| id           | uuid | primary key                                                  | gen\_random\_uuid() | 关系ID |
+| case\_id     | text | not null references crm\_case\_library(id) on delete cascade | <br />              | 案例ID |
+| category\_id | int  | not null references ba\_cptype(id) on delete cascade         | <br />              | 分类ID |
 
 ### crm\_system\_config (系统配置表)
 
@@ -1612,3 +1612,4 @@ create policy p_open_delete on public.{table_name} for delete to anon, authentic
 | last\_message\_at        | timestamptz | 最后消息时间  |
 | last\_message\_preview   | text        | 最后消息预览  |
 | archived\_message\_count | integer     | 已归档消息数  |
+

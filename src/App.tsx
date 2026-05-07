@@ -21,7 +21,6 @@ const SalesQuotations = lazy(() => import('./pages/SalesQuotations'));
 const SalesOrders = lazy(() => import('./pages/SalesOrders'));
 const Products = lazy(() => import('./pages/Products'));
 const ProductCategories = lazy(() => import('./pages/ProductCategories'));
-const ProductCategoryManagement = lazy(() => import('./pages/ProductCategoryManagement'));
 const SampleOrders = lazy(() => import('./pages/SampleOrders'));
 const ReturnOrders = lazy(() => import('./pages/ReturnOrders'));
 const SystemSettings = lazy(() => import('./pages/SystemSettings'));
@@ -100,7 +99,6 @@ export default function App() {
       quotations: '报价单',
       sales: '订单',
       products: '产品资料',
-      'product-category': '产品分类',
       'product-categories': '产品系列',
       'sample-orders': '样品单',
       'return-orders': '退货单',
@@ -179,7 +177,6 @@ export default function App() {
       case 'quotations': return <SalesQuotations {...props} />;
       case 'sales': return <SalesOrders {...props} />;
       case 'products': return <Products {...props} />;
-      case 'product-category': return <ProductCategoryManagement />;
       case 'product-categories': return <ProductCategories />;
       case 'sample-orders': return <SampleOrders {...props} />;
       case 'return-orders': return <ReturnOrders {...props} />;
