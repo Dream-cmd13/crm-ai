@@ -1171,6 +1171,8 @@ create table if not exists crm_case_library (
   id text primary key,
   title text not null,
   customer_name text,
+  customer_id text,
+  project_id text,
   industry text,
   pain_points text,
   solution text,
@@ -1181,6 +1183,7 @@ create table if not exists crm_case_library (
   images text,
   product_category_ids text,
   product_series_ids text,
+  product_ids text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -1188,6 +1191,12 @@ alter table if exists crm_case_library
   add column if not exists product_category_ids text;
 alter table if exists crm_case_library
   add column if not exists product_series_ids text;
+alter table if exists crm_case_library
+  add column if not exists customer_id text;
+alter table if exists crm_case_library
+  add column if not exists project_id text;
+alter table if exists crm_case_library
+  add column if not exists product_ids text;
 create table if not exists crm_case_product_rel (
   id uuid primary key default gen_random_uuid(),
   case_id text not null references crm_case_library(id) on delete cascade,

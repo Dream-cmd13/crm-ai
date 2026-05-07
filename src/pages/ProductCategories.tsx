@@ -17,8 +17,14 @@ export default function ProductCategories() {
   const [selectedSeriesId, setSelectedSeriesId] = useState<string>('');
 
   useEffect(() => {
-    if (!selectedCategoryId && categories.length > 0) {
-      setSelectedCategoryId(categories[0].id);
+    const flat = flattenTree(categories);
+    if (flat.length === 0) {
+      if (selectedCategoryId !== '') setSelectedCategoryId('');
+      return;
+    }
+    const exists = flat.some((item) => item.id === selectedCategoryId);
+    if (!exists) {
+      setSelectedCategoryId(flat[0].id);
     }
   }, [categories, selectedCategoryId]);
 
@@ -26,16 +32,20 @@ export default function ProductCategories() {
     setSelectedSeriesId('');
   }, [selectedCategoryId]);
 
+  const refreshAll = async () => {
+    const [remote, seriesRows] = await Promise.all([
+      fetchProductCategoriesFromSupabase(),
+      fetchProductSeriesFromSupabase()
+    ]);
+    const flat = flattenTree(remote || []);
+    setCategories(buildTreeByCode(flat));
+    setSeriesList(seriesRows || []);
+  };
+
   useEffect(() => {
     const fetchRemote = async () => {
       try {
-        const [remote, seriesRows] = await Promise.all([
-          fetchProductCategoriesFromSupabase(),
-          fetchProductSeriesFromSupabase()
-        ]);
-        const flat = flattenTree(remote || []);
-        setCategories(buildTreeByCode(flat));
-        setSeriesList(seriesRows || []);
+        await refreshAll();
       } catch (error) {
         console.error('Error fetching product categories:', error);
         setCategories([]);
@@ -276,15 +286,17 @@ export default function ProductCategories() {
                       if (!window.confirm(`确认删除类别 ${selectedCategory.id}（含子类与关联系列）？`)) return;
                       const flat = flattenTree(categories);
                       const deleteCategoryIds = flat.filter((c) => c.id === selectedCategory.id || c.id.startsWith(selectedCategory.id)).map((c) => c.id);
-                      const remain = flat.filter((c) => !deleteCategoryIds.includes(c.id));
-                      setCategories(buildTreeByCode(remain));
-                      setSeriesList((prev) => prev.filter((s) => !deleteCategoryIds.includes(s.categoryId || '')));
-                      setSelectedCategoryId(remain[0]?.id || '');
+                      const deleteSeriesIds = seriesList
+                        .filter((s) => deleteCategoryIds.includes(s.categoryId || ''))
+                        .map((s) => s.id);
                       try {
-                        await Promise.all([
-                          ...deleteCategoryIds.map((id) => deleteProductCategoryFromSupabase(id)),
-                          ...seriesList.filter((s) => deleteCategoryIds.includes(s.categoryId || '')).map((s) => deleteProductSeriesFromSupabase(s.id))
-                        ]);
+                        // 先删系列再删类别，避免外键约束导致删除失败
+                        if (deleteSeriesIds.length > 0) {
+                          await Promise.all(deleteSeriesIds.map((id) => deleteProductSeriesFromSupabase(id)));
+                        }
+                        await Promise.all(deleteCategoryIds.map((id) => deleteProductCategoryFromSupabase(id)));
+                        await refreshAll();
+                        toast.success('类别删除成功');
                       } catch (error) {
                         console.error(error);
                         toast.error('类别删除失败，请稍后重试');

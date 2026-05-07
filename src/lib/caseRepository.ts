@@ -50,7 +50,9 @@ export async function saveCaseToSupabase(caseItem: CustomerCase): Promise<Custom
   const payload = {
     id,
     title: caseItem.title || '',
+    customer_id: caseItem.customerId || '',
     customer_name: caseItem.customerId || '',
+    project_id: caseItem.projectId || '',
     industry: caseItem.industry || '',
     pain_points: joinList(caseItem.painPoints),
     solution: caseItem.solution || '',
@@ -59,8 +61,9 @@ export async function saveCaseToSupabase(caseItem: CustomerCase): Promise<Custom
     tags: joinList(caseItem.tags),
     attachments: joinList(caseItem.attachments),
     images: joinList(caseItem.images),
-    product_series_ids: joinList(caseItem.productSeriesIds || caseItem.productCategoryIds),
-    product_category_ids: joinList(caseItem.productSeriesIds || caseItem.productCategoryIds),
+    product_series_ids: joinList(caseItem.productSeriesIds),
+    product_category_ids: joinList(caseItem.productCategoryIds),
+    product_ids: joinList(caseItem.productIds),
     updated_at: new Date().toISOString()
   };
   const { error } = await supabase.from('crm_case_library').upsert(payload, { onConflict: 'id' });
