@@ -53,6 +53,7 @@ export default function Sidebar({ currentView, setCurrentView, isOpen, onClose, 
         { id: 'competitor-library', label: '竞品库', icon: Swords },
         { id: 'case-library', label: '客户案例库', icon: BookOpen },
         { id: 'products', label: '产品资料', icon: Package },
+        { id: 'product-category', label: '产品分类', icon: FolderKanban },
         { id: 'product-categories', label: '产品系列', icon: FolderKanban },
       ]
     },
