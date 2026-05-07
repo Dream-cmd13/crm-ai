@@ -39,6 +39,9 @@ interface ProjectDetailProps {
   orders: any[];
   sampleOrders: any[];
   returnOrders: any[];
+  relatedOpportunityDisplay?: string;
+  relatedLeadDisplay?: string;
+  relatedInquiryDisplay?: string;
   newNote: string;
   setNewNote: (v: string) => void;
   handleAddNote: () => void;
@@ -61,6 +64,7 @@ export const ProjectDetail = ({
   getProjectFlowNodes, getProjectStages, normalizeStage,
   expandedStages, toggleStage, setIsAddingTask, setNewTask, isAddingTask, newTask, handleAddTask,
   setIsEditingMembers, users, quotations, orders, sampleOrders, returnOrders,
+  relatedOpportunityDisplay, relatedLeadDisplay, relatedInquiryDisplay,
   newNote, setNewNote, handleAddNote,
   isAnalyzing, onAIAnalysis, onRegenerateAI,
   communications, onAddCommunication,
@@ -592,6 +596,9 @@ export const ProjectDetail = ({
             opportunityId={selectedProject.opportunityId}
             leadId={selectedProject.leadId}
             inquiryId={selectedProject.inquiryId}
+            opportunityDisplay={relatedOpportunityDisplay}
+            leadDisplay={relatedLeadDisplay}
+            inquiryDisplay={relatedInquiryDisplay}
             quotations={quotations}
             orders={orders}
             sampleOrders={sampleOrders}

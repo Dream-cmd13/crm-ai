@@ -34,6 +34,12 @@ const normalizeStage = (stage: string) => {
   return '需求阶段';
 };
 
+const toNullableInt = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number.parseInt(String(value).trim(), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 interface ProjectsProps {
   role: Role;
   currentUser?: User;
@@ -75,6 +81,11 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
   const [sampleOrders, setSampleOrders] = useState<any[]>([]);
   const [returnOrders, setReturnOrders] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [relatedDisplay, setRelatedDisplay] = useState<{
+    inquiryDisplay?: string;
+    leadDisplay?: string;
+    opportunityDisplay?: string;
+  }>({});
 
   const processedParams = React.useRef<any>(null);
 
@@ -101,6 +112,60 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
     };
     fetchRemote();
   }, []);
+
+  useEffect(() => {
+    const loadSelectedProjectRelatedDisplay = async () => {
+      if (!selectedProject) {
+        setRelatedDisplay({});
+        return;
+      }
+      const nextDisplay: { inquiryDisplay?: string; leadDisplay?: string; opportunityDisplay?: string } = {
+        inquiryDisplay: selectedProject.inquiryId,
+        leadDisplay: selectedProject.leadId,
+        opportunityDisplay: selectedProject.opportunityId
+      };
+      if (!isSupabaseConfigured()) {
+        setRelatedDisplay(nextDisplay);
+        return;
+      }
+      try {
+        const supabase = getSupabaseClient();
+        const inquiryId = toNullableInt(selectedProject.inquiryId);
+        const leadId = toNullableInt(selectedProject.leadId);
+        const opportunityId = toNullableInt(selectedProject.opportunityId);
+
+        const [inquiryRes, leadRes, opportunityRes] = await Promise.all([
+          inquiryId === null
+            ? Promise.resolve({ data: null, error: null } as any)
+            : supabase.from('crm_inquiry').select('inquiry_no').eq('id', inquiryId).limit(1),
+          leadId === null
+            ? Promise.resolve({ data: null, error: null } as any)
+            : supabase.from('crm_lead').select('lead_no').eq('id', leadId).limit(1),
+          opportunityId === null
+            ? Promise.resolve({ data: null, error: null } as any)
+            : supabase.from('crm_opportunity').select('opportunity_no').eq('id', opportunityId).limit(1)
+        ]);
+
+        if (inquiryRes?.error) throw inquiryRes.error;
+        if (leadRes?.error) throw leadRes.error;
+        if (opportunityRes?.error) throw opportunityRes.error;
+
+        const inquiryNo = String(inquiryRes?.data?.[0]?.inquiry_no || '');
+        const leadNo = String(leadRes?.data?.[0]?.lead_no || '');
+        const opportunityNo = String(opportunityRes?.data?.[0]?.opportunity_no || '');
+
+        setRelatedDisplay({
+          inquiryDisplay: inquiryNo || selectedProject.inquiryId,
+          leadDisplay: leadNo || selectedProject.leadId,
+          opportunityDisplay: opportunityNo || selectedProject.opportunityId
+        });
+      } catch (error) {
+        console.error('Error loading project related display numbers:', error);
+        setRelatedDisplay(nextDisplay);
+      }
+    };
+    loadSelectedProjectRelatedDisplay();
+  }, [selectedProject?.id, selectedProject?.inquiryId, selectedProject?.leadId, selectedProject?.opportunityId]);
 
   const syncProject = async (project: Project) => {
     try {
@@ -777,6 +842,9 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
           orders={orders}
           sampleOrders={sampleOrders}
           returnOrders={returnOrders}
+          relatedInquiryDisplay={relatedDisplay.inquiryDisplay}
+          relatedLeadDisplay={relatedDisplay.leadDisplay}
+          relatedOpportunityDisplay={relatedDisplay.opportunityDisplay}
           newNote={newNote}
           setNewNote={setNewNote}
           handleAddNote={handleAddNote}

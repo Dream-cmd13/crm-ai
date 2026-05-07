@@ -6,6 +6,9 @@ interface RelatedRecordsProps {
   opportunityId?: string;
   leadId?: string;
   inquiryId?: string;
+  opportunityDisplay?: string;
+  leadDisplay?: string;
+  inquiryDisplay?: string;
   quotations: any[];
   orders: any[];
   sampleOrders: any[];
@@ -14,7 +17,7 @@ interface RelatedRecordsProps {
 }
 
 export const RelatedRecords: React.FC<RelatedRecordsProps> = ({ 
-  projectId, opportunityId, leadId, inquiryId, quotations, orders, sampleOrders, returnOrders, onNavigateTo 
+  projectId, opportunityId, leadId, inquiryId, opportunityDisplay, leadDisplay, inquiryDisplay, quotations, orders, sampleOrders, returnOrders, onNavigateTo 
 }) => {
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-6">
@@ -30,19 +33,19 @@ export const RelatedRecords: React.FC<RelatedRecordsProps> = ({
               {inquiryId && (
                 <div className="flex items-center justify-between p-2 bg-indigo-50/50 rounded-lg text-sm">
                   <span className="text-gray-600">关联询盘</span>
-                  <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => onNavigateTo('inquiries', inquiryId)}>{inquiryId}</span>
+                  <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => onNavigateTo('inquiries', inquiryId)}>{inquiryDisplay || inquiryId}</span>
                 </div>
               )}
               {leadId && (
                 <div className="flex items-center justify-between p-2 bg-indigo-50/50 rounded-lg text-sm">
                   <span className="text-gray-600">关联线索</span>
-                  <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => onNavigateTo('leads', leadId)}>{leadId}</span>
+                  <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => onNavigateTo('leads', leadId)}>{leadDisplay || leadId}</span>
                 </div>
               )}
               {opportunityId && (
                 <div className="flex items-center justify-between p-2 bg-indigo-50/50 rounded-lg text-sm">
                   <span className="text-gray-600">关联商机</span>
-                  <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => onNavigateTo('opportunities', opportunityId)}>{opportunityId}</span>
+                  <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => onNavigateTo('opportunities', opportunityId)}>{opportunityDisplay || opportunityId}</span>
                 </div>
               )}
             </div>

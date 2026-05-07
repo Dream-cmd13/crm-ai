@@ -101,6 +101,10 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   const [isAddingContact, setIsAddingContact] = useState(false);
   const [contacts, setContacts] = useState<any[]>([]);
   const [selectedCustomerNumber, setSelectedCustomerNumber] = useState('');
+  const [leadNoMap, setLeadNoMap] = useState<Record<string, string>>({});
+  const [inquiryNoMap, setInquiryNoMap] = useState<Record<string, string>>({});
+  const [leadSelectOptions, setLeadSelectOptions] = useState<{ value: string; label: string }[]>([]);
+  const [inquirySelectOptions, setInquirySelectOptions] = useState<{ value: string; label: string }[]>([]);
 
   
   const [tasks, setTasks] = useState<TodoTask[]>([]);
@@ -213,6 +217,65 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   useEffect(() => {
     fetchOpportunities();
   }, []);
+
+  useEffect(() => {
+    const loadRelatedReferenceData = async () => {
+      if (!isSupabaseConfigured()) {
+        setLeadNoMap({});
+        setInquiryNoMap({});
+        setLeadSelectOptions([]);
+        setInquirySelectOptions([]);
+        return;
+      }
+      try {
+        const supabase = getSupabaseClient();
+        const [{ data: leadRows, error: leadError }, { data: inquiryRows, error: inquiryError }] = await Promise.all([
+          supabase.from('crm_lead').select('id, lead_no'),
+          supabase.from('crm_inquiry').select('id, inquiry_no')
+        ]);
+        if (leadError) throw leadError;
+        if (inquiryError) throw inquiryError;
+
+        const nextLeadMap: Record<string, string> = {};
+        const nextLeadOptions = (leadRows || []).map((row: any) => {
+          const id = String(row.id);
+          const leadNo = String(row.lead_no || '');
+          if (leadNo) nextLeadMap[id] = leadNo;
+          return { value: id, label: leadNo || id };
+        });
+
+        const nextInquiryMap: Record<string, string> = {};
+        const nextInquiryOptions = (inquiryRows || []).map((row: any) => {
+          const id = String(row.id);
+          const inquiryNo = String(row.inquiry_no || '');
+          if (inquiryNo) nextInquiryMap[id] = inquiryNo;
+          return { value: id, label: inquiryNo || id };
+        });
+
+        setLeadNoMap(nextLeadMap);
+        setInquiryNoMap(nextInquiryMap);
+        setLeadSelectOptions(nextLeadOptions);
+        setInquirySelectOptions(nextInquiryOptions);
+      } catch (error) {
+        console.error('Error loading related references for opportunity:', error);
+        setLeadNoMap({});
+        setInquiryNoMap({});
+        setLeadSelectOptions([]);
+        setInquirySelectOptions([]);
+      }
+    };
+    loadRelatedReferenceData();
+  }, [opportunities.length]);
+
+  const resolveLeadDisplay = (leadId?: string) => {
+    if (!leadId) return '-';
+    return leadNoMap[leadId] || leadId;
+  };
+
+  const resolveInquiryDisplay = (inquiryId?: string) => {
+    if (!inquiryId) return '-';
+    return inquiryNoMap[inquiryId] || inquiryId;
+  };
 
   useEffect(() => {
     if (selectedOpp?.customerId) {
@@ -695,8 +758,8 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     { key: 'salesType', label: '销售类型' },
     { key: 'productIndustry', label: '产品所属行业', type: 'select', options: PRODUCT_INDUSTRY_OPTIONS },
     { key: 'productSeries', label: '产品系列' },
-    { key: 'leadId', label: '关联线索' },
-    { key: 'inquiryId', label: '关联询盘' },
+    { key: 'leadId', label: '关联线索', type: 'select', options: leadSelectOptions },
+    { key: 'inquiryId', label: '关联询盘', type: 'select', options: inquirySelectOptions },
     { key: 'contactPerson', label: '客户联系人' },
     { key: 'attachments', label: '附件', type: 'attachments' },
     { key: 'completeness', label: '完整度%', type: 'number' },
@@ -925,7 +988,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                         className="flex items-center gap-1 text-indigo-600 hover:underline font-medium"
                       >
                         <Link className="w-3 h-3" />
-                        {selectedOpp.leadId}
+                        {resolveLeadDisplay(selectedOpp.leadId)}
                       </button>
                     </div>
                   )}
@@ -937,7 +1000,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                         className="flex items-center gap-1 text-indigo-600 hover:underline font-medium"
                       >
                         <Link className="w-3 h-3" />
-                        {selectedOpp.inquiryId}
+                        {resolveInquiryDisplay(selectedOpp.inquiryId)}
                       </button>
                     </div>
                   )}

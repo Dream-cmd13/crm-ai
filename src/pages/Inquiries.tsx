@@ -63,6 +63,8 @@ interface InquiriesProps {
 
 export default function Inquiries({ role, currentUser, viewParams, navigateTo, goBack }: InquiriesProps) {
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [leadNoMap, setLeadNoMap] = useState<Record<string, string>>({});
+  const [leadSelectOptions, setLeadSelectOptions] = useState<{ value: string; label: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -154,7 +156,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       unconvertReason: row.unconvert_reason,
       unconvertedTime: row.unconverted_time || undefined,
       notes: row.notes,
-      associatedLead: row.associated_lead,
+      associatedLead: row.associated_lead !== null && row.associated_lead !== undefined ? String(row.associated_lead) : undefined,
       creatorId: row.creator_id || 'system',
       creatorNo: row.creator_no || 'system',
       creatorName: row.creator_name || role,
@@ -195,6 +197,38 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   }, []);
 
   useEffect(() => {
+    const loadLeadReferenceData = async () => {
+      if (!isSupabaseConfigured()) {
+        setLeadNoMap({});
+        setLeadSelectOptions([]);
+        return;
+      }
+      try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+          .from('crm_lead')
+          .select('id, lead_no');
+        if (error) throw error;
+        const rows = Array.isArray(data) ? data : [];
+        const nextMap: Record<string, string> = {};
+        const nextOptions = rows.map((row: any) => {
+          const id = String(row.id);
+          const leadNo = String(row.lead_no || '');
+          if (leadNo) nextMap[id] = leadNo;
+          return { value: id, label: leadNo || id };
+        });
+        setLeadNoMap(nextMap);
+        setLeadSelectOptions(nextOptions);
+      } catch (error) {
+        console.error('Error loading lead references for inquiry:', error);
+        setLeadNoMap({});
+        setLeadSelectOptions([]);
+      }
+    };
+    loadLeadReferenceData();
+  }, [inquiries.length]);
+
+  useEffect(() => {
     if (viewParams) {
       const inquiry = inquiries.find(i => i.id === viewParams);
       if (inquiry) {
@@ -208,6 +242,10 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   const [searchTerm, setSearchTerm] = useState('');
 
   const normalizeForSearch = (value: unknown) => String(value ?? '').toLowerCase();
+  const resolveLeadDisplay = (leadId?: string) => {
+    if (!leadId) return '-';
+    return leadNoMap[leadId] || leadId;
+  };
   const filteredInquiries = inquiries.filter(inq => {
     const searchLower = normalizeForSearch(searchTerm);
     return (
@@ -657,7 +695,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     { key: 'unconvertedTime', label: '未转化时间', type: 'date' },
     { key: 'notes', label: '备注', type: 'textarea' },
     { key: 'attachments', label: '附件', type: 'attachments' },
-    { key: 'associatedLead', label: '关联线索' },
+    { key: 'associatedLead', label: '关联线索', type: 'select', options: leadSelectOptions },
     { key: 'creator', label: '创建人', type: 'user' },
     { key: 'updater', label: '更新人', type: 'user' },
     { key: 'updateDate', label: '更新日期', type: 'date' },
@@ -878,7 +916,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                         onClick={() => navigateTo?.('leads', selectedInquiry.associatedLead)}
                         className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
                       >
-                        {selectedInquiry.associatedLead}
+                        {resolveLeadDisplay(selectedInquiry.associatedLead)}
                       </button>
                     ) : (
                       <p className="font-medium text-gray-900">-</p>
@@ -1267,7 +1305,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                     </td>
                     <td className="px-6 py-4 text-gray-600">{inq.unconvertReason || '-'}</td>
                     <td className="px-6 py-4 text-gray-600">{inq.notes || '-'}</td>
-                    <td className="px-6 py-4 text-indigo-600 cursor-pointer hover:underline" onClick={() => inq.associatedLead && navigateTo?.('leads', inq.associatedLead)}>{inq.associatedLead || '-'}</td>
+                    <td className="px-6 py-4 text-indigo-600 cursor-pointer hover:underline" onClick={() => inq.associatedLead && navigateTo?.('leads', inq.associatedLead)}>{resolveLeadDisplay(inq.associatedLead)}</td>
                     <td className="px-6 py-4 text-gray-600">{inq.creator}</td>
                     <td className="px-6 py-4 text-gray-600">{inq.createDate}</td>
                     <td className="px-6 py-4 text-gray-600">{inq.updater || '-'}</td>

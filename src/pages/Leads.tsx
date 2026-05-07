@@ -109,6 +109,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
   const [isAddingContact, setIsAddingContact] = useState(false);
   const [contacts, setContacts] = useState<any[]>([]);
   const [selectedCustomerNumber, setSelectedCustomerNumber] = useState('');
+  const [inquiryNoMap, setInquiryNoMap] = useState<Record<string, string>>({});
 
   
 
@@ -222,6 +223,50 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
   useEffect(() => {
     fetchLeads();
   }, []);
+
+  useEffect(() => {
+    const loadInquiryReferenceData = async () => {
+      if (!isSupabaseConfigured()) {
+        setInquiryNoMap({});
+        return;
+      }
+      const inquiryIds = Array.from(
+        new Set(
+          leads
+            .map((lead) => toNullableInt(lead.inquiryId))
+            .filter((id): id is number => id !== null)
+        )
+      );
+      if (inquiryIds.length === 0) {
+        setInquiryNoMap({});
+        return;
+      }
+      try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+          .from('crm_inquiry')
+          .select('id, inquiry_no')
+          .in('id', inquiryIds);
+        if (error) throw error;
+        const nextMap: Record<string, string> = {};
+        (data || []).forEach((row: any) => {
+          const id = String(row.id);
+          const inquiryNo = String(row.inquiry_no || '');
+          if (inquiryNo) nextMap[id] = inquiryNo;
+        });
+        setInquiryNoMap(nextMap);
+      } catch (error) {
+        console.error('Error loading inquiry references for lead:', error);
+        setInquiryNoMap({});
+      }
+    };
+    loadInquiryReferenceData();
+  }, [leads]);
+
+  const resolveInquiryDisplay = (inquiryId?: string) => {
+    if (!inquiryId) return '-';
+    return inquiryNoMap[inquiryId] || inquiryId;
+  };
 
   useEffect(() => {
     if (selectedLead?.customerId) {
@@ -980,7 +1025,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                         className="flex items-center gap-1 text-indigo-600 hover:underline font-medium"
                       >
                         <Link className="w-3 h-3" />
-                        {selectedLead.inquiryId}
+                        {resolveInquiryDisplay(selectedLead.inquiryId)}
                       </button>
                     </div>
                   )}
