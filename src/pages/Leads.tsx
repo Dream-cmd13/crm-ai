@@ -2,7 +2,6 @@ import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter, Target, ChevronRight, FileText, Sparkles, ExternalLink, Loader2, MessageSquare, Link, Users } from 'lucide-react';
 import { Role, Lead, CommunicationDetail, GroupChat, TodoTask, User, FileAttachment } from '../types';
-import { initialObjects } from '../data/ontologyData';
 import ManageMembersModal from '../components/ManageMembersModal';
 import QuickTaskModal from '../components/QuickTaskModal';
 import TaskDetailModal from '../components/TaskDetailModal';
