@@ -409,9 +409,12 @@ export default function AiStageAssistant({
     const row = data?.[0];
     const aux = row?.auxiliary_json || {};
     const stagesFromDb = Array.isArray(aux?.stages) ? aux.stages : [];
+    const sortedStages = [...stagesFromDb].sort((a: any, b: any) => 
+      String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-CN', { numeric: true })
+    );
     const generatedAt = String(aux?.generatedAt || '').trim() || String(row?.updated_at || '').replace('T', ' ').slice(0, 19);
-    if (stagesFromDb.length === 0) return null;
-    return { stages: stagesFromDb as StageItem[], generatedAt };
+    if (sortedStages.length === 0) return null;
+    return { stages: sortedStages as StageItem[], generatedAt };
   };
 
   const buildOqarSummary = (oqar?: StageItem['oqar']) => {
@@ -712,7 +715,10 @@ export default function AiStageAssistant({
 
   const buildCardsFromFlow = (flow: any): StageItem[] => {
     const cards: StageItem[] = [];
-    (flow?.nodes || [])
+    const sortedNodes = [...(flow?.nodes || [])].sort((a: any, b: any) => 
+      String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-CN', { numeric: true })
+    );
+    sortedNodes
       .forEach((node: any) => {
         const manual = node?.manualConfig || {};
         const automatic = node?.automaticConfig || {};
@@ -960,9 +966,12 @@ export default function AiStageAssistant({
         if (!raw || !mounted) return;
         const parsed = JSON.parse(raw || '{}');
         const cachedStages = Array.isArray(parsed?.stages) ? parsed.stages : [];
+        const sortedCached = [...cachedStages].sort((a: any, b: any) => 
+          String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-CN', { numeric: true })
+        );
         const generatedAt = String(parsed?.generatedAt || '').trim();
-        if (cachedStages.length === 0) return;
-        setStages(cachedStages);
+        if (sortedCached.length === 0) return;
+        setStages(sortedCached);
         setSopGenerated(true);
         if (generatedAt) setBatchGeneratedAt(generatedAt);
       } catch (e) {

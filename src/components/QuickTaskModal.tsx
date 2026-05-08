@@ -306,7 +306,7 @@ export default function QuickTaskModal({ isOpen, onClose, onSave, currentUser, i
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50 disabled:opacity-60 flex items-center justify-between text-left"
               >
                 <span className={targetUserId || isVisit ? 'text-gray-900' : 'text-gray-400'}>
-                  {isVisit ? (currentUser?.name || '系统管理员') : (targetUserName || (targetUserId ? targetUserId : '') || '请选择负责人...')}
+                  {isVisit ? (currentUser?.name || '系统管理员') : (targetUserName || '请选择负责人...')}
                 </span>
                 {!isVisit && <Search className="w-4 h-4 text-gray-400" />}
               </button>
@@ -349,8 +349,8 @@ export default function QuickTaskModal({ isOpen, onClose, onSave, currentUser, i
               onClick={() => setShowAssignorSelection(true)}
               className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50 flex items-center justify-between text-left"
             >
-              <span className={assignorId ? 'text-gray-900' : 'text-gray-400'}>
-                {assignorName || (assignorId ? assignorId : '') || '请选择下达人...'}
+              <span className={assignorName ? 'text-gray-900' : 'text-gray-400'}>
+                {assignorName || '请选择下达人...'}
               </span>
               <Search className="w-4 h-4 text-gray-400" />
             </button>
@@ -369,7 +369,7 @@ export default function QuickTaskModal({ isOpen, onClose, onSave, currentUser, i
             >
               <span className={assistantIds.length > 0 ? 'text-gray-900' : 'text-gray-400'}>
                 {assistantIds.length > 0 
-                  ? (assistantNames.length > 0 ? assistantNames.join(', ') : assistantIds.join(', '))
+                  ? (assistantNames.length > 0 ? assistantNames.join(', ') : `已选择 ${assistantIds.length} 人`)
                   : '请选择协助人...'}
               </span>
               <Search className="w-4 h-4 text-gray-400" />

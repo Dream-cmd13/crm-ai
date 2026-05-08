@@ -326,6 +326,7 @@ export const fetchArchitectureDataFromSupabase = async (options?: { flowSource?:
         progressionCheck: parsedFlow.progressionCheck,
         nodes: (nodeRows || [])
           .filter((node) => node.flow_id === flow.id)
+          .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh-CN', { numeric: true }))
           .map((node) => {
             const config = node.config_json || {};
             return {

@@ -43,7 +43,7 @@ export default function GroupsPage() {
       const id = String(user.id || '').trim();
       const name = String(user.name || user.username || '').trim();
       if (!id) return;
-      map.set(id, name || id);
+      if (name) map.set(id, name);
     });
     return map;
   }, [userOptions]);
@@ -58,12 +58,11 @@ export default function GroupsPage() {
         { value: '', label: '未指定负责人' },
         ...userOptions
           .map((user) => {
-            const value = String(user.name || user.username || user.id || '').trim();
+            const value = String(user.name || user.username || '').trim();
             if (!value) return null;
-            const secondary = String(user.username || user.id || '').trim();
             return {
               value,
-              label: secondary && secondary !== value ? `${value}（${secondary}）` : value
+              label: value
             };
           })
           .filter((item): item is { value: string; label: string } => Boolean(item))

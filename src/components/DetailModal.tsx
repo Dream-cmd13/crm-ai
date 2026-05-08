@@ -6,6 +6,7 @@ import UniversalSelector from './UniversalSelector';
 import CustomerLookupModal from './CustomerLookupModal';
 import ReservedButtons from './ReservedButtons';
 import WorkflowProgress from './WorkflowProgress';
+import { fetchUsersFromSupabase } from '../lib/userRepository';
 
 interface DetailModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
   const [activeSelector, setActiveSelector] = useState<{ key: string, type: 'user' | 'product' | 'customer' | 'category', customerIdKey?: string } | null>(null);
   const [activeCustomerLookup, setActiveCustomerLookup] = useState<{ key: string; customerIdKey?: string; allowPotential?: boolean } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [userNameMap, setUserNameMap] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     // 避免父组件重渲染导致 data 引用变化时清空正在输入的内容
@@ -33,6 +35,23 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
       setFieldErrors({});
     }
   }, [isOpen, data?.id]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchUsersFromSupabase()
+      .then((users) => {
+        const map = new Map<string, string>();
+        (users || []).forEach((user) => {
+          const id = String(user.id || '').trim();
+          const name = String(user.name || user.username || '').trim();
+          if (id && name) map.set(id, name);
+        });
+        setUserNameMap(map);
+      })
+      .catch(() => {
+        setUserNameMap(new Map());
+      });
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -157,7 +176,12 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
   const getDisplayName = (key: string, type: string) => {
     const value = getFieldValue(key);
     if (!value) return '';
-    return value;
+    const text = String(value).trim();
+    if (!text) return '';
+    if (type === 'user') {
+      return userNameMap.get(text) || text;
+    }
+    return text;
   };
 
   const hasWorkflow = moduleCode && ['INQUIRY', 'LEAD', 'OPPORTUNITY', 'PROJECT', 'TASK'].includes(moduleCode) && !isEditing;
@@ -478,7 +502,8 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
           type={activeSelector.type as any}
           onSelect={(item) => {
             if (activeSelector.type === 'user') {
-              handleChange(activeSelector.key, item.id);
+              const selectedName = String(item.name || item.username || '').trim();
+              handleChange(activeSelector.key, selectedName || String(item.id || '').trim());
             } else if (activeSelector.type === 'product') {
               handleChange(activeSelector.key, item.id);
             } else if (activeSelector.type === 'category') {

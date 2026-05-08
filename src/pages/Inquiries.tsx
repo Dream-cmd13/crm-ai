@@ -19,7 +19,7 @@ import { Clock, RefreshCw } from 'lucide-react';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
 import { saveCustomerContactToSupabase, saveGroupChatToSupabase, fetchCustomerContactsFromSupabase } from '../lib/customerInteractionRepository';
 import { createPotentialCustomerInSupabase } from '../lib/potentialCustomerRepository';
-import { resolveCustomerDbIdFromSupabase } from '../lib/customerRepository';
+import { resolveCustomerDbIdFromSupabase, saveCustomerCommunicationToSupabase, fetchCustomerCommunicationsFromSupabase } from '../lib/customerRepository';
 import { pushInquiryToLeadInSupabase } from '../lib/pushdown';
 import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
@@ -95,7 +95,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [activeDetailTab, setActiveDetailTab] = useState<'flow'>('flow');
+  const [activeDetailTab, setActiveDetailTab] = useState<'flow' | 'communications'>('flow');
   const [tasks, setTasks] = useState<TodoTask[]>([]);
   const [communications, setCommunications] = useState<CommunicationDetail[]>([]);
   const [personas, setPersonas] = useState<any[]>([]);
@@ -115,6 +115,23 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     } else {
       setContacts([]);
     }
+  }, [selectedInquiry?.customerId]);
+
+  useEffect(() => {
+    const loadCommunications = async () => {
+      if (selectedInquiry?.customerId && isSupabaseConfigured()) {
+        try {
+          const comms = await fetchCustomerCommunicationsFromSupabase(selectedInquiry.customerId);
+          setCommunications(comms);
+        } catch (error) {
+          console.error('Failed to load communications:', error);
+          setCommunications([]);
+        }
+      } else {
+        setCommunications([]);
+      }
+    };
+    loadCommunications();
   }, [selectedInquiry?.customerId]);
 
   useEffect(() => {
@@ -652,7 +669,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     }
   };
 
-  const handleAddCommunication = (comm: Partial<CommunicationDetail>) => {
+  const handleAddCommunication = async (comm: Partial<CommunicationDetail>) => {
     if (!selectedInquiry) return;
     const newComm: CommunicationDetail = {
       id: `C${Date.now()}`,
@@ -665,6 +682,15 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       ...comm
     };
     setCommunications([newComm, ...communications]);
+
+    if (selectedInquiry.customerId && isSupabaseConfigured()) {
+      try {
+        await saveCustomerCommunicationToSupabase(selectedInquiry.customerId, newComm);
+      } catch (error) {
+        console.error('Failed to save communication:', error);
+        toast.error(`保存沟通记录失败：${(error as Error)?.message || '请检查配置'}`);
+      }
+    }
   };
 
   const handleAIAnalysis = async () => {
@@ -1039,7 +1065,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
               </div>
 
               <div className="col-span-3">
-                <div className="flex flex-wrap border-b border-gray-200 mb-6">
+                <div className="flex flex-wrap border-b border-gray-200 mb-6 gap-2">
                   <button
                     onClick={() => setActiveDetailTab('flow')}
                     className={cn(
@@ -1051,6 +1077,18 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                   >
                     <RefreshCw className="w-4 h-4" />
                     SOP标准
+                  </button>
+                  <button
+                    onClick={() => setActiveDetailTab('communications')}
+                    className={cn(
+                      "px-6 py-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2",
+                      activeDetailTab === 'communications'
+                        ? "border-indigo-600 text-indigo-600 bg-indigo-50/30"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                    )}
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    沟通记录
                   </button>
                 </div>
 
@@ -1067,6 +1105,18 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                       sourceRecord={selectedInquiry as any}
                     />
                   </div>
+                )}
+
+                {activeDetailTab === 'communications' && (
+                  <CommunicationLog
+                    onAddCommunication={handleAddCommunication}
+                    title="沟通记录"
+                    contacts={contacts}
+                    employees={[{ id: currentUser?.id || 'emp1', name: currentUser?.name || role, role: role }]}
+                    customerId={selectedInquiry.customerId}
+                    customerName={selectedInquiry.companyName || selectedInquiry.customerName}
+                    communications={communications}
+                  />
                 )}
               </div>
 
