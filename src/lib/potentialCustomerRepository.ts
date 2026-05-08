@@ -4,6 +4,16 @@ import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 const TABLE = 'crm_potential_customer';
 const CUSTOMER_TABLE = 'ba_manucustinfo';
 
+const isDuplicateCustomerPrimaryKeyError = (error: any): boolean => {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '');
+  const details = String(error?.details || '');
+  return (
+    code === '23505' &&
+    (message.includes('ba_manucustinfo_pkey') || details.includes('ba_manucustinfo_pkey'))
+  );
+};
+
 const mapDbToUi = (row: any): PotentialCustomer => ({
   id: row.id,
   name: row.name || '',
@@ -18,16 +28,47 @@ const upsertPotentialStubCustomerInSupabase = async (id: string, name: string) =
   if (!isSupabaseConfigured()) return;
   const supabase = getSupabaseClient();
   const now = new Date().toISOString();
+  const { data: existing, error: queryError } = await supabase
+    .from(CUSTOMER_TABLE)
+    .select('id')
+    .eq('customer_number', cleanId)
+    .maybeSingle();
+  if (queryError) throw queryError;
+
   const customerPayload = {
-    id: cleanId,
+    customer_number: cleanId,
     name: cleanName,
     level: '潜在客户',
-    status: '活跃',
-    source: '潜在客户',
+    status: 1,
     updated_at: now
   };
-  const { error } = await supabase.from(CUSTOMER_TABLE).upsert(customerPayload, { onConflict: 'id' });
-  if (error) throw error;
+
+  if (existing?.id) {
+    const { error: updateError } = await supabase
+      .from(CUSTOMER_TABLE)
+      .update(customerPayload)
+      .eq('id', existing.id);
+    if (updateError) throw updateError;
+    return;
+  }
+
+  const { error: insertError } = await supabase.from(CUSTOMER_TABLE).insert(customerPayload);
+  if (!insertError) return;
+  if (!isDuplicateCustomerPrimaryKeyError(insertError)) throw insertError;
+
+  // 兼容历史序列不同步：主键冲突时使用 max(id)+1 显式重试
+  const { data: maxRow, error: maxError } = await supabase
+    .from(CUSTOMER_TABLE)
+    .select('id')
+    .order('id', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (maxError) throw maxError;
+  const fallbackId = Number(maxRow?.id || 0) + 1;
+  const { error: retryError } = await supabase
+    .from(CUSTOMER_TABLE)
+    .insert({ ...customerPayload, id: fallbackId });
+  if (retryError) throw retryError;
 };
 
 export const searchPotentialCustomersByNameFromSupabase = async (name: string, limit: number = 20): Promise<PotentialCustomer[]> => {
@@ -114,17 +155,47 @@ export const convertPotentialCustomerToCustomerInSupabase = async (potential: Po
 
   const supabase = getSupabaseClient();
   const now = new Date().toISOString();
+  const { data: existing, error: queryError } = await supabase
+    .from(CUSTOMER_TABLE)
+    .select('id')
+    .eq('customer_number', id)
+    .maybeSingle();
+  if (queryError) throw queryError;
+
   const customerPayload = {
-    id,
+    customer_number: id,
     name,
     level: '普通客户',
-    status: '活跃',
-    source: '潜在客户转正',
+    status: 1,
     updated_at: now
   };
 
-  const { error: upsertError } = await supabase.from(CUSTOMER_TABLE).upsert(customerPayload, { onConflict: 'id' });
-  if (upsertError) throw upsertError;
+  if (existing?.id) {
+    const { error: updateError } = await supabase
+      .from(CUSTOMER_TABLE)
+      .update(customerPayload)
+      .eq('id', existing.id);
+    if (updateError) throw updateError;
+  } else {
+    const { error: insertError } = await supabase.from(CUSTOMER_TABLE).insert(customerPayload);
+    if (!insertError) {
+      await deletePotentialCustomerFromSupabase(id);
+      return;
+    }
+    if (!isDuplicateCustomerPrimaryKeyError(insertError)) throw insertError;
+    const { data: maxRow, error: maxError } = await supabase
+      .from(CUSTOMER_TABLE)
+      .select('id')
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (maxError) throw maxError;
+    const fallbackId = Number(maxRow?.id || 0) + 1;
+    const { error: retryError } = await supabase
+      .from(CUSTOMER_TABLE)
+      .insert({ ...customerPayload, id: fallbackId });
+    if (retryError) throw retryError;
+  }
 
   await deletePotentialCustomerFromSupabase(id);
 };

@@ -159,16 +159,18 @@ export const pushInquiryToLeadInSupabase = async (source: Inquiry, leadData: any
     leadData?.creatorId ? { id: String(leadData.creatorId), name: String(leadData.creatorName || '') } : undefined
   ).catch(() => {});
 
-  const { error: inquiryError } = await supabase
-    .from('crm_inquiry')
-    .update({
-      status: '已转线索',
-      associated_lead: leadId,
-      update_date: today(),
-      updated_at: now
-    })
-    .eq('id', source.id);
-  if (inquiryError) throw inquiryError;
+  if (inquiryId !== null) {
+    const { error: inquiryError } = await supabase
+      .from('crm_inquiry')
+      .update({
+        status: '已转线索',
+        associated_lead: leadId,
+        update_date: today(),
+        updated_at: now
+      })
+      .eq('id', inquiryId);
+    if (inquiryError) throw inquiryError;
+  }
   if (resolvedCustomerId) {
     await updateCustomerLastContactInSupabase(String(resolvedCustomerId), '询盘转线索');
   }

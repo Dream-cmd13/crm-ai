@@ -19,6 +19,7 @@ import { Clock, RefreshCw } from 'lucide-react';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
 import { saveCustomerContactToSupabase, saveGroupChatToSupabase, fetchCustomerContactsFromSupabase } from '../lib/customerInteractionRepository';
 import { createPotentialCustomerInSupabase } from '../lib/potentialCustomerRepository';
+import { resolveCustomerDbIdFromSupabase } from '../lib/customerRepository';
 import { pushInquiryToLeadInSupabase } from '../lib/pushdown';
 import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
@@ -49,8 +50,16 @@ const parseAttachments = (raw: unknown): FileAttachment[] => {
 
 const toNullableInt = (value: unknown): number | null => {
   if (value === null || value === undefined || value === '') return null;
-  const parsed = Number.parseInt(String(value).trim(), 10);
-  return Number.isFinite(parsed) ? parsed : null;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? Math.trunc(value) : null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = Number.parseInt(trimmed, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 };
 
 interface InquiriesProps {
@@ -314,6 +323,15 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       };
       const upsertInquiryWithCompat = async (payload: Record<string, any>) => {
         const supabase = getSupabaseClient();
+        const isDuplicateInquiryPrimaryKeyError = (err: any) => {
+          const code = String(err?.code || '');
+          const message = String(err?.message || '');
+          const details = String(err?.details || '');
+          return (
+            code === '23505' &&
+            (message.includes('crm_inquiry_pkey') || details.includes('crm_inquiry_pkey'))
+          );
+        };
         const runMutation = (row: Record<string, any>) => {
           if (isNew || selectedInquiryDbId === null) {
             return supabase.from('crm_inquiry').insert(row).select('*');
@@ -322,6 +340,25 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
         };
         let { data, error } = await runMutation(payload);
         if (!error) return { data, error: null };
+
+        // 兼容历史序列不同步：新建询盘命中主键冲突时，使用 max(id)+1 显式重试
+        if ((isNew || selectedInquiryDbId === null) && isDuplicateInquiryPrimaryKeyError(error)) {
+          const { data: maxRow, error: maxError } = await supabase
+            .from('crm_inquiry')
+            .select('id')
+            .order('id', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (maxError) throw maxError;
+          const fallbackId = Number(maxRow?.id || 0) + 1;
+          const retry = await supabase
+            .from('crm_inquiry')
+            .insert({ ...payload, id: fallbackId })
+            .select('*');
+          if (retry.error) throw retry.error;
+          return { data: retry.data, error: null };
+        }
+
         const message = String((error as any)?.message || '');
         const details = String((error as any)?.details || '');
         const isMissingProductSeries =
@@ -385,10 +422,24 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       throw new Error('Supabase 未配置');
     }
     const today = new Date().toISOString().split('T')[0];
+    const inquiryDbId = toNullableInt(inquiry.id);
+    if (inquiryDbId === null) {
+      throw new Error(`询盘ID无效，无法更新：${inquiry.id}`);
+    }
+    const customerIdText =
+      typeof inquiry.customerId === 'string'
+        ? inquiry.customerId.trim()
+        : typeof inquiry.customerId === 'number'
+          ? String(inquiry.customerId)
+          : '';
+    const resolvedCustomerId = customerIdText
+      ? await resolveCustomerDbIdFromSupabase(customerIdText)
+      : null;
+    const associatedLeadId = toNullableInt(inquiry.associatedLead);
     const dbData = {
-      id: inquiry.id,
+      id: inquiryDbId,
       inquiry_no: inquiry.inquiryNo || null,
-      customer_id: inquiry.customerId || null,
+      customer_id: resolvedCustomerId,
       company_name: inquiry.companyName || '',
       customer_name: inquiry.customerName || '',
       contact: inquiry.contact || '',
@@ -402,7 +453,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       unconvert_reason: patch.unconvertReason ?? inquiry.unconvertReason ?? null,
       unconverted_time: patch.unconvertedTime ?? inquiry.unconvertedTime ?? null,
       notes: inquiry.notes || '',
-      associated_lead: inquiry.associatedLead || null,
+      associated_lead: associatedLeadId,
       attachments: Array.isArray(inquiry.attachments) ? inquiry.attachments : [],
       creator_id: inquiry.creatorId || 'system',
       creator_name: inquiry.creatorName || inquiry.creator || role,

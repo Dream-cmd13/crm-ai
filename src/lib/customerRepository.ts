@@ -3,6 +3,16 @@ import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
 const visitFallback: TodoTask[] = [];
 
+const isDuplicateCustomerPrimaryKeyError = (error: any): boolean => {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '');
+  const details = String(error?.details || '');
+  return (
+    code === '23505' &&
+    (message.includes('ba_manucustinfo_pkey') || details.includes('ba_manucustinfo_pkey'))
+  );
+};
+
 // 辅助函数：将 UI 客户 ID 转换为数据库 customer_number
 // 支持 CUS- 和 CUST- 两种前缀格式
 const toCustomerNumber = (id: string | undefined): string | null => {
@@ -391,11 +401,33 @@ export const saveCustomersSnapshotToSupabase = async (customers: Customer[]): Pr
           .insert(row)
           .select('id, customer_number')
           .single();
-        if (error) throw error;
-        customerNumberToId.set(inserted.customer_number, inserted.id);
-        newCustomerMap.set(String(originalIndex), String(inserted.id));
-        // Also update customerNumber in the local map if needed
-        customers[originalIndex].customerNumber = inserted.customer_number;
+        if (!error && inserted) {
+          customerNumberToId.set(inserted.customer_number, inserted.id);
+          newCustomerMap.set(String(originalIndex), String(inserted.id));
+          // Also update customerNumber in the local map if needed
+          customers[originalIndex].customerNumber = inserted.customer_number;
+        } else if (error && isDuplicateCustomerPrimaryKeyError(error)) {
+          // 兼容历史序列不同步：冲突后改为显式 id 重试一次
+          const { data: maxRow, error: maxError } = await supabase
+            .from('ba_manucustinfo')
+            .select('id')
+            .order('id', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (maxError) throw maxError;
+          const fallbackId = Number(maxRow?.id || 0) + 1;
+          const { data: retried, error: retryError } = await supabase
+            .from('ba_manucustinfo')
+            .insert({ ...row, id: fallbackId })
+            .select('id, customer_number')
+            .single();
+          if (retryError) throw retryError;
+          customerNumberToId.set(retried.customer_number, retried.id);
+          newCustomerMap.set(String(originalIndex), String(retried.id));
+          customers[originalIndex].customerNumber = retried.customer_number;
+        } else if (error) {
+          throw error;
+        }
       }
     }
   }
