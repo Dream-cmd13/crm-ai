@@ -15,7 +15,7 @@ insert into public.users(id, username, name, email, role, employee_no, departmen
 on conflict (id) do nothing;
 
 -- 创建 auth.users 用于登录认证（密码均为 dev 环境密码，勿用于生产）
--- 所有用户的密码均为 password123
+-- 所有用户的密码均为 888888
 do $$
 declare
   v_ids uuid[] := array[
@@ -72,7 +72,7 @@ begin
         'authenticated',
         'authenticated',
         v_emails[i],
-        crypt('password123', gen_salt('bf')),
+        crypt('888888', gen_salt('bf')),
         now(),
         '',
         '',
