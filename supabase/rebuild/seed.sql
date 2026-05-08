@@ -1,10 +1,111 @@
 begin;
 
-insert into public.users(id, username, name, email, role, employee_no, is_active) values
-  ('admin-user-id', 'admin', '系统管理员', 'admin@example.com', 'Admin', 'E001', true),
-  ('user-sales-mgr', 'sales_manager', '销售经理', 'sales_manager@example.com', 'Admin', 'E002', true),
-  ('user-sales-a', 'sales_a', '业务员A', 'sales_a@example.com', 'User', 'E003', true)
+insert into public.users(id, username, name, email, role, employee_no, department_id, is_active) values
+  ('00000000-0000-0000-0000-000000000001', 'admin', '系统管理员', 'admin@app.local', 'Admin', 'E001', 'dept-executive', true),
+  ('00000000-0000-0000-0000-000000000002', 'sales_manager', '销售经理', 'sales_manager@app.local', 'Admin', 'E002', 'dept-sales', true),
+  ('00000000-0000-0000-0000-000000000003', 'sales_a', '业务员A', 'sales_a@app.local', 'User', 'E003', 'dept-sales', true),
+  ('00000000-0000-0000-0000-000000000004', 'fae_engineer', 'FAE工程师', 'fae@app.local', 'User', 'E004', 'dept-fae', true),
+  ('00000000-0000-0000-0000-000000000005', 'product_manager', '产品经理', 'pm@app.local', 'Admin', 'E005', 'dept-product', true),
+  ('00000000-0000-0000-0000-000000000006', 'quality_engineer', '品质工程师', 'qc@app.local', 'User', 'E006', 'dept-quality', true),
+  ('00000000-0000-0000-0000-000000000007', 'it_engineer', 'IT开发工程师', 'it@app.local', 'User', 'E007', 'dept-it', true),
+  ('00000000-0000-0000-0000-000000000008', 'finance_accountant', '财务会计', 'finance@app.local', 'User', 'E008', 'dept-finance', true),
+  ('00000000-0000-0000-0000-000000000009', 'purchasing_specialist', '采购专员', 'purchasing@app.local', 'User', 'E009', 'dept-1774349542675', true),
+  ('00000000-0000-0000-0000-00000000000a', 'cs_specialist', '客服专员', 'cs@app.local', 'User', 'E010', 'dept-1774349760986', true),
+  ('00000000-0000-0000-0000-00000000000b', 'hr_specialist', '招聘专员', 'hr@app.local', 'User', 'E011', 'dept-hr', true)
 on conflict (id) do nothing;
+
+-- 创建 auth.users 用于登录认证（密码均为 dev 环境密码，勿用于生产）
+-- 所有用户的密码均为 password123
+do $$
+declare
+  v_ids uuid[] := array[
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000003',
+    '00000000-0000-0000-0000-000000000004',
+    '00000000-0000-0000-0000-000000000005',
+    '00000000-0000-0000-0000-000000000006',
+    '00000000-0000-0000-0000-000000000007',
+    '00000000-0000-0000-0000-000000000008',
+    '00000000-0000-0000-0000-000000000009',
+    '00000000-0000-0000-0000-00000000000a',
+    '00000000-0000-0000-0000-00000000000b'
+  ];
+  v_emails text[] := array[
+    'admin@app.local',
+    'sales_manager@app.local',
+    'sales_a@app.local',
+    'fae@app.local',
+    'pm@app.local',
+    'qc@app.local',
+    'it@app.local',
+    'finance@app.local',
+    'purchasing@app.local',
+    'cs@app.local',
+    'hr@app.local'
+  ];
+  v_names text[] := array[
+    '系统管理员',
+    '销售经理',
+    '业务员A',
+    'FAE工程师',
+    '产品经理',
+    '品质工程师',
+    'IT开发工程师',
+    '财务会计',
+    '采购专员',
+    '客服专员',
+    '招聘专员'
+  ];
+  v_id uuid;
+  i int;
+begin
+  create extension if not exists pgcrypto;
+
+  for i in 1..array_length(v_ids, 1) loop
+    v_id := v_ids[i];
+    if not exists (select 1 from auth.users where id = v_id) then
+      insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, confirmation_token, recovery_token, email_change_token_new, email_change_token_current, reauthentication_token, email_change, phone, phone_change, phone_change_token, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+      values (
+        v_id,
+        '00000000-0000-0000-0000-000000000000',
+        'authenticated',
+        'authenticated',
+        v_emails[i],
+        crypt('password123', gen_salt('bf')),
+        now(),
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        null,
+        '',
+        '',
+        '{"provider":"email","providers":["email"]}',
+        jsonb_build_object('name', v_names[i]),
+        now(),
+        now()
+      );
+    end if;
+
+    -- 创建对应的 auth.identities 记录（缺失会导致登录报 invalid_credentials）
+    if not exists (select 1 from auth.identities where user_id = v_id and provider = 'email') then
+      insert into auth.identities (user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at)
+      values (
+        v_id,
+        jsonb_build_object('sub', v_id::text, 'email', v_emails[i], 'email_verified', true),
+        'email',
+        v_emails[i],
+        now(),
+        now(),
+        now()
+      );
+    end if;
+  end loop;
+end;
+$$;
 
 insert into public.departments(id, name, roles, role_members, sub_departments, okrs, reviews) values
   ('dept-fae', 'FAE部', '["FAE工程师"]'::jsonb, '{}'::jsonb, '[]'::jsonb, '{}'::jsonb, '{}'::jsonb),
@@ -31,8 +132,8 @@ insert into public.ba_brand(id, name, status) values
 on conflict (id) do nothing;
 
 insert into public.ba_group(id, name, manager) values
-  (1, '销售一组', 'user-sales-mgr'),
-  (2, '销售二组', 'user-sales-a'),
+  (1, '销售一组', '00000000-0000-0000-0000-000000000002'),
+  (2, '销售二组', '00000000-0000-0000-0000-000000000003'),
   (3, '技术支持组', '技术经理')
 on conflict (id) do nothing;
 
@@ -97,17 +198,17 @@ on conflict (id) do nothing;
 insert into public.ba_manucustinfo(
   id, customer_number, name, level, status, industry, source, region, sales_rep, payment_term, has_payment_term, customer_type, merchandiser, merchandiser_id, business_manager, currency, currency_id, customer_category, group_name, short_name, english_name, legal_person, registered_capital, company_address, company_type, website
 ) values
-  (1, 'CUST001', '华东智造股份有限公司', '战略客户', 1, '工业自动化', 1, 1, 'user-sales-mgr', 30, 1, 1, '张跟单', 'MER001', '王经理', 'CNY', 1, 1, '华东区', '华东智造', 'East Manufacturing', '王建国', '5000万', '上海市浦东新区XX路1号', '股份有限公司', 'https://example.com'),
-  (2, 'CUST002', '南方设备集团有限公司', '成长客户', 1, '新能源设备', 2, 2, 'user-sales-a', 60, 1, 1, '李跟单', 'MER002', '赵经理', 'CNY', 1, 2, '华南区', '南方设备', 'South Equipment', '李海峰', '3000万', '深圳市南山区YY路8号', '有限责任公司', 'https://example.org')
+  (1, 'CUST001', '华东智造股份有限公司', '战略客户', 1, '工业自动化', 1, 1, '00000000-0000-0000-0000-000000000002', 30, 1, 1, '张跟单', 'MER001', '王经理', 'CNY', 1, 1, '华东区', '华东智造', 'East Manufacturing', '王建国', '5000万', '上海市浦东新区XX路1号', '股份有限公司', 'https://example.com'),
+  (2, 'CUST002', '南方设备集团有限公司', '成长客户', 1, '新能源设备', 2, 2, '00000000-0000-0000-0000-000000000003', 60, 1, 1, '李跟单', 'MER002', '赵经理', 'CNY', 1, 2, '华南区', '南方设备', 'South Equipment', '李海峰', '3000万', '深圳市南山区YY路8号', '有限责任公司', 'https://example.org')
 on conflict (id) do nothing;
 
 insert into public.ba_customer_user(
   id, customer_id, member_name, contact_name, phone, email, is_primary, status, source
 ) values
-  (1, 1, '华东智造采购账号', '王总', '13800000001', 'wang@example.com', 1, 1, 2),
-  (2, 1, '华东智造技术账号', '赵工', '13800000011', 'zhao@example.com', 0, 1, 1),
-  (3, 2, '南方设备研发账号', '李工', '13800000002', 'li@example.com', 1, 1, 2),
-  (4, 2, '南方设备采购账号', '陈经理', '13800000022', 'chen@example.com', 0, 1, 1)
+  (1, 1, '华东智造采购账号', '王总', '13800000001', 'wang@app.local', 1, 1, 2),
+  (2, 1, '华东智造技术账号', '赵工', '13800000011', 'zhao@app.local', 0, 1, 1),
+  (3, 2, '南方设备研发账号', '李工', '13800000002', 'li@app.local', 1, 1, 2),
+  (4, 2, '南方设备采购账号', '陈经理', '13800000022', 'chen@app.local', 0, 1, 1)
 on conflict (id) do nothing;
 
 insert into public.crm_customer_contact(
@@ -115,9 +216,9 @@ insert into public.crm_customer_contact(
   wechat_id, faction, attitude_to_us, attitude_score, role_tag, influence_level, relation_level, graduation_school,
   hometown, hobbies, family_situation, personality, preferences, key_concerns, follow_strategy
 ) values
-  ('CON001', 1, '王总', '采购总监', '采购部', '13800000001', 'wang@example.com', true, '经济买家', '竞争性招标', '王总',
+  ('CON001', 1, '王总', '采购总监', '采购部', '13800000001', 'wang@app.local', true, '经济买家', '竞争性招标', '王总',
    'wx_wangzong', '总部派', '正面评价', 1, 'D', 5, 3, '同济大学', '上海', '{"羽毛球","阅读"}', '已婚', '务实谨慎', '数据化沟通', '成本与交付稳定', '双周同步关键里程碑'),
-  ('CON002', 2, '李工', '研发经理', '研发部', '13800000002', 'li@example.com', true, '技术买家', '技术先行', '李工',
+  ('CON002', 2, '李工', '研发经理', '研发部', '13800000002', 'li@app.local', true, '技术买家', '技术先行', '李工',
    'wx_ligong', '技术线', '中性评价', 0, 'E', 4, 2, '华南理工', '广州', '{"跑步"}', '已婚', '理性严谨', '先看样品验证', '可靠性和认证进度', '先做样品小闭环')
 on conflict (id) do nothing;
 
@@ -136,9 +237,9 @@ insert into public.crm_inquiry(
   status, classification, customer_inquiry, notes, create_date, update_date, creator_id, creator_name
 ) values
   ('INQ-2026-001', 1, '华东智造股份有限公司', '华东智造股份有限公司', '王总', '其他', '技术咨询', '上海',
-   '希望确认替代型号交付稳定性', '待处理', '有效', '是否有长期稳定供货方案', '客户对二供方案兴趣高', current_date, current_date, 'user-sales-mgr', '销售经理'),
+   '希望确认替代型号交付稳定性', '待处理', '有效', '是否有长期稳定供货方案', '客户对二供方案兴趣高', current_date, current_date, '00000000-0000-0000-0000-000000000002', '销售经理'),
   ('INQ-2026-002', 2, '南方设备集团有限公司', '南方设备集团有限公司', '李工', '官网', '产品询价', '深圳',
-   '关注认证和样品进度', '待处理', '处理中', '能否一周内交样', '希望同步FAE支持', current_date, current_date, 'user-sales-a', '业务员A')
+   '关注认证和样品进度', '待处理', '处理中', '能否一周内交样', '希望同步FAE支持', current_date, current_date, '00000000-0000-0000-0000-000000000003', '业务员A')
 on conflict (inquiry_no) do nothing;
 
 insert into public.crm_lead(
@@ -146,8 +247,8 @@ insert into public.crm_lead(
   source_channel, source_type, product_category, product_series, source_status, inquiry_id, contact_id,
   buying_mode, buyer_role, product_industry, customer_opportunity, create_date, creator_id, creator_name
 ) values
-  ('LEAD-2026-001', 1, '华东智造股份有限公司', '王总', '13800000001', '寻替代品', '工业自动化', '跟进中', '有效', 'user-sales-mgr',
-   '其他', '在线', '接插件', '工业连接器标准系列', '客服', 1, 'CON001', '理性决策', '决策者', '工业', '替代导入项目', current_date, 'user-sales-mgr', '销售经理')
+  ('LEAD-2026-001', 1, '华东智造股份有限公司', '王总', '13800000001', '寻替代品', '工业自动化', '跟进中', '有效', '00000000-0000-0000-0000-000000000002',
+   '其他', '在线', '接插件', '工业连接器标准系列', '客服', 1, 'CON001', '理性决策', '决策者', '工业', '替代导入项目', current_date, '00000000-0000-0000-0000-000000000002', '销售经理')
 on conflict (lead_no) do nothing;
 
 insert into public.crm_opportunity(
@@ -155,7 +256,7 @@ insert into public.crm_opportunity(
   associated_project, end_customer, end_project, product_industry, lead_id, inquiry_id, application_scenario,
   estimated_usage, estimated_mass_production_date
 ) values
-  ('OPP-2026-001', 1, '华东智造股份有限公司', current_date, '跟进中', '温控系统替代导入', '工业连接器', 'user-sales-mgr', 'A级', 800000,
+  ('OPP-2026-001', 1, '华东智造股份有限公司', current_date, '跟进中', '温控系统替代导入', '工业连接器', '00000000-0000-0000-0000-000000000002', 'A级', 800000,
    'PRJ001', '华东终端客户A', '产线升级项目', '工业', 1, 1, '温控产线', '月均5万pcs', current_date + interval '120 day')
 on conflict (opportunity_no) do nothing;
 
@@ -167,10 +268,10 @@ insert into public.crm_project(
 ) values
   ('PRJ-2026-001', 1, '华东智造股份有限公司', '华东智造温控升级项目', '跟进中', '设计阶段', '张项目经理',
    '研发型项目', 'A', '华东智造-项目群',
-   '{"sales":"user-sales-mgr","pm":"张项目经理","product":"产品经理A","quality":"质量负责人B","purchasing":"采购C","fae":"FAE-D"}'::jsonb,
+   '{"sales":"00000000-0000-0000-0000-000000000002","pm":"张项目经理","product":"产品经理A","quality":"质量负责人B","purchasing":"采购C","fae":"FAE-D"}'::jsonb,
    800000, '华东终端客户A', '核心机型导入', '温控产线', '工业', '月均5万pcs',
-   current_date + interval '120 day', '寻替代品', 'user-sales-mgr', '产品经理A', '质量负责人B', '采购C', 'FAE-D',
-   1, 1, 1, '工业连接器', current_date, current_date + interval '180 day', current_date, 'user-sales-mgr', '销售经理')
+   current_date + interval '120 day', '寻替代品', '00000000-0000-0000-0000-000000000002', '产品经理A', '质量负责人B', '采购C', 'FAE-D',
+   1, 1, 1, '工业连接器', current_date, current_date + interval '180 day', current_date, '00000000-0000-0000-0000-000000000002', '销售经理')
 on conflict (project_no) do nothing;
 
 do $$
@@ -181,10 +282,10 @@ begin
       my_wechat_id, my_wechat_name, peer_wechat_id, peer_wechat_name, room_username, conversation_name,
       room_name, room_remark_name, customer_id, primary_contact_id, owner_employee_id, status
     ) values
-      ('private:wx_sales_manager:wx_wangzong', 'wx_guid_001', 'private', 'private_direct', false, 'wx_sales_manager', '销售经理', 'wx_wangzong', '王总', null, '王总私聊', null, null, '1', 'CON001', 'user-sales-mgr', 'active'),
-      ('private:wx_sales_a:wx_ligong', 'wx_guid_001', 'private', 'private_direct', false, 'wx_sales_a', '业务员A', 'wx_ligong', '李工', null, '李工私聊', null, null, '2', 'CON002', 'user-sales-a', 'active'),
-      ('group:wx_grp_huadong_001', 'wx_guid_001', 'group', 'group', false, null, null, null, null, 'wx_grp_huadong_001', '华东智造项目群', '华东智造项目群', '华东项目群', '1', 'CON001', 'user-sales-mgr', 'active'),
-      ('group:wx_grp_nanfang_001', 'wx_guid_001', 'group', 'group', false, null, null, null, null, 'wx_grp_nanfang_001', '南方设备技术群', '南方设备技术群', '南方技术群', '2', 'CON002', 'user-sales-a', 'active')
+      ('private:wx_sales_manager:wx_wangzong', 'wx_guid_001', 'private', 'private_direct', false, 'wx_sales_manager', '销售经理', 'wx_wangzong', '王总', null, '王总私聊', null, null, '1', 'CON001', '00000000-0000-0000-0000-000000000002', 'active'),
+      ('private:wx_sales_a:wx_ligong', 'wx_guid_001', 'private', 'private_direct', false, 'wx_sales_a', '业务员A', 'wx_ligong', '李工', null, '李工私聊', null, null, '2', 'CON002', '00000000-0000-0000-0000-000000000003', 'active'),
+      ('group:wx_grp_huadong_001', 'wx_guid_001', 'group', 'group', false, null, null, null, null, 'wx_grp_huadong_001', '华东智造项目群', '华东智造项目群', '华东项目群', '1', 'CON001', '00000000-0000-0000-0000-000000000002', 'active'),
+      ('group:wx_grp_nanfang_001', 'wx_guid_001', 'group', 'group', false, null, null, null, null, 'wx_grp_nanfang_001', '南方设备技术群', '南方设备技术群', '南方技术群', '2', 'CON002', '00000000-0000-0000-0000-000000000003', 'active')
     on conflict (conversation_key) do update
     set
       customer_id = excluded.customer_id,
@@ -300,7 +401,7 @@ insert into public.crm_communication_log(id, source_id, customer_id, date, sende
   ('LOG002', '11111111-1111-1111-1111-111111111001', 1, to_char(current_date, 'YYYY-MM-DD HH24:MI:SS'), '王总', '如果两周能稳定交付，我们可以先走小批量。', 'wechat', 'wx_wangzong', false),
   ('LOG003', '22222222-2222-2222-2222-222222222001', 1, to_char(current_date, 'YYYY-MM-DD HH24:MI:SS'), '销售经理', '各位好，今天同步试产节奏和风险清单。', 'wechat_group', '华东智造项目群', false),
   ('LOG004', '22222222-2222-2222-2222-222222222001', 1, to_char(current_date, 'YYYY-MM-DD HH24:MI:SS'), '采购同事', '请把备货策略和异常升级路径发到群里。', 'wechat_group', '华东智造项目群', false),
-  ('LOG005', 'CUST001', 1, to_char(current_date, 'YYYY-MM-DD HH24:MI:SS'), 'sales_manager@example.com', '已邮件发送报价与TCO测算，请查收附件。', 'email', '邮件往来', false),
+  ('LOG005', 'CUST001', 1, to_char(current_date, 'YYYY-MM-DD HH24:MI:SS'), 'sales_manager@app.local', '已邮件发送报价与TCO测算，请查收附件。', 'email', '邮件往来', false),
   ('LOG006', 'CUST001', 1, to_char(current_date, 'YYYY-MM-DD HH24:MI:SS'), '销售经理', '周例会已确认试产窗口，客户关注点聚焦在交期和一致性。', 'meeting', '周会纪要', false),
   ('LOG007', 'CUST001', 1, to_char(current_date, 'YYYY-MM-DD HH24:MI:SS'), '销售经理', '电话沟通后，客户接受先导入一个机型验证。', 'phone', 'customer_followup', false),
   ('LOG008', '11111111-1111-1111-1111-111111111002', 2, to_char(current_date, 'YYYY-MM-DD HH24:MI:SS'), '业务员A', '李工您好，样品认证资料今天内会补齐。', 'wechat', 'wx_ligong', false),
@@ -321,7 +422,7 @@ insert into public.crm_task(
   assignee_id, assignee_name, due_date, create_date, creator_id, creator_name, auxiliary_json
 ) values
   ('TASK001', '拜访王总确认导入节奏', '围绕交付稳定和导入风险进行面谈', 'customer_visit', 'CUST001', 'visit', 'CUST001', '客户拜访',
-   '待办', '高', '紧急', 'user-sales-mgr', '销售经理', current_date + interval '2 day', current_date, 'user-sales-mgr', '销售经理',
+   '待办', '高', '紧急', '00000000-0000-0000-0000-000000000002', '销售经理', current_date + interval '2 day', current_date, '00000000-0000-0000-0000-000000000002', '销售经理',
    '{"objectives":[{"id":"obj_1","title":"确认试产节奏"},{"id":"obj_2","title":"明确风险点"}]}'::jsonb)
 on conflict (id) do nothing;
 
@@ -410,7 +511,7 @@ insert into public.crm_stakeholder_assessment(
   id, customer_id, stakeholder_id, assessment_date, need_level_score, power_score, attitude_score, relation_score,
   business_alignment_score, confidence_score, conclusion, strategy_suggestion, source_type, ai_model, created_by
 ) values
-  ('ASM001', 1, 'CON001', current_date, 4, 5, 1, 3, 4, 72, '王总可推动替代导入，但需要风险兜底。', '先安排小批量试产并建立周报机制。', 'manual', 'gemini-3.1-pro-preview', 'user-sales-mgr')
+  ('ASM001', 1, 'CON001', current_date, 4, 5, 1, 3, 4, 72, '王总可推动替代导入，但需要风险兜底。', '先安排小批量试产并建立周报机制。', 'manual', 'gemini-3.1-pro-preview', '00000000-0000-0000-0000-000000000002')
 on conflict (id) do nothing;
 
 insert into public.crm_quotation(
@@ -431,7 +532,7 @@ insert into public.crm_sales_order(
   order_no, customer_id, customer_name, project_id, project_name, order_date, status, audit_status,
   tax_included_total_amount, tax_excluded_total_amount, total_amount, sales_rep, merchandiser
 ) values
-  ('SO-2026-001', 1, '华东智造股份有限公司', 1, '华东智造温控升级项目', current_date, 'un_paid', '未审核', 13600, 12035.40, 13600, 'user-sales-mgr', '张跟单')
+  ('SO-2026-001', 1, '华东智造股份有限公司', 1, '华东智造温控升级项目', current_date, 'un_paid', '未审核', 13600, 12035.40, 13600, '00000000-0000-0000-0000-000000000002', '张跟单')
 on conflict (order_no) do nothing;
 
 insert into public.crm_sales_order_item(
@@ -445,7 +546,7 @@ insert into public.crm_sample_order(
   sample_no, customer_id, customer_name, applicant, project_id, project_name, status, audit_status,
   tax_included_total_amount, tax_excluded_total_amount, total_amount, sales_rep, merchandiser
 ) values
-  ('SAM-2026-001', 1, '华东智造股份有限公司', 'user-sales-mgr', 1, '华东智造温控升级项目', 'wait_leader_examine', '未审核', 680, 601.77, 680, 'user-sales-mgr', '张跟单')
+  ('SAM-2026-001', 1, '华东智造股份有限公司', '00000000-0000-0000-0000-000000000002', 1, '华东智造温控升级项目', 'wait_leader_examine', '未审核', 680, 601.77, 680, '00000000-0000-0000-0000-000000000002', '张跟单')
 on conflict (sample_no) do nothing;
 
 insert into public.crm_sample_order_item(
@@ -460,8 +561,8 @@ insert into public.crm_return_order(
   project_id, project_name, status, audit_status, tax_included_total_amount, tax_excluded_total_amount,
   after_sale_no, after_sale_reason
 ) values
-  ('RET-2026-001', 'SO-2026-001', 'SO-2026-001', 1, '华东智造股份有限公司', '批次外观不一致', 'user-sales-mgr',
-   'user-sales-mgr', '张跟单', 1, '华东智造温控升级项目', '待处理', '未审核', 680, 601.77, 'RET-2026-001', '批次外观不一致')
+  ('RET-2026-001', 'SO-2026-001', 'SO-2026-001', 1, '华东智造股份有限公司', '批次外观不一致', '00000000-0000-0000-0000-000000000002',
+   '00000000-0000-0000-0000-000000000002', '张跟单', 1, '华东智造温控升级项目', '待处理', '未审核', 680, 601.77, 'RET-2026-001', '批次外观不一致')
 on conflict (return_no) do nothing;
 
 insert into public.crm_return_order_item(
@@ -478,7 +579,7 @@ on conflict (id) do nothing;
 insert into public.crm_purchase_quotation(
   purchase_quote_no, project_id, quote_time, supplier, created_by, customer_name, customer_id, valid_until
 ) values
-  ('PQ-2026-001', 1, current_date, '供应商A', 'user-sales-mgr', '华东智造股份有限公司', 1, current_date + interval '15 day')
+  ('PQ-2026-001', 1, current_date, '供应商A', '00000000-0000-0000-0000-000000000002', '华东智造股份有限公司', 1, current_date + interval '15 day')
 on conflict (purchase_quote_no) do nothing;
 
 insert into public.crm_purchase_quotation_item(

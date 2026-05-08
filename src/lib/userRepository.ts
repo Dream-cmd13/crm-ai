@@ -34,7 +34,7 @@ export const fetchUsersFromSupabase = async (): Promise<User[]> => {
 export const fetchUserByAuthId = async (authId: string): Promise<User | null> => {
   if (!isSupabaseConfigured()) return null;
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from('users').select('*').eq('auth_id', authId).maybeSingle();
+  const { data, error } = await supabase.from('users').select('*').or(`auth_id.eq.${authId},id.eq.${authId}`).maybeSingle();
   if (error || !data) return null;
   return {
     id: data.id,

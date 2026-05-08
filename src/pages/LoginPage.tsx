@@ -24,7 +24,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setIsLoading(true);
 
     try {
-      const email = `${username.trim()}@app.local`.toLowerCase();
+      const email = username.trim().includes('@')
+        ? username.trim().toLowerCase()
+        : `${username.trim()}@app.local`.toLowerCase();
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
