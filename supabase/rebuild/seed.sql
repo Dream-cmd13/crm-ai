@@ -42,12 +42,17 @@ insert into public.ba_product_line(id, parent_id, name, manager) values
   (3, 1, '新能源连接器', '产品经理C'),
   (4, null, '线束', '产品经理D'),
   (5, 4, '新能源线束', '产品经理E'),
-  (6, 4, '工业线束', '产品经理F')
+  (6, 4, '工业线束', '产品经理F'),
+  (7, 4, '智能家居线束', '产品经理G'),
+  (8, null, '继电器', '产品经理H'),
+  (9, null, '接触器', '产品经理I')
 on conflict (id) do nothing;
 
 insert into public.ba_cptype(id, parent_id, name, fab_features, fab_advantages, fab_benefits, status) values
   (1, null, '接插件', '连接稳定', '一致性高', '降低返修率', 1),
-  (2, null, '线束', '定制能力强', '交付柔性高', '提升交付确定性', 1)
+  (2, null, '线束', '定制能力强', '交付柔性高', '提升交付确定性', 1),
+  (3, null, '继电器', '切换可靠', '寿命长', '降低维护成本', 1),
+  (4, null, '接触器', '通断能力强', '适配主流控制', '提升系统兼容性', 1)
 on conflict (id) do nothing;
 
 insert into public.ba_spu(id, name, brand_id, category_id, category_name) values
