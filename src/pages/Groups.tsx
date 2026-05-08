@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Eye, Edit2, Plus, Trash2, Search } from 'lucide-react';
 import DetailModal from '../components/DetailModal';
-import { Group } from '../types';
+import { Group, User } from '../types';
 import { deleteGroupFromSupabase, fetchGroupListFromSupabase, saveGroupToSupabase } from '../lib/productRepository';
+import { fetchUsersFromSupabase } from '../lib/userRepository';
 
 type ModalMode = 'view' | 'edit' | 'add' | null;
 
@@ -26,6 +27,7 @@ const createEmptyGroup = (): Group => ({
 
 export default function GroupsPage() {
   const [groupList, setGroupList] = useState<Group[]>([]);
+  const [userOptions, setUserOptions] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
@@ -35,16 +37,48 @@ export default function GroupsPage() {
   const [currentGroup, setCurrentGroup] = useState<Group | null>(null);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
+  const userDisplayNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    userOptions.forEach((user) => {
+      const id = String(user.id || '').trim();
+      const name = String(user.name || user.username || '').trim();
+      if (!id) return;
+      map.set(id, name || id);
+    });
+    return map;
+  }, [userOptions]);
 
   const fields = useMemo(() => [
     { key: 'name', label: '小组名称', required: true },
-    { key: 'manager', label: '负责人' }
-  ], []);
+    {
+      key: 'manager',
+      label: '负责人',
+      type: 'select',
+      options: [
+        { value: '', label: '未指定负责人' },
+        ...userOptions
+          .map((user) => {
+            const value = String(user.name || user.username || user.id || '').trim();
+            if (!value) return null;
+            const secondary = String(user.username || user.id || '').trim();
+            return {
+              value,
+              label: secondary && secondary !== value ? `${value}（${secondary}）` : value
+            };
+          })
+          .filter((item): item is { value: string; label: string } => Boolean(item))
+      ]
+    }
+  ], [userOptions]);
 
   const refreshData = async (showLoading = false) => {
     if (showLoading) setLoading(true);
-    const result = await fetchGroupListFromSupabase(searchTerm, page, pageSize);
+    const [result, users] = await Promise.all([
+      fetchGroupListFromSupabase(searchTerm, page, pageSize),
+      fetchUsersFromSupabase()
+    ]);
     setGroupList(result.rows || []);
+    setUserOptions(users || []);
     setTotal(result.total || 0);
     setLoading(false);
   };
@@ -53,6 +87,7 @@ export default function GroupsPage() {
     refreshData(true).catch((error) => {
       console.error('Error fetching group list:', error);
       setGroupList([]);
+      setUserOptions([]);
       setTotal(0);
       setLoading(false);
       toast.error('加载归属小组失败');
@@ -63,8 +98,12 @@ export default function GroupsPage() {
   const handleSearch = async () => {
     try {
       setPage(1);
-      const result = await fetchGroupListFromSupabase(searchTerm, 1, pageSize);
+      const [result, users] = await Promise.all([
+        fetchGroupListFromSupabase(searchTerm, 1, pageSize),
+        fetchUsersFromSupabase()
+      ]);
       setGroupList(result.rows || []);
+      setUserOptions(users || []);
       setTotal(result.total || 0);
     } catch (error) {
       console.error('Error searching group list:', error);
@@ -195,7 +234,7 @@ export default function GroupsPage() {
                 <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="p-4 text-sm text-gray-900">{row.name || '-'}</td>
                   <td className="p-4 text-sm text-indigo-600">{row.id || '-'}</td>
-                  <td className="p-4 text-sm text-gray-500">{row.manager || '-'}</td>
+                  <td className="p-4 text-sm text-gray-500">{row.manager ? (userDisplayNameMap.get(String(row.manager)) || row.manager) : '-'}</td>
                   <td className="p-4 text-sm text-gray-500">{formatCreateDate(row.createDate)}</td>
                   <td className="p-4 text-sm">
                     <div className="flex items-center gap-3">

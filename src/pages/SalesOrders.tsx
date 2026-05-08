@@ -9,6 +9,7 @@ import DocumentDetail from '../components/DocumentDetail';
 import { fetchSalesOrdersFromSupabase, saveSalesOrderToSupabase, deleteSalesOrderFromSupabase } from '../lib/documentRepository';
 import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
+import { getSalesOrderStatusLabel, getSalesOrderStatusToneClass } from '../lib/documentStatusEnums';
 interface SalesOrdersProps {
   role: Role;
   viewParams?: any;
@@ -58,6 +59,7 @@ export default function SalesOrders({ role, viewParams, navigateTo, goBack }: Sa
       } else {
         setSelectedOrder(payload);
       }
+      toast.success('订单保存成功');
     } catch (error) {
       console.error('Error saving sales order:', error);
       toast.error(`订单保存失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
@@ -104,7 +106,7 @@ export default function SalesOrders({ role, viewParams, navigateTo, goBack }: Sa
       totalAmount: 0,
       taxIncludedTotalAmount: 0,
       taxExcludedTotalAmount: 0,
-      status: '待执行',
+      status: 'not_submit',
       items: [],
       auditStatus: '未审核',
       changeRecords: [],
@@ -118,7 +120,8 @@ export default function SalesOrders({ role, viewParams, navigateTo, goBack }: Sa
   const handleDeleteOrder = async (id: string) => {
     const order = orders.find((o) => o.id === id);
     if (!order) return;
-    const downstreamCount = String(order.status || '').includes('退') ? 1 : 0;
+    const orderStatus = String(order.status || '');
+    const downstreamCount = ['await_refund', 'await_receipt_refund', 'completed_refund'].includes(orderStatus) || orderStatus.includes('退') ? 1 : 0;
     const ok = await ensureDeleteAllowed({ record: order, entityName: '销售订单', downstreamCount, downstreamLabel: '下游售后/退货单据' });
     if (!ok) return;
     try {
@@ -187,8 +190,8 @@ export default function SalesOrders({ role, viewParams, navigateTo, goBack }: Sa
                     <td className="px-6 py-4 font-bold text-indigo-600 cursor-pointer hover:underline" onClick={() => setSelectedOrder(o)}>{o.orderNo}</td>
                     <td className="px-6 py-4 font-medium text-gray-900">{o.customerName}</td>
                     <td className="px-6 py-4">
-                      <span className={cn("px-2 py-1 rounded-full text-xs font-medium", o.status === '已完成' ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800")}>
-                        {o.status}
+                      <span className={cn("px-2 py-1 rounded-full text-xs font-medium", getSalesOrderStatusToneClass(String(o.status || '')))}>
+                        {getSalesOrderStatusLabel(String(o.status || ''))}
                       </span>
                       {o.auditStatus === '已审核' && (
                         <span className="ml-2 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
@@ -223,9 +226,9 @@ export default function SalesOrders({ role, viewParams, navigateTo, goBack }: Sa
                     <div className="flex flex-col items-end gap-1">
                       <span className={cn(
                         "px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                        o.status === '已完成' ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800"
+                        getSalesOrderStatusToneClass(String(o.status || ''))
                       )}>
-                        {o.status}
+                        {getSalesOrderStatusLabel(String(o.status || ''))}
                       </span>
                       {o.auditStatus === '已审核' && (
                         <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { ChevronRight, Edit2, Loader2, Save, X } from 'lucide-react';
-import { CategoryAttribute, Product, ProductCategory, ProductSeries } from '../types';
+import { CategoryAttribute, Product, ProductCategory, ProductLine, ProductSeries } from '../types';
 import {
+  fetchAllProductLinesFromSupabase,
   fetchProductByIdFromSupabase,
   fetchProductCategoriesFromSupabase,
   fetchProductSeriesFromSupabase,
@@ -35,7 +36,7 @@ type FieldDef = {
 
 const TAB_LIST: Array<{ key: TabKey; label: string }> = [
   { key: 'basic', label: '基本信息' },
-  { key: 'discount', label: '折扣信息' },
+  { key: 'discount', label: '价格信息' },
   { key: 'supplierDrawing', label: '外发供应商图纸' },
   { key: 'drawing3d', label: '3D' },
   { key: 'spec', label: '规格' },
@@ -78,6 +79,7 @@ export default function ProductDetail({ viewParams, goBack }: ProductDetailProps
   const [activeTab, setActiveTab] = useState<TabKey>('basic');
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [seriesList, setSeriesList] = useState<ProductSeries[]>([]);
+  const [productLines, setProductLines] = useState<ProductLine[]>([]);
 
   useEffect(() => {
     setIsEditing(initialEdit);
@@ -92,13 +94,15 @@ export default function ProductDetail({ viewParams, goBack }: ProductDetailProps
       }
       try {
         setLoading(true);
-        const [detail, categoryTree, seriesRows] = await Promise.all([
+        const [detail, categoryTree, seriesRows, productLineRows] = await Promise.all([
           fetchProductByIdFromSupabase(productId),
           fetchProductCategoriesFromSupabase(),
-          fetchProductSeriesFromSupabase()
+          fetchProductSeriesFromSupabase(),
+          fetchAllProductLinesFromSupabase()
         ]);
         setCategories(categoryTree || []);
         setSeriesList(seriesRows || []);
+        setProductLines(productLineRows || []);
         if (!detail) {
           setProduct(null);
           setFormData(null);
@@ -174,6 +178,15 @@ export default function ProductDetail({ viewParams, goBack }: ProductDetailProps
     () => seriesList.map((s) => ({ value: s.id, label: `${s.seriesNo || s.id} - ${s.name}` })),
     [seriesList]
   );
+  const productLineOptions = useMemo(
+    () => productLines.map((line) => ({ value: String(line.id), label: line.name || String(line.id) })),
+    [productLines]
+  );
+  const productLineNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    productLines.forEach((line) => map.set(String(line.id), line.name || String(line.id)));
+    return map;
+  }, [productLines]);
 
   const fieldsByTab = useMemo<Record<TabKey, FieldDef[]>>(
     () => ({
@@ -181,8 +194,8 @@ export default function ProductDetail({ viewParams, goBack }: ProductDetailProps
         { key: 'materialNo', label: '万连物料号' },
         { key: 'supplierMaterialNo', label: '供应商料号' },
         { key: 'platformMaterialNo', label: '品料编号' },
-        { key: 'materialName', label: '总类名' },
-        { key: 'spuName', label: '品属' },
+        { key: 'materialName', label: '分类名称' },
+        { key: 'spuName', label: '品类' },
         { key: 'price', label: '面价', type: 'number' },
         { key: 'materialLeadTime', label: '交期（天）', type: 'number' },
         { key: 'minOrderQty', label: '最大订货量', type: 'number' },
@@ -196,9 +209,9 @@ export default function ProductDetail({ viewParams, goBack }: ProductDetailProps
         { key: 'supplierNo', label: '供应商编号' },
         { key: 'supplier', label: '供应商名称' },
         { key: 'groupName', label: '归属小组' },
-        { key: 'productLineLevel1Id', label: '一级产品线' },
-        { key: 'productLineLevel2Id', label: '二级产品线' },
-        { key: 'categoryId', label: '类别', type: 'select', options: flatCategoryOptions },
+        { key: 'productLineLevel1Id', label: '一级产品线', type: 'select', options: productLineOptions },
+        { key: 'productLineLevel2Id', label: '二级产品线', type: 'select', options: productLineOptions },
+        { key: 'categoryId', label: '分类 Id', type: 'select', options: flatCategoryOptions },
         { key: 'seriesId', label: '系列', type: 'select', options: seriesOptions },
         { key: 'basicUnit', label: '单位' },
         { key: 'materialAttribute', label: '料号属性' }
@@ -234,15 +247,15 @@ export default function ProductDetail({ viewParams, goBack }: ProductDetailProps
       specRecord: [{ key: 'specificationDoc', label: '规格书记录', type: 'textarea' }],
       inspection: [{ key: 'inspectionStandard', label: '检验基准书', type: 'textarea' }]
     }),
-    [flatCategoryOptions, seriesOptions, specAttributeFields, statusOptions]
+    [flatCategoryOptions, productLineOptions, seriesOptions, specAttributeFields, statusOptions]
   );
 
   const summaryFields: FieldDef[] = [
     { key: 'materialNo', label: '万连物料号' },
     { key: 'supplierMaterialNo', label: '供应商料号' },
     { key: 'platformMaterialNo', label: '品料编号' },
-    { key: 'materialName', label: '总类名' },
-    { key: 'spuName', label: '品属' },
+    { key: 'materialName', label: '分类名称' },
+    { key: 'spuName', label: '品类' },
     { key: 'price', label: '面价' },
     { key: 'isStorable', label: '库存', type: 'boolean' },
     { key: 'minOrderQty', label: '最大订货量', type: 'number' },
@@ -262,6 +275,10 @@ export default function ProductDetail({ viewParams, goBack }: ProductDetailProps
 
   const renderDisplayValue = (field: FieldDef) => {
     const value = getNestedValue(formData, field.key);
+    if (field.key === 'productLineLevel1Id' || field.key === 'productLineLevel2Id') {
+      const key = String(value || '');
+      return productLineNameMap.get(key) || key || '--';
+    }
     if (field.type === 'boolean') return formatBool(value);
     return toInputValue(value) || '--';
   };
@@ -326,7 +343,7 @@ export default function ProductDetail({ viewParams, goBack }: ProductDetailProps
     const categoryId = String(formData.categoryId || '').trim();
     const basicUnit = String(formData.basicUnit || '').trim();
     if (!materialNo || !materialName || !categoryId || !basicUnit) {
-      toast.error('请先填写必填字段：万连物料号、总类名、类别、单位');
+      toast.error('请先填写必填字段：万连物料号、总类名、分类 Id、单位');
       return;
     }
     try {

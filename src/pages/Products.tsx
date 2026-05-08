@@ -265,7 +265,7 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
   };
 
   const handleSave = async (data: any) => {
-    const payload: Product = { ...data };
+    const payload: Product = isAdding ? { ...data, id: '' } : { ...data };
     if (isAdding) {
       try {
         const saved = await saveProductToSupabase(payload);

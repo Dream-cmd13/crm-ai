@@ -11,7 +11,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ currentView, setCurrentView, isOpen, onClose, currentUserName }: SidebarProps) {
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(['AI大脑', '业务流转', '过程单据', '资源中心', '系统设置']);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(['AI大脑', '业务流转', '过程单据', '资源中心', '产品中心', '系统设置']);
 
   const toggleGroup = (label: string) => {
     setExpandedGroups(prev => 
@@ -52,6 +52,11 @@ export default function Sidebar({ currentView, setCurrentView, isOpen, onClose, 
         { id: 'customers', label: '客户库', icon: Users },
         { id: 'competitor-library', label: '竞品库', icon: Swords },
         { id: 'case-library', label: '客户案例库', icon: BookOpen },
+      ]
+    },
+    {
+      label: '产品中心',
+      items: [
         { id: 'products', label: '产品资料', icon: Package },
         { id: 'product-spu', label: '产品品类', icon: FolderKanban },
         { id: 'product-categories', label: '产品类别', icon: FolderKanban },

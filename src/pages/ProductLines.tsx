@@ -2,13 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Eye, Edit2, Plus, Trash2, Search } from 'lucide-react';
 import DetailModal from '../components/DetailModal';
-import { ProductLine } from '../types';
+import { ProductLine, User } from '../types';
 import {
   deleteProductLineFromSupabase,
   fetchAllProductLinesFromSupabase,
   fetchProductLineListFromSupabase,
   saveProductLineToSupabase
 } from '../lib/productRepository';
+import { fetchUsersFromSupabase } from '../lib/userRepository';
 
 type ModalMode = 'view' | 'edit' | 'add' | null;
 type TreeRow = ProductLine & { level: number };
@@ -49,6 +50,7 @@ const flattenTree = (nodes: ProductLine[]): TreeRow[] => {
 export default function ProductLinesPage() {
   const [lineTree, setLineTree] = useState<ProductLine[]>([]);
   const [allLineOptions, setAllLineOptions] = useState<ProductLine[]>([]);
+  const [userOptions, setUserOptions] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
@@ -66,6 +68,17 @@ export default function ProductLinesPage() {
     return map;
   }, [allLineOptions]);
 
+  const userDisplayNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    userOptions.forEach((user) => {
+      const id = String(user.id || '').trim();
+      const name = String(user.name || user.username || '').trim();
+      if (!id) return;
+      map.set(id, name || id);
+    });
+    return map;
+  }, [userOptions]);
+
   const fields = useMemo(() => [
     { key: 'name', label: '产品线名称', required: true },
     {
@@ -77,18 +90,38 @@ export default function ProductLinesPage() {
         ...allLineOptions.map((item) => ({ value: String(item.id), label: `${item.id} - ${item.name}` }))
       ]
     },
-    { key: 'manager', label: '负责人' }
-  ], [allLineOptions]);
+    {
+      key: 'manager',
+      label: '负责人',
+      type: 'select',
+      options: [
+        { value: '', label: '未指定负责人' },
+        ...userOptions
+          .map((user) => {
+            const value = String(user.name || user.username || user.id || '').trim();
+            if (!value) return null;
+            const secondary = String(user.username || user.id || '').trim();
+            return {
+              value,
+              label: secondary && secondary !== value ? `${value}（${secondary}）` : value
+            };
+          })
+          .filter((item): item is { value: string; label: string } => Boolean(item))
+      ]
+    }
+  ], [allLineOptions, userOptions]);
 
   const refreshData = async (showLoading = false) => {
     if (showLoading) setLoading(true);
-    const [pagedResult, allRows] = await Promise.all([
+    const [pagedResult, allRows, users] = await Promise.all([
       fetchProductLineListFromSupabase(searchTerm, page, pageSize),
-      fetchAllProductLinesFromSupabase()
+      fetchAllProductLinesFromSupabase(),
+      fetchUsersFromSupabase()
     ]);
     setLineTree(pagedResult.rows || []);
     setTotal(pagedResult.total || 0);
     setAllLineOptions(allRows || []);
+    setUserOptions(users || []);
     setLoading(false);
   };
 
@@ -97,6 +130,7 @@ export default function ProductLinesPage() {
       console.error('Error fetching product line list:', error);
       setLineTree([]);
       setAllLineOptions([]);
+      setUserOptions([]);
       setTotal(0);
       setLoading(false);
       toast.error('加载产品线失败');
@@ -107,13 +141,15 @@ export default function ProductLinesPage() {
   const handleSearch = async () => {
     try {
       setPage(1);
-      const [pagedResult, allRows] = await Promise.all([
+      const [pagedResult, allRows, users] = await Promise.all([
         fetchProductLineListFromSupabase(searchTerm, 1, pageSize),
-        fetchAllProductLinesFromSupabase()
+        fetchAllProductLinesFromSupabase(),
+        fetchUsersFromSupabase()
       ]);
       setLineTree(pagedResult.rows || []);
       setTotal(pagedResult.total || 0);
       setAllLineOptions(allRows || []);
+      setUserOptions(users || []);
     } catch (error) {
       console.error('Error searching product line list:', error);
       toast.error('产品线搜索失败');
@@ -260,7 +296,7 @@ export default function ProductLinesPage() {
                   <td className="p-4 text-sm text-gray-500">
                     {row.parentId ? `${row.parentId} - ${parentNameMap.get(String(row.parentId)) || '-'}` : '-'}
                   </td>
-                  <td className="p-4 text-sm text-gray-500">{row.manager || '-'}</td>
+                  <td className="p-4 text-sm text-gray-500">{row.manager ? (userDisplayNameMap.get(String(row.manager)) || row.manager) : '-'}</td>
                   <td className="p-4 text-sm text-gray-500">{formatCreateDate(row.createDate)}</td>
                   <td className="p-4 text-sm">
                     <div className="flex items-center gap-3">

@@ -10,6 +10,12 @@ import CustomerPersonaPanel from '../CustomerPersonaPanel';
 import SwotMatrixPanel from '../SwotMatrixPanel';
 import StakeholderMapPanel from '../stakeholder/StakeholderMapPanel';
 import { loadLocalState, saveLocalState } from '../../lib/localState';
+import {
+  formatCustomerRegionLabel,
+  formatCustomerSourceLabel,
+  formatCustomerTypeLabel,
+  formatPaymentTermLabel
+} from '../../lib/customerEnums';
 import { toast } from 'react-hot-toast';
 import { callAiProxy } from '../../lib/aiProxy';
 import { fetchPersonaAiConfig } from '../../lib/personaAiConfigRepository';
@@ -95,6 +101,7 @@ export const CustomerDetail = ({
   ).values());
   const pendingTasks = customerTasks.filter((t: any) => t.status !== '已完成' && t.status !== '已取消');
   const completedTasks = customerTasks.filter((t: any) => t.status === '已完成');
+  const customerTypeLabel = formatCustomerTypeLabel(selectedCustomer.customerType) || '-';
   const latestFollowUpText = useMemo(() => {
     const first = (selectedCustomer.followUps || [])[0];
     if (!first) return '暂无跟进记录';
@@ -282,9 +289,19 @@ export const CustomerDetail = ({
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-xl font-bold text-gray-900">{selectedCustomer.name || '-'}</h2>
               <span className="px-2 py-0.5 rounded-full text-xs font-semibold border border-indigo-200 bg-indigo-50 text-indigo-700">{selectedCustomer.level || '-'}</span>
+              <span className={cn(
+                "px-2 py-0.5 rounded-full text-xs font-semibold border",
+                customerTypeLabel === '认证企业'
+                  ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                  : customerTypeLabel === '普通企业'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-gray-200 bg-gray-50 text-gray-600'
+              )}>
+                {customerTypeLabel}
+              </span>
               <span className="px-2 py-0.5 rounded-full text-xs font-semibold border border-gray-200 bg-gray-50 text-gray-600">{selectedCustomer.status || '-'}</span>
             </div>
-            <div className="text-sm text-gray-500">行业：{selectedCustomer.industry || '-'} · 区域：{selectedCustomer.region || '-'}</div>
+            <div className="text-sm text-gray-500">行业：{selectedCustomer.industry || '-'} · 区域：{formatCustomerRegionLabel(selectedCustomer.region) || '-'}</div>
           </div>
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 min-w-[260px]">
             <p className="text-xs text-gray-500">最近跟进</p>
@@ -322,11 +339,11 @@ export const CustomerDetail = ({
           </div>
           <div>
             <p className="text-sm text-gray-500 mb-1">客户来源</p>
-            <p className="font-medium text-gray-900">{selectedCustomer.source || '-'}</p>
+            <p className="font-medium text-gray-900">{formatCustomerSourceLabel(selectedCustomer.source) || '-'}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500 mb-1">区域</p>
-            <p className="font-medium text-gray-900">{selectedCustomer.region || '-'}</p>
+            <p className="font-medium text-gray-900">{formatCustomerRegionLabel(selectedCustomer.region) || '-'}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500 mb-1">销售负责人</p>
@@ -342,15 +359,15 @@ export const CustomerDetail = ({
           </div>
           <div>
             <p className="text-sm text-gray-500 mb-1">客户类型</p>
-            <p className="font-medium text-gray-900">{selectedCustomer.customerType || '-'}</p>
+            <p className="font-medium text-gray-900">{formatCustomerTypeLabel(selectedCustomer.customerType) || '-'}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500 mb-1">币别</p>
             <p className="font-medium text-gray-900">{selectedCustomer.currency || '-'}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500 mb-1">账期</p>
-            <p className="font-medium text-gray-900">{selectedCustomer.paymentTerm || (selectedCustomer.hasPaymentTerm ? '有' : '无')}</p>
+            <p className="text-sm text-gray-500 mb-1">账期(天)</p>
+            <p className="font-medium text-gray-900">{formatPaymentTermLabel(selectedCustomer.paymentTerm) || (selectedCustomer.hasPaymentTerm ? '有' : '无')}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500 mb-1">统一社会信用代码</p>

@@ -434,8 +434,28 @@ export const saveProductLineToSupabase = async (line: ProductLine): Promise<Prod
     const insertPayload = { ...payload };
     delete (insertPayload as any).id;
     const { data, error } = await supabase.from('ba_product_line').insert(insertPayload).select('*').single();
-    if (error) throw error;
-    return mapDbProductLineToUi(data);
+    if (!error) {
+      return mapDbProductLineToUi(data);
+    }
+    // 兼容历史环境中序列未对齐导致的主键冲突（23505），回退为 max(id)+1 显式插入
+    if (error.code === '23505') {
+      const { data: maxRow, error: maxError } = await supabase
+        .from('ba_product_line')
+        .select('id')
+        .order('id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (maxError) throw maxError;
+      const nextId = Number(maxRow?.id || 0) + 1;
+      const { data: retrySaved, error: retryError } = await supabase
+        .from('ba_product_line')
+        .insert({ ...insertPayload, id: nextId })
+        .select('*')
+        .single();
+      if (retryError) throw retryError;
+      return mapDbProductLineToUi(retrySaved);
+    }
+    throw error;
   }
 
   const { data, error } = await supabase
@@ -703,9 +723,32 @@ export const fetchProductCategoryByIdFromSupabase = async (id: string): Promise<
 
 export const deleteProductCategoryFromSupabase = async (id: string) => {
   if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
+  const normalizedId = toNullableInt(id);
+  if (normalizedId === null) throw new Error('产品类别 ID 非法');
   const supabase = getSupabaseClient();
-  const { error } = await supabase.from('ba_cptype').delete().eq('id', id);
-  if (error) throw error;
+
+  // 先做引用检查，避免直接触发外键报错导致用户无法理解
+  const [{ count: spuRefCount, error: spuCountError }, { count: childCount, error: childCountError }] = await Promise.all([
+    supabase.from('ba_spu').select('id', { count: 'exact', head: true }).eq('category_id', normalizedId),
+    supabase.from('ba_cptype').select('id', { count: 'exact', head: true }).eq('parent_id', normalizedId)
+  ]);
+  if (spuCountError) throw spuCountError;
+  if (childCountError) throw childCountError;
+  if ((spuRefCount || 0) > 0) {
+    throw new Error(`当前类别已被 ${(spuRefCount || 0)} 条 SPU 记录引用，请先修改这些 SPU 的类别后再删除`);
+  }
+  if ((childCount || 0) > 0) {
+    throw new Error(`当前类别下仍有 ${(childCount || 0)} 个子类别，请先删除或迁移子类别后再删除`);
+  }
+
+  const { error } = await supabase.from('ba_cptype').delete().eq('id', normalizedId);
+  if (error) {
+    // 兜底处理：并发场景下仍可能触发外键约束
+    if (error.code === '23503') {
+      throw new Error('当前类别存在关联数据，无法删除；请先清理相关 SPU 或子类别');
+    }
+    throw error;
+  }
 };
 
 export const saveProductToSupabase = async (product: Product) => {
@@ -717,8 +760,28 @@ export const saveProductToSupabase = async (product: Product) => {
     const insertPayload = { ...payload };
     delete (insertPayload as any).id;
     const { data, error } = await supabase.from('ba_cpinfo').insert(insertPayload).select('*').single();
-    if (error) throw error;
-    return mapDbProductToUi(data);
+    if (!error) {
+      return mapDbProductToUi(data);
+    }
+    // 兼容历史环境中序列未对齐导致的主键冲突（23505），回退为 max(id)+1 显式插入
+    if (error.code === '23505') {
+      const { data: maxRow, error: maxError } = await supabase
+        .from('ba_cpinfo')
+        .select('id')
+        .order('id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (maxError) throw maxError;
+      const nextId = Number(maxRow?.id || 0) + 1;
+      const { data: retrySaved, error: retryError } = await supabase
+        .from('ba_cpinfo')
+        .insert({ ...insertPayload, id: nextId })
+        .select('*')
+        .single();
+      if (retryError) throw retryError;
+      return mapDbProductToUi(retrySaved);
+    }
+    throw error;
   }
 
   const { data, error } = await supabase.from('ba_cpinfo').upsert(payload, { onConflict: 'id' }).select('*').single();

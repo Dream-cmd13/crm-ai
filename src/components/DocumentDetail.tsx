@@ -17,6 +17,14 @@ import { fetchProjectsFromSupabase } from '../lib/projectRepository';
 import { pushQuotationToSalesOrderInSupabase } from '../lib/pushdown';
 import { fetchArchitectureDataFromSupabase } from '../lib/architectureRepository';
 import { hasSopTaskForSource, saveTasksSnapshotToSupabase } from '../lib/taskRepository';
+import {
+  getQuotationStatusLabel,
+  getSalesOrderStatusLabel,
+  getSampleOrderStatusLabel,
+  quotationStatusOptions,
+  salesOrderStatusOptions,
+  sampleOrderStatusOptions
+} from '../lib/documentStatusEnums';
 
 interface DocumentDetailProps {
   onBack: () => void;
@@ -164,6 +172,20 @@ export default function DocumentDetail({ onBack, document, documentType, onSave,
     if (documentType === 'order') return formData.orderNo || formData.id || '';
     if (documentType === 'sample') return formData.sampleNo || formData.id || '';
     return formData.returnNo || formData.id || '';
+  };
+
+  const getDocumentStatusOptions = () => {
+    if (documentType === 'quotation') return quotationStatusOptions;
+    if (documentType === 'order') return salesOrderStatusOptions;
+    if (documentType === 'sample') return sampleOrderStatusOptions;
+    return [];
+  };
+
+  const getDocumentStatusLabel = (status: string) => {
+    if (documentType === 'quotation') return getQuotationStatusLabel(status);
+    if (documentType === 'order') return getSalesOrderStatusLabel(status);
+    if (documentType === 'sample') return getSampleOrderStatusLabel(status);
+    return status;
   };
 
   useEffect(() => {
@@ -543,13 +565,31 @@ export default function DocumentDetail({ onBack, document, documentType, onSave,
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">状态</label>
-                <input 
-                  type="text" 
-                  value={formData.status || ''} 
-                  onChange={e => setFormData({...formData, status: e.target.value})}
-                  disabled={!isEditing || isAudited}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
-                />
+                {documentType === 'quotation' || documentType === 'order' || documentType === 'sample' ? (
+                  <select
+                    value={formData.status || ''}
+                    onChange={e => setFormData({ ...formData, status: e.target.value })}
+                    disabled={!isEditing || isAudited}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
+                  >
+                    {!!formData.status && !getDocumentStatusOptions().some((item) => item.value === formData.status) && (
+                      <option value={formData.status}>{getDocumentStatusLabel(String(formData.status || ''))}</option>
+                    )}
+                    {getDocumentStatusOptions().map((status) => (
+                      <option key={status.value} value={status.value}>
+                        {status.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input 
+                    type="text" 
+                    value={formData.status || ''} 
+                    onChange={e => setFormData({...formData, status: e.target.value})}
+                    disabled={!isEditing || isAudited}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
+                  />
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">创建人</label>

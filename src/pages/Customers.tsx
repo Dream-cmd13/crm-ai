@@ -15,6 +15,12 @@ import { convertPotentialCustomerToCustomerInSupabase, fetchPotentialCustomersFr
 import { saveCustomerContactToSupabase, fetchCustomerContactsFromSupabase } from '../lib/customerInteractionRepository';
 import { parseAiJson, parsePersonaDimensions } from '../lib/aiJson';
 import { fetchPersonaAiConfig } from '../lib/personaAiConfigRepository';
+import {
+  CUSTOMER_REGION_OPTIONS,
+  CUSTOMER_SOURCE_OPTIONS,
+  CUSTOMER_TYPE_OPTIONS,
+  PAYMENT_TERM_OPTIONS
+} from '../lib/customerEnums';
 
 interface CustomersProps {
   role: Role;
@@ -221,6 +227,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
     setCustomers(customers.map(c => c.id === updatedData.id ? updatedData : c));
     setSelectedCustomer(updatedData);
     setIsEditing(false);
+    toast.success('客户信息已保存');
   };
 
   const handleSyncChats = async () => {
@@ -588,16 +595,16 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
             { key: 'lastVisitDate', label: '最后一次拜访日期', type: 'date', disabled: true },
             { key: 'status', label: '客户状态', type: 'select', options: ['活跃', '休眠', '流失', '计划拜访中'], required: true },
             { key: 'industry', label: '客户行业' },
-            { key: 'source', label: '客户来源' },
-            { key: 'region', label: '所属区域' },
+            { key: 'source', label: '客户来源', type: 'select', options: CUSTOMER_SOURCE_OPTIONS },
+            { key: 'region', label: '所属区域', type: 'select', options: CUSTOMER_REGION_OPTIONS },
             { key: 'salesRep', label: '业务员', type: 'user' },
             { key: 'businessManager', label: '业务经理', type: 'user' },
             { key: 'merchandiser', label: '跟单员', type: 'user' },
-            { key: 'customerType', label: '客户类型' },
+            { key: 'customerType', label: '客户类型', type: 'select', options: CUSTOMER_TYPE_OPTIONS },
             { key: 'currency', label: '币别' },
             { key: 'customerCategory', label: '客户类别' },
             { key: 'groupName', label: '集团' },
-            { key: 'paymentTerm', label: '账期' },
+            { key: 'paymentTerm', label: '账期(天)', type: 'select', options: PAYMENT_TERM_OPTIONS },
             { key: 'hasPaymentTerm', label: '是否有账期', type: 'boolean' },
             { key: 'monthSettlementApplyStatus', label: '月结申请状态' },
             { key: 'isPublicPool', label: '是否落入公海', type: 'boolean' },
@@ -834,14 +841,14 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
               { key: 'englishName', label: '英文名称' },
               { key: 'level', label: '客户等级', type: 'select', options: ['战略客户', '成长型客户', '普通客户'], required: true },
               { key: 'industry', label: '客户行业' },
-              { key: 'source', label: '客户来源' },
-              { key: 'region', label: '所属区域' },
+              { key: 'source', label: '客户来源', type: 'select', options: CUSTOMER_SOURCE_OPTIONS },
+              { key: 'region', label: '所属区域', type: 'select', options: CUSTOMER_REGION_OPTIONS },
               { key: 'salesRep', label: '业务员', type: 'user' },
               { key: 'merchandiser', label: '跟单员', type: 'user' },
               { key: 'businessManager', label: '业务经理', type: 'user' },
-              { key: 'customerType', label: '客户类型' },
+              { key: 'customerType', label: '客户类型', type: 'select', options: CUSTOMER_TYPE_OPTIONS },
               { key: 'currency', label: '币别' },
-              { key: 'paymentTerm', label: '账期' },
+              { key: 'paymentTerm', label: '账期(天)', type: 'select', options: PAYMENT_TERM_OPTIONS },
               { key: 'hasPaymentTerm', label: '是否有账期', type: 'boolean' },
               { key: 'groupName', label: '集团' },
               { key: 'unifiedSocialCreditCode', label: '统一社会信用代码' },

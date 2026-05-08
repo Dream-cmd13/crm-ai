@@ -2,6 +2,7 @@ import React from 'react';
 import { Plus, Search, Filter, Building2, Clock, ChevronRight, AlertCircle } from 'lucide-react';
 import { Customer } from '../../types';
 import { cn } from '../../lib/utils';
+import { formatCustomerTypeLabel } from '../../lib/customerEnums';
 
 interface CustomerListProps {
   customers: Customer[];
@@ -85,7 +86,9 @@ export const CustomerList = ({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
-        {customers.slice(0, displayCount).map(customer => (
+        {customers.slice(0, displayCount).map((customer) => {
+          const customerTypeLabel = formatCustomerTypeLabel(customer.customerType) || '-';
+          return (
           <div 
             key={customer.id}
             onClick={() => onSelectCustomer(customer)}
@@ -96,14 +99,24 @@ export const CustomerList = ({
                 <div className="w-9 h-9 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600">
                   <Building2 className="w-5 h-5" />
                 </div>
-                <span className={cn(
-                  "px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider",
-                  customer.level === '战略客户' ? 'bg-indigo-100 text-indigo-700' :
-                  customer.level === '成长型客户' ? 'bg-emerald-100 text-emerald-700' :
-                  'bg-gray-100 text-gray-700'
-                )}>
-                  {customer.level}
-                </span>
+                <div className="flex items-center gap-1">
+                  <span className={cn(
+                    "px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider",
+                    customer.level === '战略客户' ? 'bg-indigo-100 text-indigo-700' :
+                    customer.level === '成长型客户' ? 'bg-emerald-100 text-emerald-700' :
+                    'bg-gray-100 text-gray-700'
+                  )}>
+                    {customer.level}
+                  </span>
+                  <span className={cn(
+                    "px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider",
+                    customerTypeLabel === '认证企业' ? 'bg-indigo-100 text-indigo-700' :
+                    customerTypeLabel === '普通企业' ? 'bg-emerald-100 text-emerald-700' :
+                    'bg-gray-100 text-gray-700'
+                  )}>
+                    {customerTypeLabel}
+                  </span>
+                </div>
               </div>
 
               <h3 className="text-sm font-bold text-gray-900 mb-0.5 group-hover:text-indigo-600 transition-colors truncate">{customer.name}</h3>
@@ -161,7 +174,8 @@ export const CustomerList = ({
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {customers.length === 0 && (

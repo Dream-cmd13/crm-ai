@@ -7,6 +7,7 @@ import { cn } from '../lib/utils';
 import DocumentDetail from '../components/DocumentDetail';
 import { deleteSampleOrderFromSupabase, fetchSampleOrdersFromSupabase, saveSampleOrderToSupabase } from '../lib/documentRepository';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
+import { getSampleOrderStatusLabel, getSampleOrderStatusToneClass } from '../lib/documentStatusEnums';
 
 interface SampleOrdersProps {
   role: Role;
@@ -62,6 +63,7 @@ export default function SampleOrders({ role, viewParams, navigateTo, goBack }: S
       } else {
         setSelectedOrder(payload);
       }
+      toast.success('样品单保存成功');
     } catch (error) {
       console.error('Error saving sample order:', error);
       toast.error(`样品单保存失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
@@ -78,7 +80,7 @@ export default function SampleOrders({ role, viewParams, navigateTo, goBack }: S
       projectName: '',
       applicant: '',
       createDate: new Date().toISOString().split('T')[0],
-      status: '待审批',
+      status: 'wait_leader_examine',
       totalAmount: 0,
       taxIncludedTotalAmount: 0,
       taxExcludedTotalAmount: 0,
@@ -200,11 +202,9 @@ export default function SampleOrders({ role, viewParams, navigateTo, goBack }: S
                   <td className="px-6 py-4">
                     <span className={cn(
                       "px-2 py-1 rounded-full text-xs font-medium",
-                      o.status === '已完成' ? "bg-emerald-100 text-emerald-800" :
-                      o.status === '待审批' ? "bg-amber-100 text-amber-800" :
-                      "bg-blue-100 text-blue-800"
+                      getSampleOrderStatusToneClass(String(o.status || ''))
                     )}>
-                      {o.status}
+                      {getSampleOrderStatusLabel(String(o.status || ''))}
                     </span>
                     {o.auditStatus === '已审核' && (
                       <span className="ml-2 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
@@ -238,11 +238,9 @@ export default function SampleOrders({ role, viewParams, navigateTo, goBack }: S
                 </div>
                 <span className={cn(
                   "px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                  o.status === '已完成' ? "bg-emerald-100 text-emerald-800" :
-                  o.status === '待审批' ? "bg-amber-100 text-amber-800" :
-                  "bg-blue-100 text-blue-800"
+                  getSampleOrderStatusToneClass(String(o.status || ''))
                 )}>
-                  {o.status}
+                  {getSampleOrderStatusLabel(String(o.status || ''))}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-y-2 text-sm">

@@ -7,6 +7,7 @@ import DocumentDetail from '../components/DocumentDetail';
 import { deleteQuotationFromSupabase, fetchQuotationsFromSupabase, saveQuotationToSupabase } from '../lib/documentRepository';
 import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
+import { getQuotationStatusLabel, getQuotationStatusToneClass } from '../lib/documentStatusEnums';
 
 interface SalesQuotationsProps {
   role: Role;
@@ -54,6 +55,7 @@ export default function SalesQuotations({ role, viewParams, navigateTo, goBack }
       } else {
         setSelectedQuotation(saved || payload);
       }
+      toast.success('报价单保存成功');
     } catch (error) {
       console.error('Error saving quotation:', error);
       toast.error(`报价单保存失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
@@ -72,7 +74,7 @@ export default function SalesQuotations({ role, viewParams, navigateTo, goBack }
       totalAmount: 0,
       taxIncludedTotalAmount: 0,
       taxExcludedTotalAmount: 0,
-      status: '草稿',
+      status: 'manual_quotation',
       items: [],
       auditStatus: '未审核',
       changeRecords: [],
@@ -86,7 +88,8 @@ export default function SalesQuotations({ role, viewParams, navigateTo, goBack }
   const handleDeleteQuotation = async (id: string) => {
     const quote = quotations.find((q) => q.id === id);
     if (!quote) return;
-    const downstreamCount = String(quote.status || '').includes('接受') ? 1 : 0;
+    const quotationStatus = String(quote.status || '');
+    const downstreamCount = quotationStatus === 'quotation_complete' || quotationStatus.includes('接受') ? 1 : 0;
     const ok = await ensureDeleteAllowed({ record: quote, entityName: '报价单', downstreamCount, downstreamLabel: '下游订单' });
     if (!ok) return;
     try {
@@ -154,8 +157,8 @@ export default function SalesQuotations({ role, viewParams, navigateTo, goBack }
                     <td className="px-6 py-4 font-bold text-indigo-600 cursor-pointer hover:underline" onClick={() => setSelectedQuotation(q)}>{q.quoteNo}</td>
                     <td className="px-6 py-4 font-medium text-gray-900">{q.customerName}</td>
                     <td className="px-6 py-4">
-                      <span className={cn("px-2 py-1 rounded-full text-xs font-medium", q.status === '已接受' ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800")}>
-                        {q.status}
+                      <span className={cn("px-2 py-1 rounded-full text-xs font-medium", getQuotationStatusToneClass(String(q.status || '')))}>
+                        {getQuotationStatusLabel(String(q.status || ''))}
                       </span>
                       {q.auditStatus === '已审核' && (
                         <span className="ml-2 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
@@ -190,9 +193,9 @@ export default function SalesQuotations({ role, viewParams, navigateTo, goBack }
                     <div className="flex flex-col items-end gap-1">
                       <span className={cn(
                         "px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                        q.status === '已接受' ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800"
+                        getQuotationStatusToneClass(String(q.status || ''))
                       )}>
-                        {q.status}
+                        {getQuotationStatusLabel(String(q.status || ''))}
                       </span>
                       {q.auditStatus === '已审核' && (
                         <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">

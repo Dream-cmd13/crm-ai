@@ -62,6 +62,18 @@ const toNullableInt = (value: unknown): number | null => {
   return null;
 };
 
+const dedupeInquiriesById = (list: Inquiry[]): Inquiry[] => {
+  const seen = new Set<string>();
+  const result: Inquiry[] = [];
+  for (const item of list) {
+    const key = String(item?.id || '').trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+};
+
 interface InquiriesProps {
   role: Role;
   currentUser?: User;
@@ -192,7 +204,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
         .order('create_date', { ascending: false });
       if (error) throw error;
       if (data && data.length > 0) {
-        setInquiries(data.map(mapDbInquiryToUi));
+        setInquiries(dedupeInquiriesById(data.map(mapDbInquiryToUi)));
       }
     } catch (error) {
       console.error('Error fetching inquiries:', error);
@@ -386,13 +398,13 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
         } as Inquiry;
 
         if (isNew) {
-          setInquiries([savedInquiry, ...inquiries]);
+          setInquiries((prev) => dedupeInquiriesById([savedInquiry, ...prev]));
           setIsAdding(false);
           triggerAutoFlowsForCreate('inquiry', savedInquiry, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined).catch((error) => {
             console.error('Error triggering inquiry workflow:', error);
           });
         } else {
-          setInquiries(inquiries.map(i => i.id === savedInquiry.id ? savedInquiry : i));
+          setInquiries((prev) => dedupeInquiriesById(prev.map((i) => (i.id === savedInquiry.id ? savedInquiry : i))));
           setSelectedInquiry(savedInquiry);
           triggerAutoFlowsForCreate(
             'inquiry',
@@ -487,7 +499,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     }
     if (data && data.length > 0) {
       const updatedInquiry = mapDbInquiryToUi(data[0]);
-      setInquiries((prev) => prev.map((i) => (i.id === updatedInquiry.id ? updatedInquiry : i)));
+      setInquiries((prev) => dedupeInquiriesById(prev.map((i) => (i.id === updatedInquiry.id ? updatedInquiry : i))));
       setSelectedInquiry((prev) => (prev?.id === updatedInquiry.id ? updatedInquiry : prev));
     }
   };
@@ -545,7 +557,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     try {
       const leadId = await pushInquiryToLeadInSupabase(targetInquiry, data);
       const updatedInquiry = { ...targetInquiry, status: '已转线索' as const };
-      setInquiries(inquiries.map(i => i.id === updatedInquiry.id ? updatedInquiry : i));
+      setInquiries((prev) => dedupeInquiriesById(prev.map((i) => (i.id === updatedInquiry.id ? updatedInquiry : i))));
       if (selectedInquiry?.id === updatedInquiry.id) {
         setSelectedInquiry(updatedInquiry);
       }
@@ -631,7 +643,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
         ...(result.intentScore ? { intentScore: result.intentScore } : {})
       };
       
-      setInquiries(inquiries.map(i => i.id === updatedInquiry.id ? updatedInquiry : i));
+      setInquiries((prev) => dedupeInquiriesById(prev.map((i) => (i.id === updatedInquiry.id ? updatedInquiry : i))));
       setSelectedInquiry(updatedInquiry);
     } catch (error) {
       console.error('Regeneration failed:', error);
@@ -702,7 +714,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
           warmerScript: analysisResult.warmerScript
         }
       };
-      setInquiries(inquiries.map(i => i.id === updatedInquiry.id ? updatedInquiry : i));
+      setInquiries((prev) => dedupeInquiriesById(prev.map((i) => (i.id === updatedInquiry.id ? updatedInquiry : i))));
       setSelectedInquiry(updatedInquiry);
       setEditedAnalysis(analysisResult);
     } catch (error) {
@@ -716,7 +728,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     if (!selectedInquiry || !editedAnalysis) return;
     try {
       const updatedInquiry = { ...selectedInquiry, aiAnalysis: editedAnalysis };
-      setInquiries(inquiries.map(i => i.id === updatedInquiry.id ? updatedInquiry : i));
+      setInquiries((prev) => dedupeInquiriesById(prev.map((i) => (i.id === updatedInquiry.id ? updatedInquiry : i))));
       setSelectedInquiry(updatedInquiry);
       setIsEditingAnalysis(false);
     } catch (error) {

@@ -4,6 +4,7 @@ import { Eye, Edit2, Plus, Trash2 } from 'lucide-react';
 import { ProductCategory } from '../types';
 import DetailModal from '../components/DetailModal';
 import { deleteProductCategoryFromSupabase, fetchProductCategoriesFromSupabase, saveProductCategoryToSupabase } from '../lib/productRepository';
+import { confirmDialog } from '../lib/toastConfirm';
 
 type ModalMode = 'add' | null;
 type TreeCategoryRow = ProductCategory & { level: number };
@@ -84,7 +85,8 @@ export default function ProductCategories({ navigateTo }: ProductCategoriesProps
 
   const handleDelete = async (category: ProductCategory) => {
     if (!category.id) return;
-    if (!window.confirm(`确认删除类别 ${category.id}？`)) return;
+    const categoryName = String(category.name || '').trim() || category.id;
+    if (!(await confirmDialog(`确认删除类别 "${categoryName}"？`))) return;
     try {
       await deleteProductCategoryFromSupabase(category.id);
       await refreshCategories();
