@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, MessageSquare, Target, Briefcase, FolderKanban, Users, CalendarDays, DollarSign, Package, FileBox, Undo2, Settings, FileText, X, ChevronDown, ChevronRight, Bell, ListTodo, Bot, Database, CheckSquare, Shield, BookOpen, Swords } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, MessageCircle, Target, Briefcase, FolderKanban, Users, CalendarDays, DollarSign, Package, FileBox, Undo2, Settings, FileText, X, ChevronDown, ChevronRight, Bell, ListTodo, Bot, Database, CheckSquare, Shield, BookOpen, Swords } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface SidebarProps {
@@ -71,6 +71,7 @@ export default function Sidebar({ currentView, setCurrentView, isOpen, onClose, 
       items: [
         { id: 'customer-strategy', label: '客户策略', icon: Swords },
         { id: 'architecture-settings', label: '架构设置', icon: Database },
+        { id: 'wechat-session', label: '微信会话', icon: MessageCircle },
         { id: 'settings', label: '系统设置', icon: Settings },
         { id: 'users-management', label: '用户管理', icon: Users },
         { id: 'permission-management', label: '权限管理', icon: Shield },

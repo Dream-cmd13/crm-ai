@@ -11,7 +11,7 @@ import { notifySupabaseFailure } from '../lib/supabaseFailureNotice';
 import { fetchChatAssistConfigFromSupabase, saveChatAssistConfigToSupabase, defaultChatAssistConfig } from '../lib/chatAssistConfigRepository';
 
 import CustomerTypes from './CustomerTypes';
-import SystemWechatQuery from '../components/SystemWechatQuery';
+
 import { fetchUsersFromSupabase, saveUserToSupabase, deleteUserFromSupabase, fetchDepartmentsFromSupabase } from '../lib/userRepository';
 import { Department } from '../types';
 
@@ -37,8 +37,8 @@ const normalizeTaskTypes = (input: TaskType[]): TaskType[] => {
 };
 
 export default function SystemSettings({ role, viewParams, navigateTo, goBack }: SystemSettingsProps) {
-  const initialTab = ['task-types', 'llm', 'pushdown', 'wechat', 'customer-types'].includes(viewParams?.tab) ? viewParams.tab : 'task-types';
-  const [activeTab, setActiveTab] = useState<'task-types' | 'llm' | 'pushdown' | 'wechat' | 'chat-assist' | 'customer-types'>(initialTab as any);
+  const initialTab = ['task-types', 'llm', 'pushdown', 'customer-types'].includes(viewParams?.tab) ? viewParams.tab : 'task-types';
+  const [activeTab, setActiveTab] = useState<'task-types' | 'llm' | 'pushdown' | 'chat-assist' | 'customer-types'>(initialTab as any);
   const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
   const [isAddingTaskType, setIsAddingTaskType] = useState(false);
   const [editingTaskType, setEditingTaskType] = useState<TaskType | null>(null);
@@ -257,16 +257,6 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
               <ArrowRightLeft className="w-4 h-4" />
               下推节点(预设)
             </button>
-            <button
-              onClick={() => setActiveTab('wechat')}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'wechat' ? 'bg-indigo-50 text-indigo-700 border-l-4 border-indigo-600' : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <Sparkles className="w-4 h-4" />
-              微信会话
-            </button>
-
           </div>
         </div>
 
@@ -526,9 +516,6 @@ export default function SystemSettings({ role, viewParams, navigateTo, goBack }:
                 </table>
               </div>
             </div>
-          )}
-          {activeTab === 'wechat' && (
-            <SystemWechatQuery />
           )}
           {activeTab === 'chat-assist' && (
             <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-6">
