@@ -7,6 +7,7 @@ import { cn } from '../lib/utils';
 import DocumentDetail from '../components/DocumentDetail';
 import { deleteReturnOrderFromSupabase, fetchReturnOrdersFromSupabase, saveReturnOrderToSupabase } from '../lib/documentRepository';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
+import { notifySupabaseFailure } from '../lib/supabaseFailureNotice';
 
 interface ReturnOrdersProps {
   role: Role;
@@ -62,9 +63,10 @@ export default function ReturnOrders({ role, viewParams, navigateTo, goBack }: R
       } else {
         setSelectedOrder(payload);
       }
+      toast.success('退货单保存成功');
     } catch (error) {
       console.error('Error saving return order:', error);
-      toast.error(`退货单保存失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
+      notifySupabaseFailure('退货单保存', error);
     }
   };
 

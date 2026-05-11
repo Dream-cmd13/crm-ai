@@ -23,6 +23,7 @@ import { resolveCustomerDbIdFromSupabase, saveCustomerCommunicationToSupabase, f
 import { pushInquiryToLeadInSupabase } from '../lib/pushdown';
 import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
+import { notifySupabaseFailure } from '../lib/supabaseFailureNotice';
 
 const INQUIRY_SOURCE_CHANNEL_OPTIONS = ['万连', '电子谷', '1688', '爱采购', '胜蓝', '新电子谷', '其他', '淘宝', '官网', '展会'];
 
@@ -417,6 +418,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
         if (isNew) {
           setInquiries((prev) => dedupeInquiriesById([savedInquiry, ...prev]));
           setIsAdding(false);
+          toast.success('询盘新增成功');
           triggerAutoFlowsForCreate('inquiry', savedInquiry, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined).catch((error) => {
             console.error('Error triggering inquiry workflow:', error);
           });
@@ -432,11 +434,12 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
             console.error('Error triggering inquiry workflow on save:', error);
           });
           setIsEditing(false);
+          toast.success('询盘保存成功');
         }
       }
     } catch (error) {
       console.error('Error saving inquiry:', error);
-      toast.error(`保存询盘失败：${(error as Error)?.message || '请检查 Supabase 权限配置'}`);
+      notifySupabaseFailure('询盘保存', error);
     }
   };
 

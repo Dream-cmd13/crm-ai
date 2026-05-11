@@ -5,6 +5,7 @@ import { CustomerType } from '../types';
 import { fetchCustomerTypesFromSupabase, saveCustomerTypesToSupabase } from '../lib/customerTypeRepository';
 
 import { confirmDialog } from '../lib/toastConfirm';
+import { notifySupabaseFailure } from '../lib/supabaseFailureNotice';
 
 export default function CustomerTypes() {
   const [types, setTypes] = useState<CustomerType[]>([]);
@@ -49,10 +50,13 @@ export default function CustomerTypes() {
     setEditingType(null);
     setNewType({ name: '', visitFrequency: 30, sop: '', conditionDescription: '', inactiveDays: 30, activationTemplateId: '' });
 
-    saveCustomerTypesToSupabase(nextTypes).catch((error) => {
+    try {
+      await saveCustomerTypesToSupabase(nextTypes);
+      toast.success(editingType ? '客户类型更新成功' : '客户类型新增成功');
+    } catch (error) {
       console.error('Error saving customer types:', error);
-      toast.error(`客户类型保存失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
-    });
+      notifySupabaseFailure('客户类型保存', error);
+    }
   };
 
   const handleEdit = (type: CustomerType) => {

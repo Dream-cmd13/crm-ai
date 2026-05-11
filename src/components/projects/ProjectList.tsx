@@ -8,6 +8,8 @@ interface ProjectListProps {
   setSearchTerm: (v: string) => void;
   activeTab: string;
   setActiveTab: (v: string) => void;
+  projectCategoryFilter: '全部' | '定制项目' | '标准项目';
+  setProjectCategoryFilter: (v: '全部' | '定制项目' | '标准项目') => void;
   filteredProjects: Project[];
   displayCount: number;
   onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
@@ -18,9 +20,10 @@ interface ProjectListProps {
 
 export const ProjectList = ({
   searchTerm, setSearchTerm, activeTab, setActiveTab,
+  projectCategoryFilter, setProjectCategoryFilter,
   filteredProjects, displayCount, onScroll, onProjectClick, onDeleteProject, onAddProject
 }: ProjectListProps) => {
-  const tabs = ['本周项目', '全部项目', '重点项目', '今日项目', '上周项目', '上周以前项目', '已关闭项目'];
+  const tabs = ['全部项目', '战略客户项目池', '成长型客户项目池', '普通客户项目池'];
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -78,6 +81,19 @@ export const ProjectList = ({
             {tab}
           </button>
         ))}
+      </div>
+
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <span className="text-sm text-gray-500">项目类别</span>
+        <select
+          value={projectCategoryFilter}
+          onChange={(e) => setProjectCategoryFilter(e.target.value as '全部' | '定制项目' | '标准项目')}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+        >
+          <option value="全部">全部</option>
+          <option value="定制项目">定制项目</option>
+          <option value="标准项目">标准项目</option>
+        </select>
       </div>
 
       <div 

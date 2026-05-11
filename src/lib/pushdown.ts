@@ -1,4 +1,4 @@
-import { Inquiry, Lead, Opportunity, SalesQuotation, Project, SalesOrder } from '../types';
+import { Inquiry, Lead, Opportunity, SalesQuotation, SalesOrder } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 import { generateBusinessNumber, ID_PREFIX } from './idUtils';
 import { createPotentialCustomerInSupabase, convertPotentialCustomerToCustomerInSupabase } from './potentialCustomerRepository';
@@ -199,6 +199,7 @@ export const pushLeadToOpportunityInSupabase = async (source: Lead, oppData: any
   const oppSummary = summaryParts.join('；') || `来自线索 ${source.id}`;
   const intentAmount = Number(oppData?.expectedAmount || 0);
   const opportunityNo = await generateBusinessNumber(ID_PREFIX.OPPORTUNITY);
+  const inheritedAttachments = Array.isArray(source.attachments) ? source.attachments : [];
 
   const oppRow = {
     opportunity_no: opportunityNo || null,
@@ -212,7 +213,9 @@ export const pushLeadToOpportunityInSupabase = async (source: Lead, oppData: any
     close_reason: String(oppData?.closeReason || '').trim() || null,
     product_line: normalizeOpportunityProductLine(oppData?.productLine || source.productCategory),
     sales_rep: String(oppData?.assignee || source.assignee || '').trim() || null,
-    opp_level: 'B级',
+    project_manager: String(oppData?.projectManager || '').trim() || null,
+    product_owner: String(oppData?.productOwner || '').trim() || null,
+    opp_level: String(oppData?.oppLevel || '').trim() || 'B级',
     intent_amount: Number.isFinite(intentAmount) ? intentAmount : 0,
     associated_project: '',
     end_customer: String(oppData?.endCustomer || '').trim() || null,
@@ -224,7 +227,9 @@ export const pushLeadToOpportunityInSupabase = async (source: Lead, oppData: any
     product_industry: source.productIndustry || null,
     product_series: source.productSeries || null,
     completeness: 10,
-    contact_person: oppData?.contactPerson || source.name || null,
+    contact_person: oppData?.contactPerson || source.contactPerson || source.name || null,
+    contact_id: source.contactId || null,
+    attachments: inheritedAttachments,
     lead_id: leadId,
     inquiry_id: inquiryId,
     updated_at: now
@@ -255,7 +260,7 @@ export const pushLeadToOpportunityInSupabase = async (source: Lead, oppData: any
   return oppId;
 };
 
-export const pushOpportunityToProjectInSupabase = async (source: Opportunity) => {
+export const pushOpportunityToProjectInSupabase = async (source: Opportunity, projectData?: any) => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase 环境变量未配置');
   }
@@ -273,21 +278,62 @@ export const pushOpportunityToProjectInSupabase = async (source: Opportunity) =>
 
   const now = new Date().toISOString();
   const amount = Number(source.intentAmount || 0);
-  const projectName = `${customerName}-项目`;
+  const projectName = String(projectData?.projectName || '').trim() || `${customerName}-项目`;
   const projectNo = await generateBusinessNumber(ID_PREFIX.PROJECT);
+  const opportunityIdText = String(source.id || '').trim();
+  const leadId = toNullableInt(source.leadId);
+  const inquiryId = toNullableInt(source.inquiryId);
+  const estimatedMassProductionDate = projectData?.estimatedMassProductionTime || source.estimatedMassProductionDate || null;
+  const teamSales = String(projectData?.salesRep || source.salesRep || '').trim();
+  const teamPm = String(projectData?.teamPm || source.projectManager || '').trim();
+  const teamProduct = String(projectData?.productOwner || source.productOwner || '').trim();
+  const normalizedStatus = String(projectData?.status || '').trim() || '跟进中';
+  const normalizedStage = String(projectData?.stage || '').trim() || '需求阶段';
+  const normalizedType = String(projectData?.projectType || '').trim() || '研发型项目';
+  const normalizedCategory = String(projectData?.projectCategory || '').trim() || '定制项目';
+  const normalizedLevel = String(projectData?.projectLevel || source.oppLevel || '').trim() || 'B级';
+  const normalizedCustomerAction = String(projectData?.customerAction || '').trim() || '找货寻料';
+  const attachments = Array.isArray(source.attachments) ? source.attachments : [];
 
   const projectRow = {
     project_no: projectNo || null,
     customer_id: resolvedCustomerId || null,
     customer_name: customerName,
     project_name: projectName,
-    status: '跟进中',
-    stage: '需求阶段',
-    product_line: normalizeProjectProductLine(source.productLine),
-    manager: null,
+    project_type: normalizedType,
+    project_category: normalizedCategory,
+    project_level: normalizedLevel,
+    status: normalizedStatus,
+    stage: normalizedStage,
+    product_line: normalizeProjectProductLine(projectData?.productLine || source.productLine),
+    customer_action: normalizedCustomerAction,
+    manager: teamPm || null,
     amount: Number.isFinite(amount) ? amount : 0,
+    intent_amount: Number.isFinite(amount) ? amount : 0,
+    opp_summary: source.oppSummary || null,
+    end_customer: source.endCustomer || null,
+    end_project: source.endProject || null,
+    application_scenario: source.applicationScenario || null,
+    estimated_usage: source.estimatedUsage || null,
+    estimated_mass_production_date: estimatedMassProductionDate,
+    product_industry: source.productIndustry || null,
+    sales_rep: teamSales || null,
+    product_owner: teamProduct || null,
+    team: {
+      sales: teamSales,
+      pm: teamPm,
+      product: teamProduct,
+      quality: '',
+      purchasing: '',
+      fae: ''
+    },
+    wechat_group: source.customerName ? `${source.customerName}-项目群` : null,
+    opportunity_id: toNullableInt(opportunityIdText),
+    lead_id: leadId,
+    inquiry_id: inquiryId,
+    attachments,
     start_date: today(),
-    end_date: null,
+    end_date: estimatedMassProductionDate,
     updated_at: now
   };
 

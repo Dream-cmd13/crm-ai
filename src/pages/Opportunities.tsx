@@ -26,9 +26,17 @@ import { pushOpportunityToProjectInSupabase, deleteOpportunityFromSupabase } fro
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
 import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
+import { notifySupabaseFailure } from '../lib/supabaseFailureNotice';
+import { fetchUsersFromSupabase } from '../lib/userRepository';
 
 const OPPORTUNITY_STATUS_OPTIONS = ['未跟进', '跟进中', '关闭', '转项目'];
 const PRODUCT_INDUSTRY_OPTIONS = ['基础接插件', '新能源', '线束', '定制', '胜蓝', '胜蓝电气', '工业'];
+const PROJECT_STAGE_OPTIONS = ['需求阶段', '设计阶段', '报价阶段', '样品制作', '样品承认', '试产阶段', '重复试产', '量产阶段'];
+const PROJECT_STATUS_OPTIONS = ['跟进中', '样品', '小批量', '样品/小批量', '已合作', '关闭', '暂停'];
+const PROJECT_TYPE_OPTIONS = ['研发型项目', '标品类项目'];
+const PROJECT_CATEGORY_OPTIONS = ['定制项目', '标准项目'];
+const PROJECT_LEVEL_OPTIONS = ['S级', 'A级', 'B级', 'C级'];
+const PROJECT_CUSTOMER_ACTION_OPTIONS = ['寻替代料', '寻替代品', '找货寻料', '指定料号', '指定物料'];
 
 const normalizeProductIndustry = (value: unknown): string | null => {
   const text = String(value || '').trim();
@@ -100,8 +108,10 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   const [isAddingContact, setIsAddingContact] = useState(false);
   const [contacts, setContacts] = useState<any[]>([]);
   const [selectedCustomerNumber, setSelectedCustomerNumber] = useState('');
+  const [users, setUsers] = useState<User[]>([]);
   const [leadNoMap, setLeadNoMap] = useState<Record<string, string>>({});
   const [inquiryNoMap, setInquiryNoMap] = useState<Record<string, string>>({});
+  const [projectNoMap, setProjectNoMap] = useState<Record<string, string>>({});
   const [leadSelectOptions, setLeadSelectOptions] = useState<{ value: string; label: string }[]>([]);
   const [inquirySelectOptions, setInquirySelectOptions] = useState<{ value: string; label: string }[]>([]);
 
@@ -218,22 +228,42 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   }, []);
 
   useEffect(() => {
+    const loadUsers = async () => {
+      if (!isSupabaseConfigured()) {
+        setUsers([]);
+        return;
+      }
+      try {
+        const userList = await fetchUsersFromSupabase();
+        setUsers(userList || []);
+      } catch (error) {
+        console.error('Error fetching users for opportunity display:', error);
+        setUsers([]);
+      }
+    };
+    loadUsers();
+  }, []);
+
+  useEffect(() => {
     const loadRelatedReferenceData = async () => {
       if (!isSupabaseConfigured()) {
         setLeadNoMap({});
         setInquiryNoMap({});
+        setProjectNoMap({});
         setLeadSelectOptions([]);
         setInquirySelectOptions([]);
         return;
       }
       try {
         const supabase = getSupabaseClient();
-        const [{ data: leadRows, error: leadError }, { data: inquiryRows, error: inquiryError }] = await Promise.all([
+        const [{ data: leadRows, error: leadError }, { data: inquiryRows, error: inquiryError }, { data: projectRows, error: projectError }] = await Promise.all([
           supabase.from('crm_lead').select('id, lead_no'),
-          supabase.from('crm_inquiry').select('id, inquiry_no')
+          supabase.from('crm_inquiry').select('id, inquiry_no'),
+          supabase.from('crm_project').select('id, project_no')
         ]);
         if (leadError) throw leadError;
         if (inquiryError) throw inquiryError;
+        if (projectError) throw projectError;
 
         const nextLeadMap: Record<string, string> = {};
         const nextLeadOptions = (leadRows || []).map((row: any) => {
@@ -251,14 +281,23 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
           return { value: id, label: inquiryNo || id };
         });
 
+        const nextProjectMap: Record<string, string> = {};
+        (projectRows || []).forEach((row: any) => {
+          const id = String(row.id);
+          const projectNo = String(row.project_no || '');
+          if (projectNo) nextProjectMap[id] = projectNo;
+        });
+
         setLeadNoMap(nextLeadMap);
         setInquiryNoMap(nextInquiryMap);
+        setProjectNoMap(nextProjectMap);
         setLeadSelectOptions(nextLeadOptions);
         setInquirySelectOptions(nextInquiryOptions);
       } catch (error) {
         console.error('Error loading related references for opportunity:', error);
         setLeadNoMap({});
         setInquiryNoMap({});
+        setProjectNoMap({});
         setLeadSelectOptions([]);
         setInquirySelectOptions([]);
       }
@@ -274,6 +313,24 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   const resolveInquiryDisplay = (inquiryId?: string) => {
     if (!inquiryId) return '-';
     return inquiryNoMap[inquiryId] || inquiryId;
+  };
+
+  const resolveProjectDisplay = (projectId?: string) => {
+    if (!projectId) return '-';
+    return projectNoMap[projectId] || projectId;
+  };
+
+  const resolveUserDisplay = (raw?: string) => {
+    const value = String(raw || '').trim();
+    if (!value) return '-';
+    const matched = users.find(
+      (u) =>
+        u.id === value ||
+        String(u.employeeNo || '').trim() === value ||
+        String(u.username || '').trim() === value ||
+        String(u.name || '').trim() === value
+    );
+    return matched?.name || value;
   };
 
   useEffect(() => {
@@ -371,6 +428,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
             }
           }
           const newOpp: Opportunity = {
+            id: `tmp-${Date.now()}`,
             leadId: String(viewParams.sourceId || ''),
             inquiryId: sourceLead?.inquiry_id !== null && sourceLead?.inquiry_id !== undefined ? String(sourceLead.inquiry_id) : undefined,
             customerName: sourceLead?.customer_name || '待定',
@@ -410,6 +468,9 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
 
   const [isAdding, setIsAdding] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isConvertingToProject, setIsConvertingToProject] = useState(false);
+  const [conversionProjectData, setConversionProjectData] = useState<any>(null);
+  const [conversionOpportunity, setConversionOpportunity] = useState<Opportunity | null>(null);
 
   const filteredOpportunities = opportunities.filter(opp => 
     opp.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -488,6 +549,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
         if (isAdding) {
           setOpportunities([savedOpp, ...opportunities]);
           setIsAdding(false);
+          toast.success('商机新增成功');
           triggerAutoFlowsForCreate('opportunity', savedOpp, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined).catch((error) => {
             console.error('Error triggering opportunity workflow:', error);
           });
@@ -508,11 +570,12 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
               console.error('Error triggering opportunity workflow on save:', error);
             });
           setIsEditing(false);
+          toast.success('商机保存成功');
         }
       }
     } catch (error) {
       console.error('Error saving opportunity:', error);
-      toast.error(`保存商机失败：${(error as Error)?.message || '请检查 Supabase 权限配置'}`);
+      notifySupabaseFailure('商机保存', error);
     }
   };
 
@@ -720,12 +783,41 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     }
   };
 
-  const handleConvertToProject = async (opp: Opportunity) => {
+  const handleConvertToProject = (opp: Opportunity) => {
+    setConversionOpportunity(opp);
+    setConversionProjectData({
+      projectName: `${opp.customerName || '未命名客户'}-定制项目`,
+      projectType: '研发型项目',
+      projectCategory: '定制项目',
+      projectLevel: opp.oppLevel || 'B级',
+      stage: '需求阶段',
+      productLine: normalizeOpportunityProductLine(opp.productLine),
+      status: '跟进中',
+      customerAction: '找货寻料',
+      teamPm: opp.projectManager || '',
+      salesRep: opp.salesRep || '',
+      productOwner: opp.productOwner || '',
+      estimatedMassProductionTime: opp.estimatedMassProductionDate || ''
+    });
+    setIsConvertingToProject(true);
+  };
+
+  const confirmConvertToProject = async (data: any) => {
+    const sourceOpp = conversionOpportunity || selectedOpp;
+    if (!sourceOpp) {
+      toast.error('未找到待转换商机，请重试');
+      return;
+    }
     try {
-      const projectId = await pushOpportunityToProjectInSupabase(opp);
-      const updatedOpp = { ...opp, status: '转项目' as const, associatedProject: projectId };
+      const projectId = await pushOpportunityToProjectInSupabase(sourceOpp, data);
+      const updatedOpp = { ...sourceOpp, status: '转项目' as const, associatedProject: projectId };
       setOpportunities(opportunities.map(o => o.id === updatedOpp.id ? updatedOpp : o));
-      setSelectedOpp(updatedOpp);
+      if (selectedOpp?.id === updatedOpp.id) {
+        setSelectedOpp(updatedOpp);
+      }
+      setIsConvertingToProject(false);
+      setConversionOpportunity(null);
+      setConversionProjectData(null);
       navigateTo?.('projects', { action: 'open_existing', id: String(projectId), refreshTs: Date.now() });
     } catch (error) {
       console.error('Error converting opportunity to project:', error);
@@ -764,6 +856,21 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     { key: 'completeness', label: '完整度%', type: 'number' },
     { key: 'creatorName', label: '创建人', type: 'user' },
     { key: 'createDate', label: '创建日期', type: 'date' },
+  ];
+
+  const projectConversionFields = [
+    { key: 'projectName', label: '项目名称', required: true },
+    { key: 'projectType', label: '项目类型', type: 'select', options: PROJECT_TYPE_OPTIONS, required: true },
+    { key: 'projectCategory', label: '项目类别', type: 'select', options: PROJECT_CATEGORY_OPTIONS, required: true },
+    { key: 'projectLevel', label: '项目等级', type: 'select', options: PROJECT_LEVEL_OPTIONS, required: true },
+    { key: 'stage', label: '阶段', type: 'select', options: PROJECT_STAGE_OPTIONS, required: true },
+    { key: 'productLine', label: '产品线', type: 'select', options: PRODUCT_LINE_OPTIONS, required: true },
+    { key: 'status', label: '项目状态', type: 'select', options: PROJECT_STATUS_OPTIONS, required: true },
+    { key: 'customerAction', label: '客户行动', type: 'select', options: PROJECT_CUSTOMER_ACTION_OPTIONS },
+    { key: 'teamPm', label: '项目经理', type: 'user' },
+    { key: 'salesRep', label: '业务员', type: 'user' },
+    { key: 'productOwner', label: '产品负责人', type: 'user' },
+    { key: 'estimatedMassProductionTime', label: '预计量产时间', type: 'date' },
   ];
 
   const [displayCount, setDisplayCount] = useState(20);
@@ -909,7 +1016,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">业务员</p>
-                    <p className="font-medium text-gray-900">{selectedOpp.salesRep}</p>
+                    <p className="font-medium text-gray-900">{resolveUserDisplay(selectedOpp.salesRep)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">项目经理</p>
@@ -1099,6 +1206,20 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
           data={selectedOpp}
           onSave={handleSave}
           fields={fields}
+        />
+
+        <DetailModal
+          isOpen={isConvertingToProject}
+          onClose={() => {
+            setIsConvertingToProject(false);
+            setConversionOpportunity(null);
+            setConversionProjectData(null);
+          }}
+          title="商机转项目 - 补充资料"
+          data={conversionProjectData}
+          onSave={confirmConvertToProject}
+          fields={projectConversionFields}
+          isEditing={true}
         />
 
         {selectedTaskId && (
@@ -1342,7 +1463,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                     </td>
                     <td className="px-6 py-4 text-gray-600 truncate max-w-xs">{opp.oppSummary}</td>
                     <td className="px-6 py-4 text-gray-600">{opp.productLine}</td>
-                    <td className="px-6 py-4 text-gray-600">{opp.salesRep}</td>
+                    <td className="px-6 py-4 text-gray-600">{resolveUserDisplay(opp.salesRep)}</td>
                     <td className="px-6 py-4 text-gray-600">{opp.projectManager}</td>
                     <td className="px-6 py-4 text-gray-600">{opp.productOwner}</td>
                     <td className="px-6 py-4">
@@ -1355,7 +1476,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                       </span>
                     </td>
                     <td className="px-6 py-4 font-medium text-gray-900">¥{opp.intentAmount}</td>
-                    <td className="px-6 py-4 text-indigo-600 cursor-pointer hover:underline" onClick={() => opp.associatedProject && navigateTo?.('projects', opp.associatedProject)}>{opp.associatedProject || '-'}</td>
+                    <td className="px-6 py-4 text-indigo-600 cursor-pointer hover:underline" onClick={() => opp.associatedProject && navigateTo?.('projects', opp.associatedProject)}>{resolveProjectDisplay(opp.associatedProject)}</td>
                     <td className="px-6 py-4 text-gray-600">{opp.endCustomer}</td>
                     <td className="px-6 py-4 text-gray-600">{opp.endProject}</td>
                     <td className="px-6 py-4 text-gray-600">{opp.applicationScenario || '-'}</td>
@@ -1440,7 +1561,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                 </div>
                 <div>
                   <p className="text-gray-500 text-xs">业务员</p>
-                  <p className="text-gray-900">{opp.salesRep}</p>
+                  <p className="text-gray-900">{resolveUserDisplay(opp.salesRep)}</p>
                 </div>
                 <div>
                   <p className="text-gray-500 text-xs">完整度</p>
@@ -1514,6 +1635,20 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
         }}
         onSave={handleSave}
         fields={fields.filter(f => !['opportunityNo', 'creator', 'createDate', 'updater', 'updateDate', 'associatedProject'].includes(f.key))}
+        isEditing={true}
+      />
+
+      <DetailModal
+        isOpen={isConvertingToProject}
+        onClose={() => {
+          setIsConvertingToProject(false);
+          setConversionOpportunity(null);
+          setConversionProjectData(null);
+        }}
+        title="商机转项目 - 补充资料"
+        data={conversionProjectData}
+        onSave={confirmConvertToProject}
+        fields={projectConversionFields}
         isEditing={true}
       />
     </div>

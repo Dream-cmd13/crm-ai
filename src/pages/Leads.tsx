@@ -23,8 +23,11 @@ import { pushLeadToOpportunityInSupabase, deleteLeadFromSupabase } from '../lib/
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
 import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
+import { notifySupabaseFailure } from '../lib/supabaseFailureNotice';
 
 const LEAD_STATUS_OPTIONS = ['未跟进', '跟进中', '关闭', '转商机'];
+const OPPORTUNITY_PRODUCT_LINE_OPTIONS = ['接插件', '线束', '工业连接器', 'IO连接器', '电子电气', '其他'];
+const OPPORTUNITY_LEVEL_OPTIONS = ['S级', 'A级', 'B级', 'C级'];
 const LEAD_CUSTOMER_ACTION_OPTIONS = ['寻替代料', '寻替代品', '找货寻料', '指定料号', '指定物料'];
 const LEAD_SOURCE_CHANNEL_OPTIONS = ['万连', '电子谷', '1688', '爱采购', '胜蓝', '新电子谷', '其他', '淘宝', '官网', '展会'];
 const LEAD_SOURCE_TYPE_OPTIONS = ['企业微信', '注册', '在线', '微信', '邮件', '电话', '其他'];
@@ -362,6 +365,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
             }
           }
           const newLead: Lead = {
+            id: `TMP-LEAD-${Date.now()}`,
             inquiryId: String(viewParams.sourceId || ''),
             customerName: sourceInquiry?.company_name || '待定',
             name: sourceInquiry?.customer_name || '',
@@ -463,6 +467,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
         if (insertedData && insertedData.length > 0) {
           const newLead = mapDbLeadToUi(insertedData[0]);
           setLeads([newLead, ...leads]);
+          toast.success('线索新增成功');
           triggerAutoFlowsForCreate('lead', newLead, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined).catch((error) => {
             console.error('Error triggering lead workflow:', error);
           });
@@ -470,7 +475,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
         setIsAdding(false);
       } catch (error) {
         console.error('Error adding lead:', error);
-        toast.error(`新增线索失败：${(error as Error)?.message || '请检查 Supabase 权限配置'}`);
+        notifySupabaseFailure('线索新增', error);
       }
     } else if (selectedLead) {
       try {
@@ -538,11 +543,12 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           ).catch((error) => {
             console.error('Error triggering lead workflow on save:', error);
           });
+          toast.success('线索保存成功');
         }
         setIsEditing(false);
       } catch (error) {
         console.error('Error updating lead:', error);
-        toast.error(`更新线索失败：${(error as Error)?.message || '请检查 Supabase 权限配置'}`);
+        notifySupabaseFailure('线索保存', error);
       }
     }
   };
@@ -559,8 +565,16 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
       name: `商机-${lead.customerName}`,
       contactPerson: lead.name,
       contactPhone: lead.phone,
+      productLine: '其他',
+      oppLevel: 'B级',
       assignee: role,
+      projectManager: '',
+      productOwner: '',
       status: '跟进中',
+      endCustomer: '',
+      endProject: '',
+      applicationScenario: '',
+      estimatedUsage: '',
       expectedAmount: 0,
       expectedClosingDate: new Date().toISOString().split('T')[0],
     });
@@ -592,10 +606,18 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
     { key: 'name', label: '商机名称', required: true },
     { key: 'contactPerson', label: '联系人' },
     { key: 'contactPhone', label: '联系电话' },
+    { key: 'productLine', label: '产品线', type: 'select', options: OPPORTUNITY_PRODUCT_LINE_OPTIONS },
+    { key: 'oppLevel', label: '商机等级', type: 'select', options: OPPORTUNITY_LEVEL_OPTIONS },
     { key: 'expectedAmount', label: '预计金额', type: 'number' },
     { key: 'expectedClosingDate', label: '预计成交日期', type: 'date' },
     { key: 'status', label: '商机状态', type: 'select', options: ['未跟进', '跟进中', '关闭', '转项目'] },
     { key: 'assignee', label: '负责人', type: 'user' },
+    { key: 'projectManager', label: '项目经理', type: 'user' },
+    { key: 'productOwner', label: '产品负责人', type: 'user' },
+    { key: 'endCustomer', label: '终端客户' },
+    { key: 'endProject', label: '终端项目' },
+    { key: 'applicationScenario', label: '应用场景' },
+    { key: 'estimatedUsage', label: '预估用量' },
   ];
 
   const handleRegenerateAI = async (nodeId: string, field: string, prompt: string) => {

@@ -76,6 +76,50 @@ const toNullableInt = (value: unknown): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const mapCustomerLevelToProjectPool = (level: unknown): Project['projectPool'] => {
+  const normalized = String(level || '').trim();
+  if (normalized === '战略客户') return '战略客户项目池';
+  if (normalized === '成长型客户') return '成长型客户项目池';
+  return '普通客户项目池';
+};
+
+const attachProjectPools = async (projects: Project[]): Promise<Project[]> => {
+  if (!projects.length) return projects;
+  if (!isSupabaseConfigured()) {
+    return projects.map((project) => ({ ...project, projectPool: '普通客户项目池' }));
+  }
+  const customerIds = Array.from(
+    new Set(
+      projects
+        .map((project) => toNullableInt(project.customerId))
+        .filter((id): id is number => id !== null)
+    )
+  );
+  if (!customerIds.length) {
+    return projects.map((project) => ({ ...project, projectPool: '普通客户项目池' }));
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('ba_manucustinfo')
+    .select('id, level')
+    .in('id', customerIds);
+  if (error) throw error;
+
+  const levelByCustomerId = new Map<number, string>(
+    (data || []).map((row: any) => [Number(row.id), String(row.level || '')])
+  );
+
+  return projects.map((project) => {
+    const customerId = toNullableInt(project.customerId);
+    const level = customerId === null ? '' : levelByCustomerId.get(customerId) || '';
+    return {
+      ...project,
+      projectPool: mapCustomerLevelToProjectPool(level)
+    };
+  });
+};
+
 const mapDbProjectToUi = (row: any): Project => {
   const meta = parseProjectMeta(row.manager);
   const team = parseJsonColumn<any>(row.team, null) || meta.team || {
@@ -92,6 +136,7 @@ const mapDbProjectToUi = (row: any): Project => {
     projectNo: row.project_no || '',
     projectName: row.project_name || '',
     projectType: row.project_type || meta.projectType || '研发型项目',
+    projectCategory: row.project_category || meta.projectCategory || '',
     customerName: row.customer_name || '',
     customerId: row.customer_id !== null && row.customer_id !== undefined ? String(row.customer_id) : '',
     projectLevel: row.project_level || meta.projectLevel || 'B级',
@@ -153,6 +198,7 @@ const mapUiProjectToDb = (project: Project) => {
   stage: project.stage || '需求阶段',
   manager: project.team?.pm || null,
   project_type: project.projectType || null,
+  project_category: project.projectCategory || null,
   project_level: project.projectLevel || null,
   wechat_group: project.wechatGroup || null,
   team: project.team || null,
@@ -204,8 +250,9 @@ export const fetchProjectsFromSupabase = async (): Promise<Project[]> => {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from('crm_project').select('*').order('created_at', { ascending: false });
   if (error) throw error;
-  
-  return (data || []).map(mapDbProjectToUi);
+
+  const projects = (data || []).map(mapDbProjectToUi);
+  return attachProjectPools(projects);
 };
 
 export const fetchProjectByIdFromSupabase = async (id: string): Promise<Project | null> => {
@@ -214,7 +261,9 @@ export const fetchProjectByIdFromSupabase = async (id: string): Promise<Project 
   const { data, error } = await supabase.from('crm_project').select('*').eq('id', id).limit(1);
   if (error) throw error;
   const row = data?.[0];
-  return row ? mapDbProjectToUi(row) : null;
+  if (!row) return null;
+  const [project] = await attachProjectPools([mapDbProjectToUi(row)]);
+  return project || null;
 };
 
 export const saveProjectToSupabase = async (project: Project): Promise<Project> => {

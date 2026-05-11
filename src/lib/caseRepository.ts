@@ -70,3 +70,13 @@ export async function saveCaseToSupabase(caseItem: CustomerCase): Promise<Custom
   }
   return { ...caseItem, id };
 }
+
+export async function deleteCaseFromSupabase(caseId: string): Promise<void> {
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('crm_case_library').delete().eq('id', caseId);
+  if (error) {
+    if ((error as any)?.code === 'PGRST205') throw new Error('crm_case_library 表不存在，请先完成数据库迁移');
+    throw error;
+  }
+}

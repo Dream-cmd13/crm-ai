@@ -31,6 +31,7 @@ import {
   saveChatAssistConfigToSupabase
 } from '../lib/chatAssistConfigRepository';
 import ChatAssistFlowEditor from '../components/ChatAssistFlowEditor';
+import { notifySupabaseFailure } from '../lib/supabaseFailureNotice';
 
 const RANGE_PRESETS = {
   attitude: [
@@ -213,7 +214,7 @@ export default function CustomerStrategy() {
       toast.success('客户激活设置已保存');
     } catch (e) {
       console.error(e);
-      toast.error('客户激活设置保存失败');
+      notifySupabaseFailure('客户激活设置保存', e);
     }
   };
   const saveCurrentFlow = async (flowId?: string) => {
@@ -229,7 +230,7 @@ export default function CustomerStrategy() {
       toast.success('当前激活流程已保存并挂载到客户资料');
     } catch (e) {
       console.error(e);
-      toast.error('当前激活流程保存失败');
+      notifySupabaseFailure('当前激活流程保存', e);
     }
   };
   const getNodeTab = (nodeId: string) => nodeTabs[nodeId] || 'desc';
@@ -565,8 +566,13 @@ export default function CustomerStrategy() {
                 </div>
                 <button
                   onClick={async () => {
-                    await saveCustomerFollowStrategyConfig(followStrategyConfig);
-                    toast.success('顾客策略已保存');
+                    try {
+                      await saveCustomerFollowStrategyConfig(followStrategyConfig);
+                      toast.success('顾客策略已保存');
+                    } catch (error) {
+                      console.error(error);
+                      notifySupabaseFailure('顾客策略保存', error);
+                    }
                   }}
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm flex items-center gap-2"
                 >
@@ -953,8 +959,13 @@ export default function CustomerStrategy() {
                 </div>
                 <button
                   onClick={async () => {
-                    await saveCustomerFollowStrategyConfig(followStrategyConfig);
-                    toast.success('介绍模板已保存');
+                    try {
+                      await saveCustomerFollowStrategyConfig(followStrategyConfig);
+                      toast.success('介绍模板已保存');
+                    } catch (error) {
+                      console.error(error);
+                      notifySupabaseFailure('介绍模板保存', error);
+                    }
                   }}
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm flex items-center gap-2"
                 >
@@ -1169,9 +1180,14 @@ export default function CustomerStrategy() {
                       </button>
                       <button
                         onClick={async () => {
-                          await saveCustomerFaqLibraryConfig(faqLibraryConfig);
-                          setFaqEditMode(false);
-                          toast.success('客户常见问题库已保存');
+                          try {
+                            await saveCustomerFaqLibraryConfig(faqLibraryConfig);
+                            setFaqEditMode(false);
+                            toast.success('客户常见问题库已保存');
+                          } catch (error) {
+                            console.error(error);
+                            notifySupabaseFailure('客户常见问题库保存', error);
+                          }
                         }}
                         className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm flex items-center gap-2"
                       >
@@ -1279,8 +1295,13 @@ export default function CustomerStrategy() {
                 </div>
                 <button
                   onClick={async () => {
-                    await saveChatAssistConfigToSupabase(chatAssistConfig);
-                    toast.success('聊天AI辅助流程已保存');
+                    try {
+                      await saveChatAssistConfigToSupabase(chatAssistConfig);
+                      toast.success('聊天AI辅助流程已保存');
+                    } catch (error) {
+                      console.error(error);
+                      notifySupabaseFailure('聊天AI辅助流程保存', error);
+                    }
                   }}
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm flex items-center gap-2"
                 >

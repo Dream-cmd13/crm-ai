@@ -4,10 +4,11 @@ import { Search, Filter, BookOpen, ChevronRight, Tag, ExternalLink, Plus, Edit2,
 import { CustomerCase, Customer, Project, Product } from '../types';
 import { cn } from '../lib/utils';
 import { loadLocalState, saveLocalState } from '../lib/localState';
-import { fetchCasesFromSupabase, saveCaseToSupabase } from '../lib/caseRepository';
+import { fetchCasesFromSupabase, saveCaseToSupabase, deleteCaseFromSupabase } from '../lib/caseRepository';
 import { fetchCustomersModuleDataFromSupabase } from '../lib/customerRepository';
 import { fetchProjectsFromSupabase } from '../lib/projectRepository';
 import { fetchProductSeriesFromSupabase } from '../lib/productRepository';
+import { confirmDialog } from '../lib/toastConfirm';
 import UniversalSelector from './UniversalSelector';
 
 interface CaseLibraryProps {
@@ -37,16 +38,6 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
   const [tagsStr, setTagsStr] = useState('');
 
   const industries = ['全部', ...new Set(cases.map(c => c.industry))];
-
-  useEffect(() => {
-    if (editingCase) {
-      setPainPointsStr(editingCase.painPoints?.join(', ') || '');
-      setTagsStr(editingCase.tags?.join(', ') || '');
-    } else {
-      setPainPointsStr('');
-      setTagsStr('');
-    }
-  }, [editingCase?.id, isEditing]);
 
   useEffect(() => {
     saveLocalState('crm.case_library', cases);
@@ -216,6 +207,45 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
     setIsGenerating(false);
   };
 
+  const handleDeleteCase = async (caseItem: CustomerCase) => {
+    if (!(await confirmDialog(`确认删除案例“${caseItem.title}”？此操作不可撤销。`))) return;
+    try {
+      await deleteCaseFromSupabase(caseItem.id);
+      setCases((prev) => prev.filter((item) => item.id !== caseItem.id));
+      if (viewingCase?.id === caseItem.id) {
+        setViewingCase(null);
+      }
+      if (editingCase?.id === caseItem.id) {
+        setIsEditing(false);
+        setEditingCase(null);
+      }
+      toast.success('案例删除成功');
+    } catch (error) {
+      console.error('Delete case error:', error);
+      const message = String((error as any)?.message || '').toLowerCase();
+      const status = Number((error as any)?.status || 0);
+      const isServiceUnavailable =
+        status === 503 ||
+        message.includes('service unavailable') ||
+        message.includes('failed to fetch') ||
+        message.includes('network');
+      if (isServiceUnavailable) {
+        // 网络或服务短暂不可用时，先做本地移除，避免用户操作被阻断。
+        setCases((prev) => prev.filter((item) => item.id !== caseItem.id));
+        if (viewingCase?.id === caseItem.id) {
+          setViewingCase(null);
+        }
+        if (editingCase?.id === caseItem.id) {
+          setIsEditing(false);
+          setEditingCase(null);
+        }
+        toast.error('服务不可用，已先本地删除；请稍后刷新确认云端状态');
+        return;
+      }
+      toast.error(`案例删除失败：${(error as any)?.message || '请稍后重试'}`);
+    }
+  };
+
   if (isModal && !isOpen) return null;
 
   const content = (
@@ -269,6 +299,8 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
             <button 
               onClick={() => {
                 setEditingCase({ title: '', industry: '', painPoints: [], solution: '', metrics: '', valueStatement: '', tags: [], productSeriesIds: [], images: [], attachments: [] });
+                setPainPointsStr('');
+                setTagsStr('');
                 setIsEditing(true);
               }}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors whitespace-nowrap ml-2"
@@ -295,11 +327,22 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
                     onClick={(e) => {
                       e.stopPropagation();
                       setEditingCase(caseItem);
+                      setPainPointsStr(caseItem.painPoints?.join(', ') || '');
+                      setTagsStr(caseItem.tags?.join(', ') || '');
                       setIsEditing(true);
                     }}
                     className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteCase(caseItem);
+                    }}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                   <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
                 </div>
@@ -468,17 +511,28 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
                   </span>
                 ))}
               </div>
-              <button 
-                onClick={() => {
-                  setEditingCase(viewingCase);
-                  setViewingCase(null);
-                  setIsEditing(true);
-                }}
-                className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2"
-              >
-                <Edit2 className="w-4 h-4" />
-                编辑案例
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDeleteCase(viewingCase)}
+                  className="px-4 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  删除案例
+                </button>
+                <button 
+                  onClick={() => {
+                    setEditingCase(viewingCase);
+                    setPainPointsStr(viewingCase.painPoints?.join(', ') || '');
+                    setTagsStr(viewingCase.tags?.join(', ') || '');
+                    setViewingCase(null);
+                    setIsEditing(true);
+                  }}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  编辑案例
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -502,7 +556,7 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
                   </button>
                 )}
               </div>
-              <button onClick={() => setIsEditing(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+              <button onClick={() => { setIsEditing(false); setEditingCase(null); }} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
                 <X className="w-6 h-6 text-gray-400" />
               </button>
             </div>
@@ -686,7 +740,7 @@ export default function CaseLibrary({ onSelect, isModal = false, isOpen, onClose
             </div>
             <div className="p-6 border-t border-gray-200 flex justify-end gap-3 bg-gray-50">
               <button 
-                onClick={() => setIsEditing(false)}
+                onClick={() => { setIsEditing(false); setEditingCase(null); }}
                 className="px-6 py-2 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-white transition-colors"
               >
                 取消

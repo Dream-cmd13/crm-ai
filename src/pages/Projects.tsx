@@ -15,6 +15,7 @@ import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
 import { fetchQuotationsFromSupabase, fetchSalesOrdersFromSupabase, fetchSampleOrdersFromSupabase, fetchReturnOrdersFromSupabase } from '../lib/documentRepository';
 import { fetchUsersFromSupabase } from '../lib/userRepository';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
+import { notifySupabaseFailure } from '../lib/supabaseFailureNotice';
 
 const PROJECT_STAGE_OPTIONS = ['需求阶段', '设计阶段', '报价阶段', '样品制作', '样品承认', '试产阶段', '重复试产', '量产阶段'];
 const PROJECT_PRODUCT_LINE_OPTIONS = ['接插件', '线束', '工业连接器', 'IO连接器', '电子电气', '其他'];
@@ -53,7 +54,8 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
   const [isEditing, setIsEditing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [newNote, setNewNote] = useState('');
-  const [activeTab, setActiveTab] = useState<string>('本周项目');
+  const [activeTab, setActiveTab] = useState<string>('全部项目');
+  const [projectCategoryFilter, setProjectCategoryFilter] = useState<'全部' | '定制项目' | '标准项目'>('全部');
   const [projects, setProjects] = useState<Project[]>([]);
   const [communications, setCommunications] = useState<CommunicationDetail[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -167,16 +169,19 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
     loadSelectedProjectRelatedDisplay();
   }, [selectedProject?.id, selectedProject?.inquiryId, selectedProject?.leadId, selectedProject?.opportunityId]);
 
-  const syncProject = async (project: Project) => {
+  const syncProject = async (project: Project, options?: { successMessage?: string }) => {
     try {
       const saved = await saveProjectToSupabase(project);
       setProjects((prev) => prev.map((item) => (item.id === saved.id ? saved : item)));
       if (selectedProject?.id === saved.id) {
         setSelectedProject(saved);
       }
+      if (options?.successMessage) {
+        toast.success(options.successMessage);
+      }
     } catch (error) {
       console.error('Error saving project:', error);
-      toast.error(`项目保存失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
+      notifySupabaseFailure('项目保存', error);
     }
   };
 
@@ -338,6 +343,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
           const newProject: Project = {
             projectName: sourceOpp ? `${sourceOpp.customer_name}-定制项目` : '新项目 (来自商机)',
             projectType: '研发型项目',
+            projectCategory: '定制项目',
             customerName: sourceOpp?.customer_name || '待定',
             customerId: sourceOpp?.customer_id,
             projectLevel: sourceOpp?.opp_level || 'B级',
@@ -421,37 +427,13 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
     if (filters.startDate && projectStartDate < filters.startDate) return false;
     if (filters.endDate && projectStartDate > filters.endDate) return false;
 
-    if (activeTab === '全部项目') return true;
-    if (activeTab === '重点项目') return p.isKeyProject;
-    if (activeTab === '已关闭项目') return p.status === '关闭' || p.status === '已关闭';
-    
-    const today = new Date();
-    const projectDate = new Date(p.estimatedMassProductionTime || '2024-01-01');
-    
-    if (activeTab === '今日项目') {
-      return projectDate.toDateString() === today.toDateString() && p.status !== '关闭' && p.status !== '已关闭';
-    }
-    if (activeTab === '本周项目') {
-      const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - today.getDay());
-      const endOfWeek = new Date(today);
-      endOfWeek.setDate(today.getDate() - today.getDay() + 6);
-      return projectDate >= startOfWeek && projectDate <= endOfWeek && p.status !== '关闭' && p.status !== '已关闭';
-    }
-    if (activeTab === '上周项目') {
-      const startOfLastWeek = new Date(today);
-      startOfLastWeek.setDate(today.getDate() - today.getDay() - 7);
-      const endOfLastWeek = new Date(today);
-      endOfLastWeek.setDate(today.getDate() - today.getDay() - 1);
-      return projectDate >= startOfLastWeek && projectDate <= endOfLastWeek && p.status !== '关闭' && p.status !== '已关闭';
-    }
-    if (activeTab === '上周以前项目') {
-      const startOfLastWeek = new Date(today);
-      startOfLastWeek.setDate(today.getDate() - today.getDay() - 7);
-      return projectDate < startOfLastWeek && p.status !== '关闭' && p.status !== '已关闭';
-    }
-    
-    return p.status !== '关闭' && p.status !== '已关闭';
+    const pool = p.projectPool || '普通客户项目池';
+    if (activeTab === '战略客户项目池' && pool !== '战略客户项目池') return false;
+    if (activeTab === '成长型客户项目池' && pool !== '成长型客户项目池') return false;
+    if (activeTab === '普通客户项目池' && pool !== '普通客户项目池') return false;
+    if (projectCategoryFilter !== '全部' && (p.projectCategory || '') !== projectCategoryFilter) return false;
+
+    return true;
   });
 
   const handleAddNote = () => {
@@ -478,6 +460,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
       ...updatedData,
       projectNo: updatedData.projectNo || await generateBusinessNumber(ID_PREFIX.PROJECT),
       projectType: updatedData.projectType || '研发型项目',
+      projectCategory: updatedData.projectCategory || '标准项目',
       projectLevel: updatedData.projectLevel || 'B级',
       wechatGroup: updatedData.wechatGroup || '',
       team: {
@@ -495,7 +478,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
     setProjects(projects.map(p => p.id === normalizedProject.id ? normalizedProject : p));
     setSelectedProject(normalizedProject);
     setIsEditing(false);
-    syncProject(normalizedProject);
+    await syncProject(normalizedProject, { successMessage: '项目保存成功' });
   };
 
   const handleCreateProject = async (data: any) => {
@@ -507,6 +490,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
       projectName: String(data.projectName || '').trim(),
       name: String(data.projectName || '').trim(),
       projectType: data.projectType || '研发型项目',
+      projectCategory: data.projectCategory || '标准项目',
       customerName: String(data.customerName || '').trim(),
       customerId: data.customerId || '',
       projectLevel: data.projectLevel || 'B级',
@@ -563,12 +547,13 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
       setProjects((prev) => [saved, ...prev.filter((p) => p.id !== saved.id)]);
       setSelectedProject(saved);
       setIsAdding(false);
+      toast.success('项目新增成功');
       triggerAutoFlowsForCreate('project', saved, currentUser ? { id: currentUser.id, name: currentUser.name } : undefined).catch((error) => {
         console.error('Error triggering project workflow:', error);
       });
     } catch (error) {
       console.error('Error creating project:', error);
-      toast.error(`新增项目失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
+      notifySupabaseFailure('项目新增', error);
     }
   };
 
@@ -787,6 +772,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
   const projectFields = [
     { key: 'projectNo', label: '项目编号', disabled: true },
     { key: 'projectType', label: '项目类型', type: 'select', options: ['研发型项目', '标品类项目'], required: true },
+    { key: 'projectCategory', label: '项目类别', type: 'select', options: ['定制项目', '标准项目'], required: true },
     { key: 'customerName', label: '客户名称', type: 'customer_lookup', customerIdKey: 'customerId', allowPotential: false, required: true },
     { key: 'projectName', label: '项目名称', required: true },
     { key: 'projectLevel', label: '项目等级', type: 'select', options: ['S级', 'A级', 'B级', 'C级'] },
@@ -953,6 +939,8 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
             setSearchTerm={setSearchTerm}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
+            projectCategoryFilter={projectCategoryFilter}
+            setProjectCategoryFilter={setProjectCategoryFilter}
             filteredProjects={filteredProjects}
             displayCount={displayCount}
             onScroll={handleScroll}
@@ -969,6 +957,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
           stage: '需求阶段',
           status: '跟进中',
           projectType: '研发型项目',
+          projectCategory: '标准项目',
           projectLevel: 'B级',
           productLine: '其他',
           customerAction: '找货寻料',

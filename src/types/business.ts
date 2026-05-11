@@ -276,6 +276,8 @@ export interface Project extends BaseEntity {
   name?: string; // Alias for projectName
   projectName: string;
   projectType: '研发型项目' | '标品类项目' | string;
+  projectCategory?: '定制项目' | '标准项目' | string;
+  projectPool?: '战略客户项目池' | '成长型客户项目池' | '普通客户项目池' | string;
   customerName: string;
   customerId?: string;
   projectLevel: string;

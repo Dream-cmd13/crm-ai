@@ -32,6 +32,11 @@ export const ProjectCard = ({ project, onClick, onDelete }: ProjectCardProps) =>
           )}>
             {project.projectLevel}
           </span>
+          {project.projectCategory && (
+            <span className="px-3 py-1 rounded-full text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-200">
+              {project.projectCategory}
+            </span>
+          )}
           {onDelete && (
             <button
               onClick={(e) => {
