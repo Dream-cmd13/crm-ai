@@ -1,4 +1,4 @@
-import { Brand, Group, Product, ProductCategory, ProductLine, ProductSeries, ProductSpu, ProductSpuOption } from '../types';
+import { Brand, Group, Product, ProductCategory, ProductLine, ProductSeries, ProductSpu, ProductSpuOption, PublicPropertyName, PublicPropertyValue } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
 const toNullableInt = (value: any): number | null => {
@@ -15,6 +15,34 @@ const tryParseJsonObject = (raw: any): Record<string, any> => {
   } catch {
     return {};
   }
+};
+
+const tryParseJsonArray = (raw: any): any[] => {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const splitTextList = (raw: any): string[] => {
+  if (Array.isArray(raw)) return raw.map((v) => String(v || '').trim()).filter(Boolean);
+  const text = String(raw || '').trim();
+  if (!text) return [];
+  return text.split(/[,，、;\n]+/g).map((v) => v.trim()).filter(Boolean);
+};
+
+const joinTextList = (raw: any): string | null => {
+  if (raw === undefined || raw === null) return null;
+  if (Array.isArray(raw)) {
+    const normalized = raw.map((v) => String(v || '').trim()).filter(Boolean);
+    return normalized.length ? normalized.join('、') : null;
+  }
+  const text = String(raw || '').trim();
+  return text ? text : null;
 };
 
 const flattenCategories = (nodes: ProductCategory[]): ProductCategory[] => {
@@ -70,6 +98,19 @@ const mapDbCategoryToUi = (row: any): ProductCategory => ({
 const mapDbSpuToUi = (row: any): ProductSpu => ({
   id: String(row.id || ''),
   name: row.name || '',
+  productNo: row.product_no || '',
+  industry: row.industry || '',
+  ecoProperty: splitTextList(row.eco_property),
+  certificationStandard: splitTextList(row.certification_standard),
+  productDrawings: tryParseJsonArray(row.product_drawings),
+  productImage: row.product_image || '',
+  packagingMethod: row.packaging_method || '',
+  minOrderQty: row.min_order_qty !== null && row.min_order_qty !== undefined && row.min_order_qty !== ''
+    ? Number(row.min_order_qty)
+    : undefined,
+  status: row.status !== null && row.status !== undefined && row.status !== ''
+    ? Number.parseInt(String(row.status), 10)
+    : 1,
   brandId: row.brand_id ? String(row.brand_id) : '',
   categoryId: row.category_id ? String(row.category_id) : '',
   categoryName: row.category_name || '',
@@ -97,6 +138,26 @@ const mapDbProductLineToUi = (row: any): ProductLine => ({
   manager: row.manager || '',
   createDate: row.created_at || '',
   children: []
+});
+
+const mapDbPublicPropertyNameToUi = (row: any): PublicPropertyName => ({
+  id: String(row.id || ''),
+  specificationName: row.specification_name || '',
+  groupName: row.group_name || '',
+  image: row.image || '',
+  isSearchable: Number.parseInt(String(row.is_searchable ?? '1'), 10) || 1,
+  createDate: row.created_at || '',
+  updateDate: row.updated_at || ''
+});
+
+const mapDbPublicPropertyValueToUi = (row: any): PublicPropertyValue => ({
+  id: String(row.id || ''),
+  propertyId: row.property_id ? String(row.property_id) : '',
+  propertyValue: row.property_value || '',
+  propertyValueImage: row.property_value_image || '',
+  publicPropertyName: row.public_property_name || '',
+  createDate: row.created_at || '',
+  updateDate: row.updated_at || ''
 });
 
 const buildProductLineTree = (rows: ProductLine[]): ProductLine[] => {
@@ -377,6 +438,198 @@ export const deleteGroupFromSupabase = async (id: string) => {
   if (error) throw error;
 };
 
+export const fetchPublicPropertyNameListFromSupabase = async (params?: {
+  keyword?: string;
+  groupName?: string;
+  isSearchable?: number | null;
+  page?: number;
+  pageSize?: number;
+}): Promise<PagedResult<PublicPropertyName>> => {
+  if (!isSupabaseConfigured()) return { rows: [], total: 0 };
+  const supabase = getSupabaseClient();
+  const keyword = String(params?.keyword || '').trim();
+  const groupName = String(params?.groupName || '').trim();
+  const isSearchable = params?.isSearchable === 0 || params?.isSearchable === 1 ? params.isSearchable : null;
+
+  const currentPage = Math.max(1, Number(params?.page) || 1);
+  const currentPageSize = Math.max(1, Number(params?.pageSize) || 20);
+  const from = (currentPage - 1) * currentPageSize;
+  const to = from + currentPageSize - 1;
+
+  let query = supabase.from('public_property_name').select('*', { count: 'exact' });
+  if (keyword) {
+    query = query.ilike('specification_name', `%${keyword}%`);
+  }
+  if (groupName) {
+    query = query.ilike('group_name', `%${groupName}%`);
+  }
+  if (isSearchable !== null) {
+    query = query.eq('is_searchable', isSearchable);
+  }
+
+  const { data, error, count } = await query
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(from, to);
+  if (error) throw error;
+
+  return {
+    rows: (data || []).map(mapDbPublicPropertyNameToUi),
+    total: count || 0
+  };
+};
+
+export const fetchPublicPropertyNamesFromSupabase = async (): Promise<PublicPropertyName[]> => {
+  if (!isSupabaseConfigured()) return [];
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('public_property_name')
+    .select('*')
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
+  if (error) throw error;
+  return (data || []).map(mapDbPublicPropertyNameToUi);
+};
+
+export const savePublicPropertyNameToSupabase = async (row: PublicPropertyName): Promise<PublicPropertyName> => {
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
+  const supabase = getSupabaseClient();
+  const normalizedId = toNullableInt(row.id);
+
+  const specificationName = String(row.specificationName || '').trim();
+  if (!specificationName) throw new Error('规格名称不能为空');
+
+  const isSearchable = Number.parseInt(String(row.isSearchable ?? 1), 10);
+  const payload = {
+    ...(normalizedId !== null ? { id: normalizedId } : {}),
+    specification_name: specificationName,
+    group_name: String(row.groupName || '').trim() || null,
+    image: String(row.image || '').trim() || null,
+    is_searchable: Number.isNaN(isSearchable) ? 1 : isSearchable,
+    updated_at: new Date().toISOString()
+  };
+
+  if (normalizedId === null) {
+    const insertPayload = { ...payload };
+    delete (insertPayload as any).id;
+    const { data, error } = await supabase.from('public_property_name').insert(insertPayload).select('*').single();
+    if (error) throw error;
+    return mapDbPublicPropertyNameToUi(data);
+  }
+
+  const { data, error } = await supabase
+    .from('public_property_name')
+    .update(payload)
+    .eq('id', normalizedId)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return mapDbPublicPropertyNameToUi(data);
+};
+
+export const deletePublicPropertyNameFromSupabase = async (id: string) => {
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
+  const normalizedId = toNullableInt(id);
+  if (normalizedId === null) throw new Error('规格组 ID 非法');
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('public_property_name').delete().eq('id', normalizedId);
+  if (error) throw error;
+};
+
+export const fetchPublicPropertyValueListFromSupabase = async (params: {
+  propertyId: string;
+  keyword?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<PagedResult<PublicPropertyValue>> => {
+  if (!isSupabaseConfigured()) return { rows: [], total: 0 };
+  const supabase = getSupabaseClient();
+  const normalizedPropertyId = toNullableInt(params.propertyId);
+  if (normalizedPropertyId === null) throw new Error('规格组 ID 非法');
+
+  const keyword = String(params.keyword || '').trim();
+  const currentPage = Math.max(1, Number(params.page) || 1);
+  const currentPageSize = Math.max(1, Number(params.pageSize) || 20);
+  const from = (currentPage - 1) * currentPageSize;
+  const to = from + currentPageSize - 1;
+
+  let query = supabase
+    .from('public_property_value')
+    .select('*', { count: 'exact' })
+    .eq('property_id', normalizedPropertyId);
+  if (keyword) {
+    query = query.ilike('property_value', `%${keyword}%`);
+  }
+
+  const { data, error, count } = await query
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(from, to);
+  if (error) throw error;
+
+  return {
+    rows: (data || []).map(mapDbPublicPropertyValueToUi),
+    total: count || 0
+  };
+};
+
+export const savePublicPropertyValueToSupabase = async (row: PublicPropertyValue): Promise<PublicPropertyValue> => {
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
+  const supabase = getSupabaseClient();
+  const normalizedId = toNullableInt(row.id);
+  const normalizedPropertyId = toNullableInt(row.propertyId);
+  if (normalizedPropertyId === null) throw new Error('规格组 ID 非法');
+
+  const propertyValue = String(row.propertyValue || '').trim();
+  if (!propertyValue) throw new Error('规格值不能为空');
+
+  const publicPropertyName = String(row.publicPropertyName || '').trim();
+  if (!publicPropertyName) throw new Error('规格组名称不能为空');
+
+  const payload = {
+    ...(normalizedId !== null ? { id: normalizedId } : {}),
+    property_id: normalizedPropertyId,
+    property_value: propertyValue,
+    property_value_image: String(row.propertyValueImage || '').trim() || null,
+    public_property_name: publicPropertyName,
+    updated_at: new Date().toISOString()
+  };
+
+  if (normalizedId === null) {
+    const insertPayload = { ...payload };
+    delete (insertPayload as any).id;
+    const { data, error } = await supabase.from('public_property_value').insert(insertPayload).select('*').single();
+    if (error) {
+      const err = error as any;
+      if (err?.code === '23505' && String(err?.message || '').includes('public_property_value_pkey')) {
+        throw new Error(
+          '保存失败：数据库自增序列可能未对齐（23505 主键冲突）。请在 Supabase SQL Editor 执行：select setval(pg_get_serial_sequence(\'public.public_property_value\', \'id\'), (select coalesce(max(id),0)+1 from public.public_property_value), false);'
+        );
+      }
+      throw error;
+    }
+    return mapDbPublicPropertyValueToUi(data);
+  }
+
+  const { data, error } = await supabase
+    .from('public_property_value')
+    .update(payload)
+    .eq('id', normalizedId)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return mapDbPublicPropertyValueToUi(data);
+};
+
+export const deletePublicPropertyValueFromSupabase = async (id: string) => {
+  if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
+  const normalizedId = toNullableInt(id);
+  if (normalizedId === null) throw new Error('规格值 ID 非法');
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('public_property_value').delete().eq('id', normalizedId);
+  if (error) throw error;
+};
+
 export const fetchProductLineListFromSupabase = async (
   keyword = '',
   page = 1,
@@ -503,9 +756,42 @@ export const saveProductSpuToSupabase = async (spu: ProductSpu): Promise<Product
   if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const supabase = getSupabaseClient();
   const normalizedId = toNullableInt(spu.id);
+  const rawMinOrderQty = (spu as any).minOrderQty;
+  const normalizedMinOrderQty = rawMinOrderQty === undefined || rawMinOrderQty === null || String(rawMinOrderQty).trim() === ''
+    ? null
+    : Number(rawMinOrderQty);
+  const rawStatus = (spu as any).status;
+  const normalizedStatus = (() => {
+    const parsed = rawStatus === undefined || rawStatus === null || String(rawStatus).trim() === ''
+      ? 1
+      : Number.parseInt(String(rawStatus), 10);
+    return [0, 1, 10].includes(parsed) ? parsed : 1;
+  })();
+  const fallbackPayload = (raw: any) => {
+    const next = { ...raw };
+    delete next.product_no;
+    delete next.industry;
+    delete next.eco_property;
+    delete next.certification_standard;
+    delete next.product_drawings;
+    delete next.product_image;
+    delete next.packaging_method;
+    delete next.min_order_qty;
+    delete next.status;
+    return next;
+  };
   const payload = {
     ...(normalizedId !== null ? { id: normalizedId } : {}),
     name: String(spu.name || '').trim(),
+    product_no: String(spu.productNo || '').trim() || null,
+    industry: String(spu.industry || '').trim() || null,
+    eco_property: joinTextList(spu.ecoProperty),
+    certification_standard: joinTextList(spu.certificationStandard),
+    product_drawings: Array.isArray(spu.productDrawings) ? spu.productDrawings : [],
+    product_image: String(spu.productImage || '').trim() || null,
+    packaging_method: String(spu.packagingMethod || '').trim() || null,
+    min_order_qty: Number.isFinite(normalizedMinOrderQty as number) ? normalizedMinOrderQty : null,
+    status: normalizedStatus,
     brand_id: toNullableInt(spu.brandId),
     category_id: toNullableInt(spu.categoryId),
     category_name: String(spu.categoryName || '').trim(),
@@ -515,20 +801,67 @@ export const saveProductSpuToSupabase = async (spu: ProductSpu): Promise<Product
   if (normalizedId === null) {
     const insertPayload = { ...payload };
     delete (insertPayload as any).id;
-    const { data, error } = await supabase.from('ba_spu').insert(insertPayload).select('*').single();
-    if (error) throw error;
-    return mapDbSpuToUi(data);
+    const insertWithRetry = async (raw: any) => {
+      const { data, error } = await supabase.from('ba_spu').insert(raw).select('*').single();
+      if (!error) return data;
+      if ((error as any)?.code === '23505' && String((error as any)?.message || '').includes('ba_spu_pkey')) {
+        const { data: maxRow, error: maxError } = await supabase
+          .from('ba_spu')
+          .select('id')
+          .order('id', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (maxError) throw maxError;
+        const nextId = Number(maxRow?.id || 0) + 1;
+        const { data: retryData, error: retryError } = await supabase
+          .from('ba_spu')
+          .insert({ ...raw, id: nextId })
+          .select('*')
+          .single();
+        if (retryError) throw retryError;
+        return retryData;
+      }
+      throw error;
+    };
+
+    try {
+      const inserted = await insertWithRetry(insertPayload);
+      return mapDbSpuToUi(inserted);
+    } catch (error) {
+      if ((error as any)?.code === 'PGRST204') {
+        const fallback = fallbackPayload(insertPayload);
+        const inserted = await insertWithRetry(fallback);
+        return mapDbSpuToUi(inserted);
+      }
+      if ((error as any)?.code === '23505' && String((error as any)?.message || '').includes('idx_ba_spu_product_no_unique')) {
+        throw new Error('产品编号已存在');
+      }
+      throw error;
+    }
   }
 
   const { data, error } = await supabase.from('ba_spu').upsert(payload, { onConflict: 'id' }).select('*').single();
-  if (error) throw error;
+  if (error) {
+    if ((error as any)?.code === 'PGRST204') {
+      const fallback = fallbackPayload(payload);
+      const { data: fallbackData, error: fallbackError } = await supabase.from('ba_spu').upsert(fallback, { onConflict: 'id' }).select('*').single();
+      if (fallbackError) throw fallbackError;
+      return mapDbSpuToUi(fallbackData);
+    }
+    if (error.code === '23505' && String(error.message || '').includes('idx_ba_spu_product_no_unique')) {
+      throw new Error('产品编号已存在');
+    }
+    throw error;
+  }
   return mapDbSpuToUi(data);
 };
 
 export const deleteProductSpuFromSupabase = async (id: string) => {
   if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
+  const normalizedId = toNullableInt(id);
+  if (normalizedId === null) throw new Error('产品品类 ID 非法');
   const supabase = getSupabaseClient();
-  const { error } = await supabase.from('ba_spu').delete().eq('id', id);
+  const { error } = await supabase.from('ba_spu').delete().eq('id', normalizedId);
   if (error) throw error;
 };
 
@@ -565,7 +898,7 @@ export const saveProductCategoryToSupabase = async (
       return { ...category, id: saved?.id || id };
     }
     
-    throw new Error(`类别 ID "${id}" 不存在，不允许创建具有相同 ID 的新类别，请使用空 ID 让系统自动生成`);
+    throw new Error(`分类 ID "${id}" 不存在，不允许创建具有相同 ID 的新分类，请使用空 ID 让系统自动生成`);
   }
 
   const payload = {
@@ -724,7 +1057,7 @@ export const fetchProductCategoryByIdFromSupabase = async (id: string): Promise<
 export const deleteProductCategoryFromSupabase = async (id: string) => {
   if (!isSupabaseConfigured()) throw new Error('Supabase 环境变量未配置');
   const normalizedId = toNullableInt(id);
-  if (normalizedId === null) throw new Error('产品类别 ID 非法');
+  if (normalizedId === null) throw new Error('产品分类 ID 非法');
   const supabase = getSupabaseClient();
 
   // 先做引用检查，避免直接触发外键报错导致用户无法理解

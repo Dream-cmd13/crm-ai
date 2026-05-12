@@ -241,7 +241,7 @@ export default function UniversalSelector({
       case 'customer': return '选择客户';
       case 'product': return '选择产品';
       case 'user': return '选择人员';
-      case 'category': return '选择产品类别';
+      case 'category': return '选择产品分类';
       case 'contact': return '选择联系人';
       case 'project': return '选择项目';
       default: return '选择';

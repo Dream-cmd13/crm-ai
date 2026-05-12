@@ -107,7 +107,7 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
   const flatCategoryOptions = useMemo(() => getFlatCategories(categories), [categories]);
 
   const categoryFields = [
-    { key: 'name', label: '类别名称', required: true },
+    { key: 'name', label: '分类名称', required: true },
     { key: 'status', label: '状态', type: 'select', options: [{ value: '1', label: '启用' }, { value: '0', label: '禁用' }] },
     { key: 'fab.features', label: '产品特征 (Features)', type: 'textarea' },
     { key: 'fab.advantages', label: '产品优势 (Advantages)', type: 'textarea' },
@@ -118,7 +118,7 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
     const isEditingExisting = Boolean(editingCategory?.id);
     const name = String(data.name || '').trim();
     if (!name) {
-      toast.error('类别名称不能为空');
+      toast.error('分类名称不能为空');
       return false;
     }
 
@@ -138,11 +138,11 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
       await fetchCategories();
       setIsAddingCategory(false);
       setEditingCategory(null);
-      toast.success('产品类别保存成功');
+      toast.success('产品分类保存成功');
       return true;
     } catch (error) {
       console.error('Error saving category:', error);
-      toast.error(`保存类别失败：${(error as Error)?.message || '请检查数据和配置后重试'}`);
+      toast.error(`保存分类失败：${(error as Error)?.message || '请检查数据和配置后重试'}`);
       return false;
     }
   };
@@ -165,7 +165,7 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
 
   const handleDeleteCategory = async (categoryId: string, categoryName: string) => {
     if (isDeletingCategory) return;
-    if (!(await confirmDialog(`确认删除类别 "${categoryName}" 及其所有子类别吗？此操作不可撤销。`))) {
+    if (!(await confirmDialog(`确认删除分类 "${categoryName}" 及其所有子分类吗？此操作不可撤销。`))) {
       return;
     }
 
@@ -182,10 +182,10 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
       await Promise.all(deleteIds.map(id => deleteProductCategoryFromSupabase(id)));
       await fetchCategories();
 
-      toast.success('产品类别删除成功');
+      toast.success('产品分类删除成功');
     } catch (error) {
       console.error('Error deleting category:', error);
-      toast.error(`删除类别失败：${(error as Error)?.message || '请检查数据和配置后重试'}`);
+      toast.error(`删除分类失败：${(error as Error)?.message || '请检查数据和配置后重试'}`);
     } finally {
       setIsDeletingCategory(false);
     }
@@ -217,7 +217,7 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
     { key: 'materialNo', label: '物料编号', required: true },
     { key: 'materialName', label: '物料名称', required: true },
     { key: 'specification', label: '物料规格' },
-    { key: 'categoryId', label: '产品类别编号', type: 'select', options: flatCategoryOptions.map(c => ({ value: c.id, label: `${c.id} - ${c.name}` })), required: true },
+    { key: 'categoryId', label: '产品分类', type: 'select', options: flatCategoryOptions.map(c => ({ value: c.id, label: `${c.id} - ${c.name}` })), required: true },
     { key: 'seriesId', label: '产品系列ID', type: 'select', options: seriesList.map(s => ({ value: s.id, label: `${s.seriesNo || s.id} - ${s.name}` })) },
     { key: 'basicUnit', label: '基本单位', required: true },
     { key: 'creationOrg', label: '创建组织' },
@@ -420,14 +420,14 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
         {/* Left Sidebar - Categories */}
         <div className="w-full md:w-64 shrink-0 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-48 md:h-auto">
           <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-            <h3 className="font-semibold text-gray-900 text-sm">产品类别</h3>
+            <h3 className="font-semibold text-gray-900 text-sm">产品分类</h3>
             <button
               onClick={() => {
                 setEditingCategory({ id: '', name: '', parentId: null, status: 1, fab: { features: '', advantages: '', benefits: '' }, children: [] });
                 setIsAddingCategory(true);
               }}
               className="p-1 hover:bg-gray-100 rounded text-gray-500"
-              title="新增产品类别"
+              title="新增产品分类"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -603,7 +603,7 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
             setIsAddingCategory(false);
             setEditingCategory(null);
           }}
-          title={editingCategory.parentId ? "新增子类别" : editingCategory.id && categories.some(c => c.id === editingCategory.id || c.children?.some(ch => ch.id === editingCategory.id)) ? "编辑产品类别" : "新增产品类别"}
+          title={editingCategory.parentId ? "新增子分类" : editingCategory.id && categories.some(c => c.id === editingCategory.id || c.children?.some(ch => ch.id === editingCategory.id)) ? "编辑产品分类" : "新增产品分类"}
           data={editingCategory}
           fields={categoryFields}
           onSave={handleSaveCategory}

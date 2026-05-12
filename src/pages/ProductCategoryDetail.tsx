@@ -39,7 +39,7 @@ export default function ProductCategoryDetail({ viewParams, goBack }: ProductCat
   useEffect(() => {
     const load = async () => {
       if (!categoryId) {
-        toast.error('缺少类别 ID，无法打开详情');
+        toast.error('缺少分类 ID，无法打开详情');
         setLoading(false);
         return;
       }
@@ -67,13 +67,58 @@ export default function ProductCategoryDetail({ viewParams, goBack }: ProductCat
         });
       } catch (error) {
         console.error('Error loading category detail:', error);
-        toast.error(`加载产品类别详情失败：${(error as Error)?.message || '请稍后重试'}`);
+        toast.error(`加载产品分类详情失败：${(error as Error)?.message || '请稍后重试'}`);
       } finally {
         setLoading(false);
       }
     };
     load();
   }, [categoryId]);
+
+  const flattenedCategoriesWithLevel = useMemo(() => {
+    const result: Array<ProductCategory & { level: number }> = [];
+    const walk = (nodes: ProductCategory[], level = 0) => {
+      nodes.forEach((node) => {
+        result.push({ ...node, level });
+        if (node.children?.length) walk(node.children, level + 1);
+      });
+    };
+    walk(allCategories);
+    return result;
+  }, [allCategories]);
+  const invalidParentIdSet = useMemo(() => {
+    const set = new Set<string>();
+    const targetId = String(category?.id || '').trim();
+    if (!targetId) return set;
+    set.add(targetId);
+    const collectDescendants = (nodes: ProductCategory[]) => {
+      for (const node of nodes) {
+        if (String(node.id) === targetId) {
+          const walk = (children: ProductCategory[]) => {
+            children.forEach((child) => {
+              set.add(String(child.id));
+              if (child.children?.length) walk(child.children);
+            });
+          };
+          if (node.children?.length) walk(node.children);
+          return true;
+        }
+        if (node.children?.length && collectDescendants(node.children)) return true;
+      }
+      return false;
+    };
+    collectDescendants(allCategories);
+    return set;
+  }, [allCategories, category?.id]);
+  const parentOptions = useMemo(() => {
+    return flattenedCategoriesWithLevel
+      .filter((node) => !invalidParentIdSet.has(String(node.id)))
+      .map((node) => {
+        const indent = node.level > 0 ? `${'  '.repeat(node.level)}└ ` : '';
+        const statusSuffix = Number(node.status ?? 1) === 0 ? '（已禁用）' : '';
+        return { value: String(node.id), label: `${indent}${node.name || node.id || '-'}${statusSuffix}` };
+      });
+  }, [flattenedCategoriesWithLevel, invalidParentIdSet]);
 
   const parentName = useMemo(() => {
     if (!formData?.parentId) return '-';
@@ -95,7 +140,7 @@ export default function ProductCategoryDetail({ viewParams, goBack }: ProductCat
     if (!category || !formData) return;
     const name = String(formData.name || '').trim();
     if (!name) {
-      toast.error('类别名称不能为空');
+      toast.error('分类名称不能为空');
       return;
     }
     try {
@@ -130,10 +175,10 @@ export default function ProductCategoryDetail({ viewParams, goBack }: ProductCat
         });
       }
       setIsEditing(false);
-      toast.success('产品类别保存成功');
+      toast.success('产品分类保存成功');
     } catch (error) {
       console.error('Error saving category:', error);
-      toast.error(`产品类别保存失败：${(error as Error)?.message || '请稍后重试'}`);
+      toast.error(`产品分类保存失败：${(error as Error)?.message || '请稍后重试'}`);
     } finally {
       setSaving(false);
     }
@@ -150,7 +195,7 @@ export default function ProductCategoryDetail({ viewParams, goBack }: ProductCat
   if (!category || !formData) {
     return (
       <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <p className="text-sm text-gray-500">未找到对应产品类别记录。</p>
+        <p className="text-sm text-gray-500">未找到对应产品分类记录。</p>
       </div>
     );
   }
@@ -160,10 +205,10 @@ export default function ProductCategoryDetail({ viewParams, goBack }: ProductCat
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => goBack?.()} className="text-gray-500 hover:text-gray-900 font-medium">
-            产品类别
+            产品分类
           </button>
           <ChevronRight className="w-4 h-4 text-gray-400" />
-          <span className="text-gray-900 font-bold">{formData.name || '产品类别详情'}</span>
+          <span className="text-gray-900 font-bold">{formData.name || '产品分类详情'}</span>
         </div>
         <div className="flex items-center gap-2">
           {!isEditing && (
@@ -214,19 +259,35 @@ export default function ProductCategoryDetail({ viewParams, goBack }: ProductCat
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <p className="text-sm text-gray-500 mb-1">类别ID</p>
+            <p className="text-sm text-gray-500 mb-1">分类ID</p>
             <div className="px-3 py-2 rounded-lg border border-gray-100 bg-gray-50 text-sm text-gray-800">
               {formData.id || '-'}
             </div>
           </div>
           <div>
-            <p className="text-sm text-gray-500 mb-1">父级类别</p>
-            <div className="px-3 py-2 rounded-lg border border-gray-100 bg-gray-50 text-sm text-gray-800">
-              {parentName}
-            </div>
+            <p className="text-sm text-gray-500 mb-1">父级分类</p>
+            {!isEditing && (
+              <div className="px-3 py-2 rounded-lg border border-gray-100 bg-gray-50 text-sm text-gray-800">
+                {parentName}
+              </div>
+            )}
+            {isEditing && (
+              <select
+                value={String(formData.parentId || '')}
+                onChange={(e) => setFormData((prev: any) => ({ ...prev, parentId: e.target.value || null }))}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              >
+                <option value="">无（顶级）</option>
+                {parentOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <div>
-            <p className="text-sm text-gray-500 mb-1">类别名称 <span className="text-red-500">*</span></p>
+            <p className="text-sm text-gray-500 mb-1">分类名称 <span className="text-red-500">*</span></p>
             {!isEditing && (
               <div className="px-3 py-2 rounded-lg border border-gray-100 bg-gray-50 text-sm text-gray-800">
                 {formData.name || '-'}
@@ -259,7 +320,7 @@ export default function ProductCategoryDetail({ viewParams, goBack }: ProductCat
             )}
           </div>
           <div className="md:col-span-2">
-            <p className="text-sm text-gray-500 mb-1">类别图片</p>
+            <p className="text-sm text-gray-500 mb-1">分类图片</p>
             {!isEditing && (
               <div className="px-3 py-2 rounded-lg border border-gray-100 bg-gray-50 text-sm text-gray-800 break-all">
                 {formData.image || '-'}

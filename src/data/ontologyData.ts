@@ -21,7 +21,7 @@ export const initialObjects: OntologyObject[] = [
         { value: 'converted', label: '已转线索' },
         { value: 'closed', label: '已关闭' }
       ]},
-      { id: 'p6', name: '产品类别', code: 'productCategory', type: 'String', required: false },
+      { id: 'p6', name: '产品分类', code: 'productCategory', type: 'String', required: false },
       { id: 'p7', name: '产品系列', code: 'productSeries', type: 'String', required: false },
       { id: 'p8', name: '购买模式', code: 'buyingMode', type: 'Enum', required: false, options: [
         { value: 'direct', label: '直接购买' },
@@ -527,7 +527,7 @@ export const initialObjects: OntologyObject[] = [
       { id: 'p5', name: '来源线索ID', code: 'leadId', type: 'String', required: false },
       { id: 'p6', name: '来源询盘ID', code: 'inquiryId', type: 'String', required: false },
       { id: 'p7', name: '客户动作', code: 'customerAction', type: 'String', required: false },
-      { id: 'p8', name: '产品类别', code: 'productCategory', type: 'String', required: false },
+      { id: 'p8', name: '产品分类', code: 'productCategory', type: 'String', required: false },
     ], 
     relations: [
       { id: 'r1', targetObject: 'Customer', relationType: 'N:1', description: '归属客户' },
