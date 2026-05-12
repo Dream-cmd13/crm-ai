@@ -19,6 +19,7 @@ import {
   CUSTOMER_REGION_OPTIONS,
   CUSTOMER_SOURCE_OPTIONS,
   CUSTOMER_TYPE_OPTIONS,
+  CUSTOMER_INDUSTRY_OPTIONS,
   PAYMENT_TERM_OPTIONS
 } from '../lib/customerEnums';
 
@@ -220,8 +221,12 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
     if (searchTerm && !c.name.toLowerCase().includes(searchTerm.toLowerCase()) && !c.id.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
-
-  const uniqueIndustries = Array.from(new Set(customers.map(c => c.industry)));
+  const uniqueIndustries = Array.from(
+    new Set([
+      ...CUSTOMER_INDUSTRY_OPTIONS,
+      ...customers.map((c) => String(c.industry || '').trim()).filter(Boolean)
+    ])
+  );
 
   const handleSaveCustomer = (updatedData: Customer) => {
     setCustomers(customers.map(c => c.id === updatedData.id ? updatedData : c));
@@ -532,6 +537,12 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
   };
 
   if (selectedCustomer) {
+    const industryOptionsForEdit = Array.from(
+      new Set([
+        ...CUSTOMER_INDUSTRY_OPTIONS,
+        String(selectedCustomer.industry || '').trim()
+      ].filter(Boolean))
+    );
     return (
       <>
         <CustomerDetail 
@@ -594,7 +605,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
             { key: 'customVisitFrequency', label: '自定义拜访频率(天)', type: 'number' },
             { key: 'lastVisitDate', label: '最后一次拜访日期', type: 'date', disabled: true },
             { key: 'status', label: '客户状态', type: 'select', options: ['活跃', '休眠', '流失', '计划拜访中'], required: true },
-            { key: 'industry', label: '客户行业' },
+            { key: 'industry', label: '客户行业', type: 'select', options: industryOptionsForEdit },
             { key: 'source', label: '客户来源', type: 'select', options: CUSTOMER_SOURCE_OPTIONS },
             { key: 'region', label: '所属区域', type: 'select', options: CUSTOMER_REGION_OPTIONS },
             { key: 'salesRep', label: '业务员', type: 'user' },
@@ -840,7 +851,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
               { key: 'shortName', label: '客户简称' },
               { key: 'englishName', label: '英文名称' },
               { key: 'level', label: '客户等级', type: 'select', options: ['战略客户', '成长型客户', '普通客户'], required: true },
-              { key: 'industry', label: '客户行业' },
+              { key: 'industry', label: '客户行业', type: 'select', options: CUSTOMER_INDUSTRY_OPTIONS },
               { key: 'source', label: '客户来源', type: 'select', options: CUSTOMER_SOURCE_OPTIONS },
               { key: 'region', label: '所属区域', type: 'select', options: CUSTOMER_REGION_OPTIONS },
               { key: 'salesRep', label: '业务员', type: 'user' },

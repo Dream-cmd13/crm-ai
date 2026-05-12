@@ -23,6 +23,8 @@ const Products = lazy(() => import('./pages/Products'));
 const ProductSpu = lazy(() => import('./pages/ProductSpu'));
 const ProductCategories = lazy(() => import('./pages/ProductCategories'));
 const ProductSeries = lazy(() => import('./pages/ProductSeries'));
+const SpecGroups = lazy(() => import('./pages/SpecGroups'));
+const ProductSpecs = lazy(() => import('./pages/ProductSpecs'));
 const ProductDetail = lazy(() => import('./pages/ProductDetail'));
 const ProductCategoryDetail = lazy(() => import('./pages/ProductCategoryDetail'));
 const Brands = lazy(() => import('./pages/Brands'));
@@ -107,10 +109,12 @@ export default function App() {
       sales: '订单',
       products: '产品资料',
       'product-spu': '产品品类',
-      'product-categories': '产品类别',
+      'product-categories': '产品分类',
       'product-series': '产品系列',
+      'spec-groups': '规格组',
+      'product-specs': '产品规格',
       'product-detail': '产品详情',
-      'product-category-detail': '产品类别详情',
+      'product-category-detail': '产品分类详情',
       brands: '品牌管理',
       groups: '归属小组',
       'product-lines': '产品线',
@@ -194,6 +198,8 @@ export default function App() {
       case 'product-spu': return <ProductSpu />;
       case 'product-categories': return <ProductCategories {...props} />;
       case 'product-series': return <ProductSeries {...props} />;
+      case 'spec-groups': return <SpecGroups {...props} />;
+      case 'product-specs': return <ProductSpecs {...props} />;
       case 'product-detail': return <ProductDetail {...props} />;
       case 'product-category-detail': return <ProductCategoryDetail {...props} />;
       case 'brands': return <Brands />;

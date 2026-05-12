@@ -24,6 +24,15 @@ const formatCreateDate = (raw?: string) => {
 const createEmptySpu = (): ProductSpu => ({
   id: '',
   name: '',
+  productNo: '',
+  industry: '',
+  ecoProperty: [],
+  certificationStandard: [],
+  productDrawings: [],
+  productImage: '',
+  packagingMethod: '',
+  minOrderQty: undefined,
+  status: 1,
   brandId: '',
   categoryId: '',
   categoryName: '',
@@ -89,13 +98,59 @@ export default function ProductSpuPage() {
       const categoryName = spu.categoryId
         ? (spu.categoryName || categoryNameMap.get(String(spu.categoryId)) || '')
         : '';
-      const text = [spu.id, spu.name, brandName, categoryName]
+      const text = [
+        spu.id,
+        spu.name,
+        spu.productNo,
+        spu.industry,
+        Array.isArray(spu.ecoProperty) ? spu.ecoProperty.join(' ') : '',
+        Array.isArray(spu.certificationStandard) ? spu.certificationStandard.join(' ') : '',
+        spu.packagingMethod,
+        spu.minOrderQty !== undefined && spu.minOrderQty !== null ? String(spu.minOrderQty) : '',
+        spu.status !== undefined && spu.status !== null ? String(spu.status) : '',
+        brandName,
+        categoryName
+      ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
       return text.includes(keyword);
     });
   }, [spuList, searchTerm, brandNameMap, categoryNameMap]);
+
+  const industryOptions = useMemo(() => ([
+    '办公设备',
+    '工业电气',
+    '数码3C',
+    '5G',
+    '医疗',
+    '国防军工',
+    '智能家居',
+    '航天航空',
+    '汽车',
+    '新能源',
+    '消费电子'
+  ]), []);
+
+  const ecoPropertyOptions = useMemo(() => ([
+    'RoHS2.0（管控10项）',
+    'REACH（管控223项）',
+    'SONY,HF(无卤）（管控卤素5项）',
+    '加州65'
+  ]), []);
+
+  const certificationStandardOptions = useMemo(() => ([
+    '美国UL认证',
+    '欧盟CE认证',
+    '德国VDE认证',
+    '加拿大CSA认证',
+    '南德TUV认证',
+    '莱茵TUV认证',
+    '中国3C认证',
+    '欧洲ENEC认证',
+    '中国质量认证',
+    'IEC认证'
+  ]), []);
 
   const totalPages = Math.max(1, Math.ceil(filteredSpuList.length / PAGE_SIZE));
   const pagedSpuList = useMemo(() => {
@@ -114,20 +169,53 @@ export default function ProductSpuPage() {
   }, [currentPage, totalPages]);
 
   const fields = useMemo(() => [
-    { key: 'name', label: '品类名称', required: true },
+    {
+      key: 'categoryId',
+      label: '产品分类',
+      type: 'select',
+      options: categoryOptions.map((item) => ({ value: String(item.id), label: item.name }))
+    },
     {
       key: 'brandId',
       label: '品牌',
       type: 'select',
       options: brandOptions.map((item) => ({ value: String(item.id), label: item.name }))
     },
+    { key: 'productNo', label: '产品编号' },
+    { key: 'name', label: '品类名称', required: true },
+    { key: 'productImage', label: '产品主图', type: 'image' },
     {
-      key: 'categoryId',
-      label: '分类',
+      key: 'status',
+      label: '状态',
       type: 'select',
-      options: categoryOptions.map((item) => ({ value: String(item.id), label: item.name }))
-    }
-  ], [brandOptions, categoryOptions]);
+      options: [
+        { value: '1', label: '正常' },
+        { value: '0', label: '下架' },
+        { value: '10', label: '违规' }
+      ]
+    },
+    {
+      key: 'industry',
+      label: '所属行业',
+      type: 'select',
+      options: industryOptions.map((item) => ({ value: item, label: item }))
+    },
+    {
+      key: 'ecoProperty',
+      label: '环保性质',
+      type: 'multi-select',
+      options: ecoPropertyOptions.map((item) => ({ value: item, label: item }))
+    },
+    { key: 'packagingMethod', label: '包装方式' },
+    { key: 'minOrderQty', label: '最小起订量' },
+    {
+      key: 'certificationStandard',
+      label: '认证标准',
+      type: 'multi-select',
+      options: certificationStandardOptions.map((item) => ({ value: item, label: item }))
+    },
+    { key: 'productDrawings', label: '产品图纸', type: 'attachments' }
+  ], [brandOptions, categoryOptions, industryOptions, ecoPropertyOptions, certificationStandardOptions]);
 
   const handleAdd = () => {
     setCurrentSpu(createEmptySpu());
@@ -169,6 +257,21 @@ export default function ProductSpuPage() {
 
     const categoryId = String(draft.categoryId || '').trim();
     const categoryName = categoryId ? (categoryNameMap.get(categoryId) || '') : '';
+    const normalizedMinOrderQty = (() => {
+      const raw = (draft as any).minOrderQty;
+      if (raw === undefined || raw === null) return undefined;
+      const text = String(raw).trim();
+      if (!text) return undefined;
+      const num = Number(text);
+      return Number.isFinite(num) ? num : undefined;
+    })();
+    const normalizedStatus = (() => {
+      const raw = (draft as any).status;
+      const parsed = raw === undefined || raw === null || String(raw).trim() === ''
+        ? 1
+        : Number.parseInt(String(raw), 10);
+      return [0, 1, 10].includes(parsed) ? parsed : 1;
+    })();
 
     try {
       await saveProductSpuToSupabase({
@@ -176,6 +279,15 @@ export default function ProductSpuPage() {
         ...draft,
         id: isNew ? '' : (currentSpu?.id || draft.id || ''),
         name,
+        productNo: String(draft.productNo || '').trim(),
+        industry: String(draft.industry || '').trim(),
+        ecoProperty: Array.isArray((draft as any).ecoProperty) ? (draft as any).ecoProperty : [],
+        certificationStandard: Array.isArray((draft as any).certificationStandard) ? (draft as any).certificationStandard : [],
+        productImage: String(draft.productImage || '').trim(),
+        status: normalizedStatus,
+        packagingMethod: String(draft.packagingMethod || '').trim(),
+        minOrderQty: normalizedMinOrderQty,
+        productDrawings: Array.isArray(draft.productDrawings) ? draft.productDrawings : [],
         brandId: String(draft.brandId || '').trim(),
         categoryId,
         categoryName
@@ -205,7 +317,7 @@ export default function ProductSpuPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="搜索品类名称/品牌/分类..."
+              placeholder="搜索产品编号/品类名称/品牌/分类/行业..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-72"
@@ -230,10 +342,17 @@ export default function ProductSpuPage() {
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="p-4 text-sm font-medium text-gray-500">品类名称</th>
                 <th className="p-4 text-sm font-medium text-gray-500">品类ID</th>
-                <th className="p-4 text-sm font-medium text-gray-500">品牌</th>
                 <th className="p-4 text-sm font-medium text-gray-500">分类</th>
+                <th className="p-4 text-sm font-medium text-gray-500">状态</th>
+                <th className="p-4 text-sm font-medium text-gray-500">主图</th>
+                <th className="p-4 text-sm font-medium text-gray-500">产品编号</th>
+                <th className="p-4 text-sm font-medium text-gray-500">品类名称</th>
+                <th className="p-4 text-sm font-medium text-gray-500">所属行业</th>
+                <th className="p-4 text-sm font-medium text-gray-500">环保性质</th>
+                <th className="p-4 text-sm font-medium text-gray-500">包装方式</th>
+                <th className="p-4 text-sm font-medium text-gray-500">最小起订量</th>
+                <th className="p-4 text-sm font-medium text-gray-500">品牌</th>
                 <th className="p-4 text-sm font-medium text-gray-500">创建时间</th>
                 <th className="p-4 text-sm font-medium text-gray-500">操作</th>
               </tr>
@@ -241,20 +360,44 @@ export default function ProductSpuPage() {
             <tbody>
               {!loading && pagedSpuList.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-sm text-gray-400">
+                  <td colSpan={13} className="p-8 text-center text-sm text-gray-400">
                     暂无产品品类数据
                   </td>
                 </tr>
               )}
               {pagedSpuList.map((spu) => (
                 <tr key={spu.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="p-4 text-sm text-gray-900">{spu.name || '-'}</td>
                   <td className="p-4 text-sm text-indigo-600">{spu.id || '-'}</td>
                   <td className="p-4 text-sm text-gray-500">
-                    {spu.brandId ? (brandNameMap.get(String(spu.brandId)) || '-') : '-'}
+                    {spu.categoryId ? (spu.categoryName || categoryNameMap.get(String(spu.categoryId)) || '-') : '-'}
                   </td>
                   <td className="p-4 text-sm text-gray-500">
-                    {spu.categoryId ? (spu.categoryName || categoryNameMap.get(String(spu.categoryId)) || '-') : '-'}
+                    {spu.status === 0 ? '下架' : spu.status === 10 ? '违规' : '正常'}
+                  </td>
+                  <td className="p-4 text-sm text-gray-500">
+                    {spu.productImage ? (
+                      <img
+                        src={spu.productImage}
+                        alt={spu.name || '主图'}
+                        className="w-10 h-10 rounded object-cover border border-gray-200"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                  <td className="p-4 text-sm text-gray-900">{spu.productNo || '-'}</td>
+                  <td className="p-4 text-sm text-gray-900">{spu.name || '-'}</td>
+                  <td className="p-4 text-sm text-gray-500">{spu.industry || '-'}</td>
+                  <td className="p-4 text-sm text-gray-500">
+                    {Array.isArray(spu.ecoProperty) && spu.ecoProperty.length ? spu.ecoProperty.join('、') : '-'}
+                  </td>
+                  <td className="p-4 text-sm text-gray-500">{spu.packagingMethod || '-'}</td>
+                  <td className="p-4 text-sm text-gray-500">
+                    {spu.minOrderQty !== undefined && spu.minOrderQty !== null ? String(spu.minOrderQty) : '-'}
+                  </td>
+                  <td className="p-4 text-sm text-gray-500">
+                    {spu.brandId ? (brandNameMap.get(String(spu.brandId)) || '-') : '-'}
                   </td>
                   <td className="p-4 text-sm text-gray-500">{formatCreateDate(spu.createDate)}</td>
                   <td className="p-4 text-sm">

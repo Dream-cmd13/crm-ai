@@ -351,7 +351,7 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
                     onClick={() => isEditing && !field.disabled && setActiveSelector({ key: field.key, type: 'category' })}
                     className={`w-full px-3 py-2 border rounded-lg text-sm flex items-center justify-between cursor-pointer ${fieldErrors[field.key] ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-200'} ${(!isEditing || field.disabled) ? 'bg-gray-50 text-gray-500' : 'hover:border-indigo-300'}`}
                   >
-                    <span>{getFieldValue(field.key) || '请选择产品类别'}</span>
+                    <span>{getFieldValue(field.key) || '请选择产品分类'}</span>
                     <Building2 className="w-4 h-4 text-gray-400" />
                   </div>
                 ) : field.type === 'image' ? (

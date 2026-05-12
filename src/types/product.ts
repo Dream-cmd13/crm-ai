@@ -1,3 +1,5 @@
+import { FileAttachment } from './business';
+
 export interface CategoryAttribute {
   id: string;
   name: string;
@@ -77,6 +79,15 @@ export interface ProductSeries {
 export interface ProductSpu {
   id: string;
   name: string;
+  productNo?: string;
+  industry?: string;
+  ecoProperty?: string[];
+  certificationStandard?: string[];
+  productDrawings?: FileAttachment[];
+  productImage?: string;
+  packagingMethod?: string;
+  minOrderQty?: number;
+  status?: number;
   brandId?: string;
   categoryId?: string;
   categoryName?: string;
@@ -109,6 +120,26 @@ export interface ProductLine {
   manager?: string;
   createDate?: string;
   children?: ProductLine[];
+}
+
+export interface PublicPropertyName {
+  id: string;
+  specificationName: string;
+  groupName?: string;
+  image?: string;
+  isSearchable: number;
+  createDate?: string;
+  updateDate?: string;
+}
+
+export interface PublicPropertyValue {
+  id: string;
+  propertyId: string;
+  propertyValue: string;
+  propertyValueImage?: string;
+  publicPropertyName: string;
+  createDate?: string;
+  updateDate?: string;
 }
 
 export interface ProductCategory {

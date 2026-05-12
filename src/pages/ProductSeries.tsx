@@ -50,7 +50,7 @@ const seriesFields = (categoryTree: ProductCategory[]) => [
   { key: 'name', label: '系列名称', required: true },
   {
     key: 'categoryId',
-    label: '产品类别',
+    label: '产品分类',
     type: 'select',
     options: buildTreeCategoryOptions(categoryTree)
   },
@@ -324,12 +324,12 @@ export default function ProductSeriesPage({ navigateTo }: ProductSeriesProps) {
       <div className="flex-1 flex flex-col md:flex-row gap-4 md:gap-6 overflow-hidden">
         <div className="w-full md:w-72 shrink-0 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-56 md:h-auto">
           <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-            <h3 className="font-semibold text-gray-900 text-sm">产品类别</h3>
+            <h3 className="font-semibold text-gray-900 text-sm">产品分类</h3>
             <button
               type="button"
               onClick={() => navigateTo?.('product-categories')}
               className="p-1 hover:bg-gray-100 rounded text-gray-500"
-              title="管理产品类别"
+              title="管理产品分类"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -360,7 +360,7 @@ export default function ProductSeriesPage({ navigateTo }: ProductSeriesProps) {
                   <th className="p-4 text-sm font-medium text-gray-500">系列ID</th>
                   <th className="p-4 text-sm font-medium text-gray-500">系列编号</th>
                   <th className="p-4 text-sm font-medium text-gray-500">系列名称</th>
-                  <th className="p-4 text-sm font-medium text-gray-500">产品类别</th>
+                  <th className="p-4 text-sm font-medium text-gray-500">产品分类</th>
                   <th className="p-4 text-sm font-medium text-gray-500">描述</th>
                   <th className="p-4 text-sm font-medium text-gray-500">操作</th>
                 </tr>
@@ -435,7 +435,7 @@ export default function ProductSeriesPage({ navigateTo }: ProductSeriesProps) {
                     <p className="text-gray-900">{series.id || '-'}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-xs">产品类别</p>
+                  <p className="text-gray-500 text-xs">产品分类</p>
                     <p className="text-gray-900">{formatCategory(series)}</p>
                   </div>
                   <div className="col-span-2">

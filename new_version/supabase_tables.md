@@ -294,6 +294,15 @@
 | brand\_id      | int         | references ba\_brand(id)             | <br /> | 品牌ID |
 | category\_id   | int         | references ba\_cptype(id)            | <br /> | 分类ID |
 | category\_name | text        | <br />                               | <br /> | 分类名称 |
+| product\_no    | text        | unique                               | <br /> | 产品编号（唯一，允许为空） |
+| industry       | text        | <br />                               | <br /> | 所属行业 |
+| eco\_property  | text        | <br />                               | <br /> | 环保性质 |
+| certification\_standard | text | <br />                             | <br /> | 认证标准 |
+| product\_drawings | jsonb     | not null                             | []     | 产品图纸（附件数组） |
+| product\_image | text        | <br />                               | <br /> | 产品主图（URL或dataURL） |
+| packaging\_method | text     | <br />                               | <br /> | 包装方式 |
+| min\_order\_qty | numeric(18,2) | <br />                            | <br /> | 最小起订量 |
+| status         | int         | not null                             | 1      | 状态（0下架 1正常 10违规） |
 | created\_at    | timestamptz | not null                             | now()  | 创建时间 |
 | updated\_at    | timestamptz | not null                             | now()  | 更新时间 |
 
@@ -1612,4 +1621,3 @@ create policy p_open_delete on public.{table_name} for delete to anon, authentic
 | last\_message\_at        | timestamptz | 最后消息时间  |
 | last\_message\_preview   | text        | 最后消息预览  |
 | archived\_message\_count | integer     | 已归档消息数  |
-

@@ -12,15 +12,6 @@ interface ProductCategoriesProps {
   navigateTo?: (view: string, params?: any) => void;
 }
 
-const categoryFields = [
-  { key: 'name', label: '类别名称', required: true },
-  { key: 'image', label: '类别图片', type: 'image' },
-  { key: 'status', label: '状态', type: 'select', options: [{ value: '1', label: '启用' }, { value: '0', label: '禁用' }] },
-  { key: 'fab.features', label: '产品特征 (Features)', type: 'textarea' },
-  { key: 'fab.advantages', label: '产品优势 (Advantages)', type: 'textarea' },
-  { key: 'fab.benefits', label: '客户利益 (Benefits)', type: 'textarea' }
-];
-
 const flattenTree = (nodes: ProductCategory[]): TreeCategoryRow[] => {
   const result: TreeCategoryRow[] = [];
   const walk = (items: ProductCategory[], level = 0) => {
@@ -59,7 +50,7 @@ export default function ProductCategories({ navigateTo }: ProductCategoriesProps
       } catch (error) {
         console.error('Error fetching product categories:', error);
         setCategories([]);
-        toast.error('加载产品类别失败');
+        toast.error('加载产品分类失败');
       } finally {
         setLoading(false);
       }
@@ -68,6 +59,28 @@ export default function ProductCategories({ navigateTo }: ProductCategoriesProps
   }, []);
 
   const flattenedCategories = useMemo(() => flattenTree(categories), [categories]);
+  const parentSelectOptions = useMemo(() => {
+    return flattenedCategories.map((category) => {
+      const indent = category.level > 0 ? `${'  '.repeat(category.level)}└ ` : '';
+      const statusSuffix = Number(category.status ?? 1) === 0 ? '（已禁用）' : '';
+      return {
+        value: String(category.id || ''),
+        label: `${indent}${category.name || category.id || '-'}${statusSuffix}`
+      };
+    });
+  }, [flattenedCategories]);
+  const categoryFields = useMemo(
+    () => [
+      { key: 'name', label: '分类名称', required: true },
+      { key: 'parentId', label: '父级分类', type: 'select', options: parentSelectOptions },
+      { key: 'image', label: '分类图片', type: 'image' },
+      { key: 'status', label: '状态', type: 'select', options: [{ value: '1', label: '启用' }, { value: '0', label: '禁用' }] },
+      { key: 'fab.features', label: '产品特征 (Features)', type: 'textarea' },
+      { key: 'fab.advantages', label: '产品优势 (Advantages)', type: 'textarea' },
+      { key: 'fab.benefits', label: '客户利益 (Benefits)', type: 'textarea' }
+    ],
+    [parentSelectOptions]
+  );
 
   const handleAdd = () => {
     setCurrentCategory({
@@ -86,14 +99,14 @@ export default function ProductCategories({ navigateTo }: ProductCategoriesProps
   const handleDelete = async (category: ProductCategory) => {
     if (!category.id) return;
     const categoryName = String(category.name || '').trim() || category.id;
-    if (!(await confirmDialog(`确认删除类别 "${categoryName}"？`))) return;
+    if (!(await confirmDialog(`确认删除分类 "${categoryName}"？`))) return;
     try {
       await deleteProductCategoryFromSupabase(category.id);
       await refreshCategories();
-      toast.success('产品类别删除成功');
+      toast.success('产品分类删除成功');
     } catch (error) {
       console.error('Error deleting product category:', error);
-      toast.error(`产品类别删除失败：${(error as Error)?.message || '请稍后重试'}`);
+      toast.error(`产品分类删除失败：${(error as Error)?.message || '请稍后重试'}`);
     }
   };
 
@@ -102,10 +115,12 @@ export default function ProductCategories({ navigateTo }: ProductCategoriesProps
     const isNew = modalMode === 'add';
     const name = String(draft.name || '').trim();
     if (!name) {
-      toast.error('类别名称不能为空');
+      toast.error('分类名称不能为空');
       return false;
     }
     const normalizedStatus = Number.parseInt(String(draft.status ?? '1'), 10);
+    const parentIdText = String(draft.parentId || '').trim();
+    const parentId = parentIdText ? parentIdText : null;
 
     try {
       await saveProductCategoryToSupabase(
@@ -113,7 +128,7 @@ export default function ProductCategories({ navigateTo }: ProductCategoriesProps
           ...draft,
           id: isNew ? '' : (currentCategory?.id || draft.id || ''),
           name,
-          parentId: currentCategory?.parentId ?? null,
+          parentId,
           status: Number.isNaN(normalizedStatus) ? 1 : normalizedStatus,
           children: []
         },
@@ -122,11 +137,11 @@ export default function ProductCategories({ navigateTo }: ProductCategoriesProps
       await refreshCategories();
       setModalMode(null);
       setCurrentCategory(null);
-      toast.success('产品类别保存成功');
+      toast.success('产品分类保存成功');
       return true;
     } catch (error) {
       console.error('Error saving product category:', error);
-      toast.error(`产品类别保存失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
+      toast.error(`产品分类保存失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
       return false;
     }
   };
@@ -135,8 +150,8 @@ export default function ProductCategories({ navigateTo }: ProductCategoriesProps
     <div className="p-4 space-y-4">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">产品类别</h2>
-          <p className="text-sm text-gray-500 mt-1">管理产品类别基础信息与状态</p>
+          <h2 className="text-2xl font-bold text-gray-900">产品分类</h2>
+          <p className="text-sm text-gray-500 mt-1">管理产品分类基础信息与状态</p>
         </div>
         <button
           type="button"
@@ -144,13 +159,13 @@ export default function ProductCategories({ navigateTo }: ProductCategoriesProps
           className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
         >
           <Plus className="w-4 h-4" />
-          新增类别
+          新增分类
         </button>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100 text-sm text-gray-500">
-          共 {flattenedCategories.length} 条产品类别
+          共 {flattenedCategories.length} 条产品分类
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse whitespace-nowrap">
@@ -168,7 +183,7 @@ export default function ProductCategories({ navigateTo }: ProductCategoriesProps
               {!loading && flattenedCategories.length === 0 && (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-sm text-gray-400">
-                    暂无产品类别数据
+                    暂无产品分类数据
                   </td>
                 </tr>
               )}
@@ -238,7 +253,7 @@ export default function ProductCategories({ navigateTo }: ProductCategoriesProps
             setModalMode(null);
             setCurrentCategory(null);
           }}
-          title="新增产品类别"
+          title="新增产品分类"
           data={currentCategory}
           fields={categoryFields}
           isEditing={true}

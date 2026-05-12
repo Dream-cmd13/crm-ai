@@ -35,6 +35,20 @@ export const PAYMENT_TERM_OPTIONS: CustomerEnumOption[] = [
   { value: '12', label: '120天' }
 ];
 
+export const CUSTOMER_INDUSTRY_OPTIONS: string[] = [
+  '办公设备',
+  '工业电气',
+  '数码3C',
+  '5G',
+  '医疗',
+  '国防军工',
+  '智能家居',
+  '航天航空',
+  '汽车',
+  '新能源',
+  '消费电子'
+];
+
 const resolveEnumLabel = (value: string | number | null | undefined, options: CustomerEnumOption[]): string => {
   const raw = String(value || '').trim();
   if (!raw) return '';
