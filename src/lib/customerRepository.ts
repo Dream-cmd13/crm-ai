@@ -656,12 +656,32 @@ export const resolveCustomerDbIdFromSupabase = async (customerId: string): Promi
   const id = String(customerId || '').trim();
   if (!id) return null;
   if (!isSupabaseConfigured()) return null;
-  if (!Number.isNaN(Number(id))) return Number(id);
+  const supabase = getSupabaseClient();
+
+  // 数字ID也需要校验存在性，避免导入后残留旧ID写入外键导致 23503
+  if (!Number.isNaN(Number(id))) {
+    const numericId = Number(id);
+    const { data: byId, error: byIdError } = await supabase
+      .from('ba_manucustinfo')
+      .select('id')
+      .eq('id', numericId)
+      .maybeSingle();
+    if (byIdError) throw byIdError;
+    if (typeof byId?.id === 'number') return byId.id;
+
+    // 兼容 customer_number 存储为纯数字字符串的场景
+    const { data: byNumber, error: byNumberError } = await supabase
+      .from('ba_manucustinfo')
+      .select('id')
+      .eq('customer_number', id)
+      .maybeSingle();
+    if (byNumberError) throw byNumberError;
+    return typeof byNumber?.id === 'number' ? byNumber.id : null;
+  }
 
   const customerNumber = toCustomerNumber(id);
   if (!customerNumber) return null;
 
-  const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('ba_manucustinfo')
     .select('id')

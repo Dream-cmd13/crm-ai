@@ -24,6 +24,7 @@ import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
 import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
 import { notifySupabaseFailure } from '../lib/supabaseFailureNotice';
+import { fetchProductSeriesFromSupabase } from '../lib/productRepository';
 
 const LEAD_STATUS_OPTIONS = ['未跟进', '跟进中', '关闭', '转商机'];
 const OPPORTUNITY_PRODUCT_LINE_OPTIONS = ['接插件', '线束', '工业连接器', 'IO连接器', '电子电气', '其他'];
@@ -112,6 +113,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
   const [contacts, setContacts] = useState<any[]>([]);
   const [selectedCustomerNumber, setSelectedCustomerNumber] = useState('');
   const [inquiryNoMap, setInquiryNoMap] = useState<Record<string, string>>({});
+  const [productSeriesOptions, setProductSeriesOptions] = useState<{ value: string; label: string }[]>([]);
 
   
 
@@ -224,6 +226,34 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
 
   useEffect(() => {
     fetchLeads();
+  }, []);
+
+  useEffect(() => {
+    const loadProductSeriesOptions = async () => {
+      if (!isSupabaseConfigured()) {
+        setProductSeriesOptions([]);
+        return;
+      }
+      try {
+        const list = await fetchProductSeriesFromSupabase();
+        const options = (list || [])
+          .map((item) => {
+            const name = String(item?.name || '').trim();
+            const seriesNo = String(item?.seriesNo || '').trim();
+            if (!name) return null;
+            return {
+              value: name,
+              label: seriesNo ? `${name}（${seriesNo}）` : name
+            };
+          })
+          .filter((item): item is { value: string; label: string } => item !== null);
+        setProductSeriesOptions(options);
+      } catch (error) {
+        console.error('Error loading product series for lead:', error);
+        setProductSeriesOptions([]);
+      }
+    };
+    loadProductSeriesOptions();
   }, []);
 
   useEffect(() => {
@@ -556,6 +586,8 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
   const [isConvertingToOpportunity, setIsConvertingToOpportunity] = useState(false);
   const [conversionOpportunityData, setConversionOpportunityData] = useState<any>(null);
   const [conversionLead, setConversionLead] = useState<Lead | null>(null);
+  const [isClosingLead, setIsClosingLead] = useState(false);
+  const [closingLead, setClosingLead] = useState<Lead | null>(null);
 
   const handleConvertToOpportunity = (lead: Lead) => {
     setConversionLead(lead);
@@ -598,6 +630,60 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
     } catch (error) {
       console.error('Error converting lead to opportunity:', error);
       toast.error(`线索转商机失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
+    }
+  };
+
+  const persistLeadStatusUpdate = async (lead: Lead, patch: Partial<Lead>) => {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase 未配置');
+    }
+    const leadDbId = toNullableInt(lead.id);
+    if (leadDbId === null) {
+      throw new Error(`线索ID无效，无法更新：${lead.id}`);
+    }
+    const supabase = getSupabaseClient();
+    const dbPatch = {
+      status: patch.status || lead.status,
+      close_time: patch.closeTime ?? lead.closeTime ?? null,
+      close_reason: patch.closeReason ?? lead.closeReason ?? null,
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabase
+      .from('crm_lead')
+      .update(dbPatch)
+      .eq('id', leadDbId)
+      .select('*');
+    if (error) throw error;
+    if (data && data.length > 0) {
+      const updatedLead = mapDbLeadToUi(data[0]);
+      setLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? updatedLead : l)));
+      setSelectedLead((prev) => (prev?.id === updatedLead.id ? updatedLead : prev));
+    }
+  };
+
+  const handleOpenCloseLead = (lead: Lead) => {
+    setClosingLead(lead);
+    setIsClosingLead(true);
+  };
+
+  const handleCloseLead = async (data: any) => {
+    if (!closingLead) return;
+    if (!data.closeTime || !data.closeReason) {
+      toast.error('请填写关闭时间和关闭原因');
+      return;
+    }
+    try {
+      await persistLeadStatusUpdate(closingLead, {
+        status: '关闭',
+        closeTime: data.closeTime,
+        closeReason: data.closeReason
+      });
+      toast.success('线索已关闭');
+      setIsClosingLead(false);
+      setClosingLead(null);
+    } catch (error) {
+      console.error('Error closing lead:', error);
+      toast.error(`关闭线索失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
     }
   };
 
@@ -784,16 +870,21 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
     { key: 'entryTime', label: '录入时间', type: 'date' },
     { key: 'channelPlatform', label: '来源渠道', type: 'select', options: LEAD_SOURCE_CHANNEL_OPTIONS },
     { key: 'source', label: '来源类型', type: 'select', options: LEAD_SOURCE_TYPE_OPTIONS },
-    { key: 'productSeries', label: '产品系列', type: 'category' },
+    { key: 'productSeries', label: '产品系列', type: 'select', options: productSeriesOptions },
     { key: 'productIndustry', label: '产品所属行业', type: 'select', options: LEAD_PRODUCT_INDUSTRY_OPTIONS },
     { key: 'productCategory', label: '兼容旧字段(可选)' },
     { key: 'sourceStatus', label: '线索来源状态', type: 'select', options: LEAD_SOURCE_STATUS_OPTIONS },
-    { key: 'customerOpportunity', label: '客户机会' },
+    { key: 'customerOpportunity', label: '客户机会', type: 'textarea' },
     { key: 'closeTime', label: '关闭时间', type: 'date' },
     { key: 'closeReason', label: '关闭原因' },
     { key: 'attachments', label: '附件', type: 'attachments' },
     { key: 'creator', label: '创建人', type: 'user' },
     { key: 'createDate', label: '创建日期', type: 'date' },
+  ];
+  const editFields = fields.filter((f) => !['creator', 'createDate', 'closeTime', 'closeReason'].includes(f.key));
+  const closeFields = [
+    { key: 'closeTime', label: '关闭时间', type: 'date', required: true },
+    { key: 'closeReason', label: '关闭原因', type: 'textarea', required: true }
   ];
 
   const [displayCount, setDisplayCount] = useState(20);
@@ -846,6 +937,14 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
               >
                 编辑线索
+              </button>
+            )}
+            {selectedLead.status !== '转商机' && selectedLead.status !== '关闭' && (
+              <button
+                onClick={() => handleOpenCloseLead(selectedLead)}
+                className="px-4 py-2 bg-rose-50 text-rose-600 rounded-lg text-sm font-medium hover:bg-rose-100"
+              >
+                关闭线索
               </button>
             )}
           </div>
@@ -1117,7 +1216,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           title="编辑线索"
           data={selectedLead}
           onSave={handleSave}
-          fields={fields}
+          fields={editFields}
         />
 
         <DetailModal
@@ -1130,6 +1229,22 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           data={conversionOpportunityData}
           onSave={confirmConvertToOpportunity}
           fields={opportunityFields}
+          isEditing={true}
+        />
+
+        <DetailModal
+          isOpen={isClosingLead}
+          onClose={() => {
+            setIsClosingLead(false);
+            setClosingLead(null);
+          }}
+          title="关闭线索"
+          data={{
+            closeTime: new Date().toISOString().split('T')[0],
+            closeReason: ''
+          }}
+          onSave={handleCloseLead}
+          fields={closeFields}
           isEditing={true}
         />
 
@@ -1282,16 +1397,14 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
             <Filter className="w-4 h-4" />
             <span className="hidden sm:inline">筛选</span>
           </button>
-          {(role === '运营' || role === '业务员' || role === '管理员') && (
-            <button 
-              onClick={() => setIsAdding(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">新建线索</span>
-              <span className="sm:hidden">新建</span>
-            </button>
-          )}
+          <button 
+            onClick={() => setIsAdding(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">新增线索</span>
+            <span className="sm:hidden">新增</span>
+          </button>
         </div>
       </div>
 
@@ -1319,7 +1432,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-white rounded-2xl border border-gray-200">
             <Target className="w-12 h-12 mb-4 text-gray-300" />
             <p className="text-lg font-medium text-gray-900">暂无线索数据</p>
-            <p className="text-sm mt-1">点击右上角"新建线索"创建</p>
+            <p className="text-sm mt-1">点击右上角"新增线索"创建</p>
           </div>
         ) : (
           <>
@@ -1403,6 +1516,17 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                         >
                           <Target className="w-4 h-4" />
                           转为商机
+                        </button>
+                      )}
+                      {lead.status !== '转商机' && lead.status !== '关闭' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenCloseLead(lead);
+                          }}
+                          className="text-rose-600 hover:text-rose-800 text-sm font-medium mb-2"
+                        >
+                          关闭
                         </button>
                       )}
                       <button 
@@ -1493,6 +1617,17 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                       转商机
                     </button>
                   )}
+                  {lead.status !== '转商机' && lead.status !== '关闭' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenCloseLead(lead);
+                      }}
+                      className="text-rose-600 text-sm font-medium"
+                    >
+                      关闭
+                    </button>
+                  )}
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1532,7 +1667,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
       <DetailModal
         isOpen={isAdding}
         onClose={() => setIsAdding(false)}
-        title="新建线索"
+        title="新增线索"
         data={{
           entryTime: new Date().toISOString().split('T')[0],
           status: '未跟进',
@@ -1542,7 +1677,16 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           customerAction: '找货寻料'
         }}
         onSave={handleSave}
-        fields={fields.filter(f => !['leadNo', 'creator', 'createDate', 'updater', 'updateDate', 'associatedOpportunity'].includes(f.key))}
+        fields={fields.filter(f => ![
+          'leadNo',
+          'creator',
+          'createDate',
+          'updater',
+          'updateDate',
+          'associatedOpportunity',
+          'closeTime',
+          'closeReason'
+        ].includes(f.key))}
         isEditing={true}
       />
     </div>
