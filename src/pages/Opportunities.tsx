@@ -28,6 +28,7 @@ import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
 import { notifySupabaseFailure } from '../lib/supabaseFailureNotice';
 import { fetchUsersFromSupabase } from '../lib/userRepository';
+import { fetchProductSeriesFromSupabase } from '../lib/productRepository';
 
 const OPPORTUNITY_STATUS_OPTIONS = ['未跟进', '跟进中', '关闭', '转项目'];
 const PRODUCT_INDUSTRY_OPTIONS = ['基础接插件', '新能源', '线束', '定制', '胜蓝', '胜蓝电气', '工业'];
@@ -114,6 +115,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   const [projectNoMap, setProjectNoMap] = useState<Record<string, string>>({});
   const [leadSelectOptions, setLeadSelectOptions] = useState<{ value: string; label: string }[]>([]);
   const [inquirySelectOptions, setInquirySelectOptions] = useState<{ value: string; label: string }[]>([]);
+  const [productSeriesOptions, setProductSeriesOptions] = useState<{ value: string; label: string }[]>([]);
 
   
   const [tasks, setTasks] = useState<TodoTask[]>([]);
@@ -225,6 +227,34 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
 
   useEffect(() => {
     fetchOpportunities();
+  }, []);
+
+  useEffect(() => {
+    const loadProductSeriesOptions = async () => {
+      if (!isSupabaseConfigured()) {
+        setProductSeriesOptions([]);
+        return;
+      }
+      try {
+        const list = await fetchProductSeriesFromSupabase();
+        const options = (list || [])
+          .map((item) => {
+            const name = String(item?.name || '').trim();
+            const seriesNo = String(item?.seriesNo || '').trim();
+            if (!name) return null;
+            return {
+              value: name,
+              label: seriesNo ? `${name}（${seriesNo}）` : name
+            };
+          })
+          .filter((item): item is { value: string; label: string } => item !== null);
+        setProductSeriesOptions(options);
+      } catch (error) {
+        console.error('Error loading product series for opportunity:', error);
+        setProductSeriesOptions([]);
+      }
+    };
+    loadProductSeriesOptions();
   }, []);
 
   useEffect(() => {
@@ -471,6 +501,8 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   const [isConvertingToProject, setIsConvertingToProject] = useState(false);
   const [conversionProjectData, setConversionProjectData] = useState<any>(null);
   const [conversionOpportunity, setConversionOpportunity] = useState<Opportunity | null>(null);
+  const [isClosingOpportunity, setIsClosingOpportunity] = useState(false);
+  const [closingOpportunity, setClosingOpportunity] = useState<Opportunity | null>(null);
 
   const filteredOpportunities = opportunities.filter(opp => 
     opp.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -825,6 +857,60 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     }
   };
 
+  const persistOpportunityStatusUpdate = async (opp: Opportunity, patch: Partial<Opportunity>) => {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase 未配置');
+    }
+    const oppDbId = toNullableInt(opp.id);
+    if (oppDbId === null) {
+      throw new Error(`商机ID无效，无法更新：${opp.id}`);
+    }
+    const supabase = getSupabaseClient();
+    const dbPatch = {
+      status: patch.status || opp.status,
+      close_time: patch.closeTime ?? opp.closeTime ?? null,
+      close_reason: patch.closeReason ?? opp.closeReason ?? null,
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabase
+      .from('crm_opportunity')
+      .update(dbPatch)
+      .eq('id', oppDbId)
+      .select('*');
+    if (error) throw error;
+    if (data && data.length > 0) {
+      const updatedOpp = mapDbOppToUi(data[0]);
+      setOpportunities((prev) => prev.map((o) => (o.id === updatedOpp.id ? updatedOpp : o)));
+      setSelectedOpp((prev) => (prev?.id === updatedOpp.id ? updatedOpp : prev));
+    }
+  };
+
+  const handleOpenCloseOpportunity = (opp: Opportunity) => {
+    setClosingOpportunity(opp);
+    setIsClosingOpportunity(true);
+  };
+
+  const handleCloseOpportunity = async (data: any) => {
+    if (!closingOpportunity) return;
+    if (!data.closeTime || !data.closeReason) {
+      toast.error('请填写关闭时间和关闭原因');
+      return;
+    }
+    try {
+      await persistOpportunityStatusUpdate(closingOpportunity, {
+        status: '关闭',
+        closeTime: data.closeTime,
+        closeReason: data.closeReason
+      });
+      toast.success('商机已关闭');
+      setIsClosingOpportunity(false);
+      setClosingOpportunity(null);
+    } catch (error) {
+      console.error('Error closing opportunity:', error);
+      toast.error(`关闭商机失败：${(error as Error)?.message || '请检查 Supabase 配置'}`);
+    }
+  };
+
   const fields = [
     { key: 'opportunityNo', label: '商机编号', disabled: true },
     { key: 'customerId', label: '客户ID', hidden: true },
@@ -848,7 +934,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     { key: 'estimatedMassProductionDate', label: '预计量产时间', type: 'date' },
     { key: 'salesType', label: '销售类型' },
     { key: 'productIndustry', label: '产品所属行业', type: 'select', options: PRODUCT_INDUSTRY_OPTIONS },
-    { key: 'productSeries', label: '产品系列' },
+    { key: 'productSeries', label: '产品系列', type: 'select', options: productSeriesOptions },
     { key: 'leadId', label: '关联线索', type: 'select', options: leadSelectOptions },
     { key: 'inquiryId', label: '关联询盘', type: 'select', options: inquirySelectOptions },
     { key: 'contactPerson', label: '客户联系人' },
@@ -857,6 +943,16 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     { key: 'creatorName', label: '创建人', type: 'user' },
     { key: 'createDate', label: '创建日期', type: 'date' },
   ];
+  const editFields = fields.filter((f) => ![
+    'closeTime',
+    'closeReason',
+    'leadId',
+    'inquiryId',
+    'completeness',
+    'creatorName',
+    'createDate',
+    'associatedProject'
+  ].includes(f.key));
 
   const projectConversionFields = [
     { key: 'projectName', label: '项目名称', required: true },
@@ -871,6 +967,10 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     { key: 'salesRep', label: '业务员', type: 'user' },
     { key: 'productOwner', label: '产品负责人', type: 'user' },
     { key: 'estimatedMassProductionTime', label: '预计量产时间', type: 'date' },
+  ];
+  const closeFields = [
+    { key: 'closeTime', label: '关闭时间', type: 'date', required: true },
+    { key: 'closeReason', label: '关闭原因', type: 'textarea', required: true }
   ];
 
   const [displayCount, setDisplayCount] = useState(20);
@@ -923,6 +1023,14 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
               >
                 编辑商机
+              </button>
+            )}
+            {selectedOpp.status !== '转项目' && selectedOpp.status !== '关闭' && (
+              <button
+                onClick={() => handleOpenCloseOpportunity(selectedOpp)}
+                className="px-4 py-2 bg-rose-50 text-rose-600 rounded-lg text-sm font-medium hover:bg-rose-100"
+              >
+                关闭商机
               </button>
             )}
             <button
@@ -1205,7 +1313,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
           title="编辑商机"
           data={selectedOpp}
           onSave={handleSave}
-          fields={fields}
+          fields={editFields}
         />
 
         <DetailModal
@@ -1219,6 +1327,21 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
           data={conversionProjectData}
           onSave={confirmConvertToProject}
           fields={projectConversionFields}
+          isEditing={true}
+        />
+        <DetailModal
+          isOpen={isClosingOpportunity}
+          onClose={() => {
+            setIsClosingOpportunity(false);
+            setClosingOpportunity(null);
+          }}
+          title="关闭商机"
+          data={{
+            closeTime: new Date().toISOString().split('T')[0],
+            closeReason: ''
+          }}
+          onSave={handleCloseOpportunity}
+          fields={closeFields}
           isEditing={true}
         />
 
@@ -1371,16 +1494,14 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
             <Filter className="w-4 h-4" />
             <span className="hidden sm:inline">筛选</span>
           </button>
-          {(role === '业务员' || role === '管理员') && (
-            <button 
-              onClick={() => setIsAdding(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">新建商机</span>
-              <span className="sm:hidden">新建</span>
-            </button>
-          )}
+          <button 
+            onClick={() => setIsAdding(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">新增商机</span>
+            <span className="sm:hidden">新增</span>
+          </button>
         </div>
       </div>
 
@@ -1408,7 +1529,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
           <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-white rounded-2xl border border-gray-200">
             <Briefcase className="w-12 h-12 mb-4 text-gray-300" />
             <p className="text-lg font-medium text-gray-900">暂无商机数据</p>
-            <p className="text-sm mt-1">点击右上角"新建商机"创建</p>
+            <p className="text-sm mt-1">点击右上角"新增商机"创建</p>
           </div>
         ) : (
           <>
@@ -1507,6 +1628,17 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                           转为项目
                         </button>
                       )}
+                      {opp.status !== '转项目' && opp.status !== '关闭' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenCloseOpportunity(opp);
+                          }}
+                          className="text-rose-600 hover:text-rose-800 text-sm font-medium mb-2"
+                        >
+                          关闭
+                        </button>
+                      )}
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1586,6 +1718,17 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                       转项目
                     </button>
                   )}
+                  {opp.status !== '转项目' && opp.status !== '关闭' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenCloseOpportunity(opp);
+                      }}
+                      className="text-rose-600 text-sm font-medium"
+                    >
+                      关闭
+                    </button>
+                  )}
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1625,7 +1768,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
       <DetailModal
         isOpen={isAdding}
         onClose={() => setIsAdding(false)}
-        title="新建商机"
+        title="新增商机"
         data={{
           oppDate: new Date().toISOString().split('T')[0],
           status: '未跟进',
@@ -1634,7 +1777,17 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
           productLine: 'IO连接器'
         }}
         onSave={handleSave}
-        fields={fields.filter(f => !['opportunityNo', 'creator', 'createDate', 'updater', 'updateDate', 'associatedProject'].includes(f.key))}
+        fields={fields.filter((f) => ![
+          'opportunityNo',
+          'closeTime',
+          'closeReason',
+          'leadId',
+          'inquiryId',
+          'completeness',
+          'creatorName',
+          'createDate',
+          'associatedProject'
+        ].includes(f.key))}
         isEditing={true}
       />
 
@@ -1649,6 +1802,21 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
         data={conversionProjectData}
         onSave={confirmConvertToProject}
         fields={projectConversionFields}
+        isEditing={true}
+      />
+      <DetailModal
+        isOpen={isClosingOpportunity}
+        onClose={() => {
+          setIsClosingOpportunity(false);
+          setClosingOpportunity(null);
+        }}
+        title="关闭商机"
+        data={{
+          closeTime: new Date().toISOString().split('T')[0],
+          closeReason: ''
+        }}
+        onSave={handleCloseOpportunity}
+        fields={closeFields}
         isEditing={true}
       />
     </div>

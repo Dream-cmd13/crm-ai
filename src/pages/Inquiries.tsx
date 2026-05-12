@@ -24,6 +24,7 @@ import { pushInquiryToLeadInSupabase } from '../lib/pushdown';
 import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
 import { notifySupabaseFailure } from '../lib/supabaseFailureNotice';
+import { fetchProductSeriesFromSupabase } from '../lib/productRepository';
 
 const INQUIRY_SOURCE_CHANNEL_OPTIONS = ['万连', '电子谷', '1688', '爱采购', '胜蓝', '新电子谷', '其他', '淘宝', '官网', '展会'];
 
@@ -109,6 +110,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   const [isAddingContact, setIsAddingContact] = useState(false);
   const [contacts, setContacts] = useState<any[]>([]);
   const [selectedCustomerNumber, setSelectedCustomerNumber] = useState('');
+  const [productSeriesOptions, setProductSeriesOptions] = useState<{ value: string; label: string }[]>([]);
 
   useEffect(() => {
     if (selectedInquiry?.customerId) {
@@ -268,6 +270,34 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   }, [inquiries.length]);
 
   useEffect(() => {
+    const loadProductSeriesOptions = async () => {
+      if (!isSupabaseConfigured()) {
+        setProductSeriesOptions([]);
+        return;
+      }
+      try {
+        const list = await fetchProductSeriesFromSupabase();
+        const options = (list || [])
+          .map((item) => {
+            const name = String(item?.name || '').trim();
+            const seriesNo = String(item?.seriesNo || '').trim();
+            if (!name) return null;
+            return {
+              value: name,
+              label: seriesNo ? `${name}（${seriesNo}）` : name
+            };
+          })
+          .filter((item): item is { value: string; label: string } => item !== null);
+        setProductSeriesOptions(options);
+      } catch (error) {
+        console.error('Error loading product series for inquiry:', error);
+        setProductSeriesOptions([]);
+      }
+    };
+    loadProductSeriesOptions();
+  }, []);
+
+  useEffect(() => {
     if (viewParams) {
       const inquiry = inquiries.find(i => i.id === viewParams);
       if (inquiry) {
@@ -308,7 +338,10 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
   const handleSave = async (data: any) => {
     const isNew = isAdding;
     const selectedInquiryDbId = toNullableInt(selectedInquiry?.id);
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const nowIso = now.toISOString();
+    const updaterName = (currentUser?.name || role || 'system').trim();
     if (!isSupabaseConfigured()) {
       toast.error('未配置 Supabase，无法保存询盘数据');
       return;
@@ -324,7 +357,15 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       }
     }
     try {
-      const customerIdForDb = toNullableInt(customerId);
+      const customerIdText =
+        typeof customerId === 'string'
+          ? customerId.trim()
+          : typeof customerId === 'number'
+            ? String(customerId)
+            : '';
+      const customerIdForDb = customerIdText
+        ? await resolveCustomerDbIdFromSupabase(customerIdText)
+        : null;
       const dbData = {
         inquiry_no: isNew ? await generateBusinessNumber(ID_PREFIX.INQUIRY) : (data.inquiryNo || selectedInquiry?.inquiryNo || null),
         customer_id: customerIdForDb,
@@ -346,10 +387,10 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
         creator_id: isNew ? 'system' : selectedInquiry?.creatorId,
         creator_name: isNew ? role : selectedInquiry?.creatorName,
         create_date: isNew ? (data.createDate || today) : (data.createDate || selectedInquiry?.createDate),
-        updater: role,
-        update_date: today,
+        updater: updaterName,
+        update_date: nowIso,
         classification: data.classification,
-        updated_at: new Date().toISOString()
+        updated_at: nowIso
       };
       const upsertInquiryWithCompat = async (payload: Record<string, any>) => {
         const supabase = getSupabaseClient();
@@ -453,7 +494,10 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase 未配置');
     }
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const nowIso = now.toISOString();
+    const updaterName = (currentUser?.name || role || 'system').trim();
     const inquiryDbId = toNullableInt(inquiry.id);
     if (inquiryDbId === null) {
       throw new Error(`询盘ID无效，无法更新：${inquiry.id}`);
@@ -490,10 +534,10 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       creator_id: inquiry.creatorId || 'system',
       creator_name: inquiry.creatorName || inquiry.creator || role,
       create_date: inquiry.createDate || inquiry.date || today,
-      updater: role,
-      update_date: today,
+      updater: updaterName,
+      update_date: nowIso,
       classification: inquiry.classification || null,
-      updated_at: new Date().toISOString()
+      updated_at: nowIso
     };
 
     const supabase = getSupabaseClient();
@@ -627,7 +671,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     { key: 'entryTime', label: '录入时间', type: 'date' },
     { key: 'channelPlatform', label: '来源渠道', type: 'select', options: INQUIRY_SOURCE_CHANNEL_OPTIONS },
     { key: 'source', label: '来源类型', type: 'select', options: LEAD_SOURCE_TYPE_OPTIONS },
-    { key: 'productSeries', label: '产品系列', type: 'category' },
+    { key: 'productSeries', label: '产品系列', type: 'select', options: productSeriesOptions },
   ];
 
   const handleRegenerateAI = async (nodeId: string, field: string, prompt: string) => {
@@ -777,10 +821,10 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     { key: 'buyingMode', label: '购买模式', type: 'select', options: ['增长模式', '困难模式', '平稳模式', '过度自信模式'] },
     { key: 'intentScore', label: '意向得分', type: 'number' },
     { key: 'sourceChannel', label: '来源渠道', type: 'select', options: INQUIRY_SOURCE_CHANNEL_OPTIONS },
-    { key: 'productSeries', label: '产品系列', type: 'category' },
+    { key: 'productSeries', label: '产品系列', type: 'select', options: productSeriesOptions },
     { key: 'province', label: '客户省市' },
-    { key: 'situation', label: '客户情况', type: 'textarea' },
     { key: 'customerInquiry', label: '客户咨询内容', type: 'textarea' },
+    { key: 'situation', label: '客户情况', type: 'textarea' },
     { key: 'status', label: '状态', type: 'select', options: ['待处理', '已转线索', '关闭'], required: true },
     { key: 'classification', label: '分类标签', type: 'select', options: ['处理中', '有效', '无效'] },
     { key: 'unconvertReason', label: '未转化原因' },
@@ -793,11 +837,22 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     { key: 'updateDate', label: '更新日期', type: 'date' },
   ];
 
-  const editFields = fields.filter((f) => !['unconvertReason', 'unconvertedTime'].includes(f.key));
+  const editFields = fields.filter(
+    (f) =>
+      ![
+        'createDate',
+        'associatedLead',
+        'creator',
+        'updater',
+        'updateDate',
+        'unconvertReason',
+        'unconvertedTime'
+      ].includes(f.key)
+  );
   const addFields = fields.filter((f) => !['id', 'inquiryNo', 'creator', 'updater', 'updateDate', 'associatedLead', 'unconvertReason', 'unconvertedTime', 'situation', 'intentScore'].includes(f.key));
   const closeFields = [
     { key: 'unconvertedTime', label: '未转化时间', type: 'date', required: true },
-    { key: 'unconvertReason', label: '未转化原因', required: true }
+    { key: 'unconvertReason', label: '未转化原因', type: 'textarea', required: true }
   ];
   const canConvertInquiry = (inquiry: Inquiry) => inquiry.status === '待处理';
   const canCloseInquiry = (inquiry: Inquiry) => inquiry.status === '待处理';
@@ -1019,12 +1074,12 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                     <p className="font-medium text-gray-900">{selectedInquiry.creatorName || selectedInquiry.creator || '-'}</p>
                   </div>
                   <div className="col-span-3">
-                    <p className="text-sm text-gray-500 mb-1">客户情况</p>
-                    <p className="font-medium text-gray-900">{selectedInquiry.situation || '-'}</p>
-                  </div>
-                  <div className="col-span-3">
                     <p className="text-sm text-gray-500 mb-1">客户咨询内容</p>
                     <p className="font-medium text-gray-900">{selectedInquiry.customerInquiry || '-'}</p>
+                  </div>
+                  <div className="col-span-3">
+                    <p className="text-sm text-gray-500 mb-1">客户情况</p>
+                    <p className="font-medium text-gray-900">{selectedInquiry.situation || '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">未转化时间</p>
@@ -1372,8 +1427,8 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                       <th className="px-6 py-4">来源渠道</th>
                       <th className="px-6 py-4">产品系列</th>
                       <th className="px-6 py-4">客户省市</th>
-                      <th className="px-6 py-4">客户情况</th>
                       <th className="px-6 py-4">客户咨询内容</th>
+                      <th className="px-6 py-4">客户情况</th>
                       <th className="px-6 py-4">状态</th>
                       <th className="px-6 py-4">分类标签</th>
                       <th className="px-6 py-4">未转化原因</th>
@@ -1397,8 +1452,8 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                     <td className="px-6 py-4 text-gray-600">{inq.sourceChannel}</td>
                     <td className="px-6 py-4 text-gray-600">{inq.productSeries || inq.category || '-'}</td>
                     <td className="px-6 py-4 text-gray-600">{inq.province}</td>
-                    <td className="px-6 py-4 text-gray-600 truncate max-w-xs">{inq.situation}</td>
                     <td className="px-6 py-4 text-gray-600 truncate max-w-xs">{inq.customerInquiry || '-'}</td>
+                    <td className="px-6 py-4 text-gray-600 truncate max-w-xs">{inq.situation}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         inq.status === '待处理' ? 'bg-amber-100 text-amber-800' :

@@ -802,6 +802,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
     { key: 'closeReason', label: '关闭原因' },
     { key: 'estimatedMassProductionTime', label: '预计量产时间', type: 'date' },
   ];
+  const editProjectFields = projectFields.filter((f) => !['closeTime', 'closeReason'].includes(f.key));
 
   if (selectedProject) {
     return (
@@ -854,7 +855,7 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
           title="编辑项目"
           data={selectedProject}
           onSave={handleSaveProject}
-          fields={projectFields}
+          fields={editProjectFields}
         />
 
         {isEditingMembers && (

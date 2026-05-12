@@ -3,6 +3,7 @@ import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 
 const TABLE = 'crm_potential_customer';
 const CUSTOMER_TABLE = 'ba_manucustinfo';
+const FORMAL_CUSTOMER_NUMBER_PATTERN = /^KH\d{8}\d{6}$/;
 
 const isDuplicateCustomerPrimaryKeyError = (error: any): boolean => {
   const code = String(error?.code || '');
@@ -20,6 +21,17 @@ const mapDbToUi = (row: any): PotentialCustomer => ({
   createdAt: row.created_at || undefined,
   updatedAt: row.updated_at || undefined
 });
+
+const generateFormalCustomerNumberFromSupabase = async (): Promise<string> => {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('generate_customer_number');
+  if (error) throw error;
+  const generated = String(data || '').trim();
+  if (!generated) {
+    throw new Error('客户编号生成失败');
+  }
+  return generated;
+};
 
 const upsertPotentialStubCustomerInSupabase = async (id: string, name: string) => {
   const cleanId = (id || '').trim();
@@ -157,26 +169,36 @@ export const convertPotentialCustomerToCustomerInSupabase = async (potential: Po
   const now = new Date().toISOString();
   const { data: existing, error: queryError } = await supabase
     .from(CUSTOMER_TABLE)
-    .select('id')
+    .select('id, customer_number')
     .eq('customer_number', id)
     .maybeSingle();
   if (queryError) throw queryError;
 
-  const customerPayload = {
-    customer_number: id,
-    name,
-    level: '普通客户',
-    status: 1,
-    updated_at: now
-  };
-
   if (existing?.id) {
+    const normalizedNumber = String(existing.customer_number || '').trim();
+    const formalCustomerNumber = FORMAL_CUSTOMER_NUMBER_PATTERN.test(normalizedNumber)
+      ? normalizedNumber
+      : await generateFormalCustomerNumberFromSupabase();
+    const customerPayload = {
+      customer_number: formalCustomerNumber,
+      name,
+      level: '普通客户',
+      status: 1,
+      updated_at: now
+    };
     const { error: updateError } = await supabase
       .from(CUSTOMER_TABLE)
       .update(customerPayload)
       .eq('id', existing.id);
     if (updateError) throw updateError;
   } else {
+    // 转正式客户时不再沿用潜在客户ID作为 customer_number，留空由触发器生成标准编号
+    const customerPayload = {
+      name,
+      level: '普通客户',
+      status: 1,
+      updated_at: now
+    };
     const { error: insertError } = await supabase.from(CUSTOMER_TABLE).insert(customerPayload);
     if (!insertError) {
       await deletePotentialCustomerFromSupabase(id);
