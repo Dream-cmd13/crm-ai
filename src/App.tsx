@@ -40,6 +40,7 @@ const CustomerTypes = lazy(() => import('./pages/CustomerTypes'));
 const CaseLibraryPage = lazy(() => import('./pages/CaseLibraryPage'));
 const CustomerStrategy = lazy(() => import('./pages/CustomerStrategy'));
 const CompetitorLibrary = lazy(() => import('./pages/CompetitorLibrary'));
+const WechatSession = lazy(() => import('./pages/WechatSession'));
 
 type OpenTab = {
   key: string;
@@ -122,6 +123,7 @@ export default function App() {
       'return-orders': '退货单',
       settings: '系统设置',
       'architecture-settings': '架构设置',
+      'wechat-session': '微信会话',
       'permission-management': '权限管理',
       'users-management': '用户管理',
       'customer-types': '客户类型',
@@ -209,6 +211,7 @@ export default function App() {
       case 'return-orders': return <ReturnOrders {...props} />;
       case 'settings': return <SystemSettings {...props} />;
       case 'architecture-settings': return <ArchitectureSettings />;
+      case 'wechat-session': return <WechatSession />;
       case 'permission-management': return <PermissionManagement />;
       case 'users-management': return <UserManagement />;
       case 'customer-types': return <CustomerTypes />;
