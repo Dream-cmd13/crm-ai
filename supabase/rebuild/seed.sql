@@ -1,17 +1,17 @@
 begin;
 
-insert into public.users(id, username, name, email, role, employee_no, department_id, is_active) values
-  ('00000000-0000-0000-0000-000000000001', 'admin', '系统管理员', 'admin@app.local', 'Admin', 'E001', 'dept-executive', true),
-  ('00000000-0000-0000-0000-000000000002', 'sales_manager', '销售经理', 'sales_manager@app.local', 'Admin', 'E002', 'dept-sales', true),
-  ('00000000-0000-0000-0000-000000000003', 'sales_a', '业务员A', 'sales_a@app.local', 'User', 'E003', 'dept-sales', true),
-  ('00000000-0000-0000-0000-000000000004', 'fae_engineer', 'FAE工程师', 'fae@app.local', 'User', 'E004', 'dept-fae', true),
-  ('00000000-0000-0000-0000-000000000005', 'product_manager', '产品经理', 'pm@app.local', 'Admin', 'E005', 'dept-product', true),
-  ('00000000-0000-0000-0000-000000000006', 'quality_engineer', '品质工程师', 'qc@app.local', 'User', 'E006', 'dept-quality', true),
-  ('00000000-0000-0000-0000-000000000007', 'it_engineer', 'IT开发工程师', 'it@app.local', 'User', 'E007', 'dept-it', true),
-  ('00000000-0000-0000-0000-000000000008', 'finance_accountant', '财务会计', 'finance@app.local', 'User', 'E008', 'dept-finance', true),
-  ('00000000-0000-0000-0000-000000000009', 'purchasing_specialist', '采购专员', 'purchasing@app.local', 'User', 'E009', 'dept-1774349542675', true),
-  ('00000000-0000-0000-0000-00000000000a', 'cs_specialist', '客服专员', 'cs@app.local', 'User', 'E010', 'dept-1774349760986', true),
-  ('00000000-0000-0000-0000-00000000000b', 'hr_specialist', '招聘专员', 'hr@app.local', 'User', 'E011', 'dept-hr', true)
+insert into public.users(id, username, name, email, role, employee_no, department_id, is_active, wechat_name) values
+  ('00000000-0000-0000-0000-000000000001', 'admin', '系统管理员', 'admin@app.local', 'Admin', 'E001', 'dept-executive', true, null),
+  ('00000000-0000-0000-0000-000000000002', 'sales_manager', '销售经理', 'sales_manager@app.local', 'Admin', 'E002', 'dept-sales', true, '销售经理'),
+  ('00000000-0000-0000-0000-000000000003', 'sales_a', '业务员A', 'sales_a@app.local', 'User', 'E003', 'dept-sales', true, '业务员A'),
+  ('00000000-0000-0000-0000-000000000004', 'fae_engineer', 'FAE工程师', 'fae@app.local', 'User', 'E004', 'dept-fae', true, null),
+  ('00000000-0000-0000-0000-000000000005', 'product_manager', '产品经理', 'pm@app.local', 'Admin', 'E005', 'dept-product', true, null),
+  ('00000000-0000-0000-0000-000000000006', 'quality_engineer', '品质工程师', 'qc@app.local', 'User', 'E006', 'dept-quality', true, '品质工程师'),
+  ('00000000-0000-0000-0000-000000000007', 'it_engineer', 'IT开发工程师', 'it@app.local', 'User', 'E007', 'dept-it', true, null),
+  ('00000000-0000-0000-0000-000000000008', 'finance_accountant', '财务会计', 'finance@app.local', 'User', 'E008', 'dept-finance', true, null),
+  ('00000000-0000-0000-0000-000000000009', 'purchasing_specialist', '采购专员', 'purchasing@app.local', 'User', 'E009', 'dept-1774349542675', true, null),
+  ('00000000-0000-0000-0000-00000000000a', 'cs_specialist', '客服专员', 'cs@app.local', 'User', 'E010', 'dept-1774349760986', true, null),
+  ('00000000-0000-0000-0000-00000000000b', 'hr_specialist', '招聘专员', 'hr@app.local', 'User', 'E011', 'dept-hr', true, null)
 on conflict (id) do nothing;
 
 -- 创建 auth.users 用于登录认证（密码均为 dev 环境密码，勿用于生产）
@@ -213,13 +213,13 @@ on conflict (id) do nothing;
 
 insert into public.crm_customer_contact(
   id, customer_id, name, position, department, phone, email, is_primary, buying_role, buying_mode, appellation,
-  wechat_id, faction, attitude_to_us, attitude_score, role_tag, influence_level, relation_level, graduation_school,
+  wechat_id, wechat_name, faction, attitude_to_us, attitude_score, role_tag, influence_level, relation_level, graduation_school,
   hometown, hobbies, family_situation, personality, preferences, key_concerns, follow_strategy
 ) values
   ('CON001', 1, '王总', '采购总监', '采购部', '13800000001', 'wang@app.local', true, '经济买家', '竞争性招标', '王总',
-   'wx_wangzong', '总部派', '正面评价', 1, 'D', 5, 3, '同济大学', '上海', '{"羽毛球","阅读"}', '已婚', '务实谨慎', '数据化沟通', '成本与交付稳定', '双周同步关键里程碑'),
+   'wx_wangzong', '王总', '总部派', '正面评价', 1, 'D', 5, 3, '同济大学', '上海', '{"羽毛球","阅读"}', '已婚', '务实谨慎', '数据化沟通', '成本与交付稳定', '双周同步关键里程碑'),
   ('CON002', 2, '李工', '研发经理', '研发部', '13800000002', 'li@app.local', true, '技术买家', '技术先行', '李工',
-   'wx_ligong', '技术线', '中性评价', 0, 'E', 4, 2, '华南理工', '广州', '{"跑步"}', '已婚', '理性严谨', '先看样品验证', '可靠性和认证进度', '先做样品小闭环')
+   'wx_ligong', '李工', '技术线', '中性评价', 0, 'E', 4, 2, '华南理工', '广州', '{"跑步"}', '已婚', '理性严谨', '先看样品验证', '可靠性和认证进度', '先做样品小闭环')
 on conflict (id) do nothing;
 
 insert into public.crm_customer_persona(
@@ -607,5 +607,28 @@ set
   system_link = excluded.system_link,
   is_sub_table = excluded.is_sub_table,
   updated_at = now();
+
+-- ========= 初始化微信昵称绑定 =========
+-- 从群成员和好友列表初始化昵称快照
+do $$
+begin
+  if to_regclass('public.crm_wechat_name_snapshot') is not null then
+    perform public.refresh_wechat_name_snapshot();
+  end if;
+end
+$$;
+
+-- 自动匹配种子用户和联系人
+do $$
+declare
+  v_result record;
+begin
+  if to_regclass('public.crm_wechat_binding') is not null then
+    for v_result in select * from public.auto_match_wechat_bindings() loop
+      raise notice 'auto_match: type=% name=% wxid=% bind_id=%', v_result.matched_type, v_result.matched_name, v_result.matched_wxid, v_result.bind_id;
+    end loop;
+  end if;
+end
+$$;
 
 commit;

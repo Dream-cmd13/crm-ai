@@ -106,6 +106,16 @@ create index if not exists idx_users_auth_id on public.users(auth_id);
 create index if not exists idx_users_username on public.users(username);
 create index if not exists idx_users_department_id on public.users(department_id);
 
+alter table public.users
+  add column if not exists wechat_name text,
+  add column if not exists wechat_id text;
+
+comment on column public.users.wechat_name is '员工微信昵称（人工预设，用于匹配）';
+comment on column public.users.wechat_id is '员工微信ID（系统自动回填，不可手动编辑）';
+
+create index if not exists idx_users_wechat_id on public.users(wechat_id);
+create index if not exists idx_users_wechat_name on public.users(wechat_name);
+
 -- 部门表（与 okr-ai 共用）
 create table if not exists public.departments (
   id text primary key,
@@ -576,6 +586,7 @@ create table if not exists public.crm_customer_contact (
   buying_mode text,
   appellation text,
   wechat_id text,
+  wechat_name text,
   manager_contact_id text references public.crm_customer_contact(id) on delete set null,
   faction text not null default '',
   attitude_to_us text not null default '中性评价',
@@ -609,6 +620,9 @@ create table if not exists public.crm_customer_contact (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+comment on column public.crm_customer_contact.wechat_id is '联系人微信ID（系统自动回填）';
+comment on column public.crm_customer_contact.wechat_name is '联系人微信昵称（人工预设，用于匹配）';
 
 create table if not exists public.crm_customer_persona (
   id text primary key,
@@ -1112,6 +1126,69 @@ create index if not exists idx_crm_wx_projection_jobs_poll
   on public.crm_wx_projection_jobs (status, next_retry_at, created_at);
 create index if not exists idx_crm_wx_projection_jobs_source_guid
   on public.crm_wx_projection_jobs (source_guid, created_at desc);
+
+-- ========= WECHAT IDENTITY BINDING =========
+-- 微信账号绑定表（一个 wxid 只能绑定一个员工或一个客户联系人）
+create table if not exists public.crm_wechat_binding (
+  id bigint generated always as identity primary key,
+  wechat_id text not null,
+  wechat_name text,
+  bind_type text not null
+    check (bind_type in ('employee', 'customer_contact')),
+  bind_id text not null,
+  match_source text not null default 'nickname'
+    check (match_source in ('nickname', 'group_member', 'manual_confirm')),
+  is_verified boolean not null default false,
+  verified_at timestamptz,
+  verified_by text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (wechat_id)
+);
+
+create index if not exists idx_crm_wechat_binding_lookup
+  on public.crm_wechat_binding (wechat_id);
+create index if not exists idx_crm_wechat_binding_bind
+  on public.crm_wechat_binding (bind_type, bind_id);
+
+-- 昵称快照表（机器人从群成员/好友列表采集的昵称↔wxid映射）
+create table if not exists public.crm_wechat_name_snapshot (
+  id bigint generated always as identity primary key,
+  nickname_normalized text not null,
+  original_nickname text,
+  display_name text,
+  wechat_id text not null,
+  source_table text not null,
+  source_context text,
+  first_seen_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (nickname_normalized, wechat_id)
+);
+
+create index if not exists idx_crm_wx_name_snapshot_lookup
+  on public.crm_wechat_name_snapshot (nickname_normalized);
+create index if not exists idx_crm_wx_name_snapshot_wxid
+  on public.crm_wechat_name_snapshot (wechat_id);
+
+-- 未解析重名队列（同一昵称匹配到多个wxid时写入，等待人工选择）
+create table if not exists public.crm_wechat_unresolved_nickname (
+  id bigint generated always as identity primary key,
+  nickname text not null,
+  candidate_wxids jsonb default '[]'::jsonb,
+  status text not null default 'pending'
+    check (status in ('pending', 'resolved', 'ignored')),
+  resolved_wxid text,
+  resolved_bind_type text,
+  resolved_bind_id text,
+  resolved_by text,
+  resolved_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_crm_wechat_unresolved_status
+  on public.crm_wechat_unresolved_nickname (status, created_at desc);
 
 alter table if exists public.crm_wx_conversation
   add column if not exists last_member_sync_version bigint not null default 0,
@@ -1987,6 +2064,269 @@ begin
     perform app_meta.attach_updated_at_trigger(t);
   end loop;
 end
+$$;
+
+-- ========= WECHAT BINDING RPC FUNCTIONS =========
+-- 从群成员和好友列表刷新昵称快照表
+create or replace function public.refresh_wechat_name_snapshot()
+returns void
+language sql
+as $$
+  -- 从群成员表同步
+  insert into public.crm_wechat_name_snapshot
+    (nickname_normalized, original_nickname, display_name, wechat_id, source_table, source_context)
+  select
+    lower(regexp_replace(
+      coalesce(nullif(trim(m.nickname), ''), m.username),
+      '[^a-z0-9\u4e00-\u9fff]', '', 'g'
+    )),
+    m.nickname,
+    m.display_name,
+    m.username,
+    'wechat_chatroom_members',
+    m.room_username
+  from wechat_raw.wechat_chatroom_members m
+  where m.is_deleted = false
+    and coalesce(nullif(trim(m.nickname), ''), m.username) is not null
+  on conflict (nickname_normalized, wechat_id)
+  do update set
+    original_nickname = excluded.original_nickname,
+    display_name = excluded.display_name,
+    source_context = excluded.source_context,
+    last_seen_at = now();
+
+  -- 从好友列表同步
+  insert into public.crm_wechat_name_snapshot
+    (nickname_normalized, original_nickname, wechat_id, source_table)
+  select
+    lower(regexp_replace(
+      coalesce(nullif(trim(c.remark), ''), nullif(trim(c.nickname), ''), c.username),
+      '[^a-z0-9\u4e00-\u9fff]', '', 'g'
+    )),
+    coalesce(nullif(trim(c.remark), ''), nullif(trim(c.nickname), ''), c.username),
+    c.username,
+    'wechat_contacts'
+  from wechat_raw.wechat_contacts c
+  where c.is_deleted = false
+  on conflict (nickname_normalized, wechat_id)
+  do update set
+    original_nickname = excluded.original_nickname,
+    last_seen_at = now();
+$$;
+
+-- 自动匹配：根据预设的 wechat_name 匹配 snapshot 中的 wxid，回填并写入绑定
+create or replace function public.auto_match_wechat_bindings()
+returns table(matched_type text, matched_name text, matched_wxid text, bind_id text)
+language plpgsql
+as $$
+declare
+  v_record record;
+  v_count int;
+begin
+  -- ========= 匹配员工 =========
+  for v_record in
+    select
+      u.id as user_id,
+      u.name as user_name,
+      u.wechat_name as seed_nickname,
+      sn.wechat_id as found_wxid,
+      sn.original_nickname as found_nickname,
+      sn.nickname_normalized as matched_nickname_key
+    from public.users u
+    join public.crm_wechat_name_snapshot sn
+      on sn.nickname_normalized = lower(regexp_replace(u.wechat_name, '[^a-z0-9\u4e00-\u9fff]', '', 'g'))
+    where u.wechat_id is null
+      and u.wechat_name is not null
+      and trim(u.wechat_name) != ''
+      and not exists (
+        -- 排除重名（同一昵称匹配到多个不同wxid）
+        select 1 from public.crm_wechat_name_snapshot sn2
+        where sn2.nickname_normalized = sn.nickname_normalized
+          and sn2.wechat_id != sn.wechat_id
+      )
+  loop
+    -- 安全检查①：该 wxid 是否已在绑定表中（已属于其他人）
+    if exists (select 1 from public.crm_wechat_binding where wechat_id = v_record.found_wxid) then
+      continue;
+    end if;
+
+    -- 安全检查②：该 wxid 是否已被其他用户占用（防止同名昵称的第二人被错误覆盖）
+    if exists (select 1 from public.users where wechat_id = v_record.found_wxid and id != v_record.user_id) then
+      continue;
+    end if;
+
+    -- 回填 users.wechat_id
+    update public.users
+    set wechat_id = v_record.found_wxid,
+        wechat_name = v_record.found_nickname
+    where id = v_record.user_id;
+
+    -- 写入绑定表
+    insert into public.crm_wechat_binding (wechat_id, wechat_name, bind_type, bind_id, match_source)
+    values (v_record.found_wxid, v_record.found_nickname, 'employee', v_record.user_id, 'nickname')
+    on conflict (wechat_id) do nothing;
+
+    -- 回填已有真实 wxid 的会话成员
+    update public.crm_wx_conversation_member
+    set member_type = 'employee',
+        employee_id = v_record.user_id,
+        is_internal = true,
+        updated_at = now()
+    where wechat_id = v_record.found_wxid
+      and member_type = 'external_unknown';
+
+    -- 迁移占位成员（name:xxx → 真实 wxid）
+    -- 先更新同会话中已存在的真实 wxid 条目（如果有），再删除占位条目避免唯一约束冲突
+    update public.crm_wx_conversation_member
+    set member_type = 'employee',
+        employee_id = v_record.user_id,
+        is_internal = true,
+        updated_at = now()
+    where wechat_id = v_record.found_wxid
+      and member_type = 'external_unknown';
+    -- 删除占位条目（其会话+wxid组合将被真实条目替代）
+    delete from public.crm_wx_conversation_member
+    where wechat_id = 'name:' || v_record.matched_nickname_key
+      and exists (
+        select 1 from public.crm_wx_conversation_member real
+        where real.wechat_id = v_record.found_wxid
+          and real.conversation_id = crm_wx_conversation_member.conversation_id
+      );
+    -- 剩余占位条目（没有冲突的）直接改键
+    update public.crm_wx_conversation_member
+    set wechat_id = v_record.found_wxid,
+        member_type = 'employee',
+        employee_id = v_record.user_id,
+        is_internal = true,
+        updated_at = now()
+    where wechat_id = 'name:' || v_record.matched_nickname_key
+      and member_type = 'external_unknown';
+
+    matched_type := 'employee';
+    matched_name := v_record.user_name;
+    matched_wxid := v_record.found_wxid;
+    bind_id := v_record.user_id;
+    return next;
+  end loop;
+
+  -- ========= 匹配客户联系人 =========
+  for v_record in
+    select
+      con.id as contact_id,
+      con.name as contact_name,
+      con.wechat_name as seed_nickname,
+      sn.wechat_id as found_wxid,
+      sn.original_nickname as found_nickname,
+      sn.nickname_normalized as matched_nickname_key
+    from public.crm_customer_contact con
+    join public.crm_wechat_name_snapshot sn
+      on sn.nickname_normalized = lower(regexp_replace(con.wechat_name, '[^a-z0-9\u4e00-\u9fff]', '', 'g'))
+    where con.wechat_id is null
+      and con.wechat_name is not null
+      and trim(con.wechat_name) != ''
+      and not exists (
+        select 1 from public.crm_wechat_name_snapshot sn2
+        where sn2.nickname_normalized = sn.nickname_normalized
+          and sn2.wechat_id != sn.wechat_id
+      )
+  loop
+    -- 安全检查①：该 wxid 是否已在绑定表中
+    if exists (select 1 from public.crm_wechat_binding where wechat_id = v_record.found_wxid) then
+      continue;
+    end if;
+
+    -- 安全检查②：该 wxid 是否已被其他联系人占用（防止同名昵称的第二人被错误覆盖）
+    if exists (select 1 from public.crm_customer_contact where wechat_id = v_record.found_wxid and id != v_record.contact_id) then
+      continue;
+    end if;
+
+    update public.crm_customer_contact
+    set wechat_id = v_record.found_wxid,
+        wechat_name = v_record.found_nickname
+    where id = v_record.contact_id;
+
+    insert into public.crm_wechat_binding (wechat_id, wechat_name, bind_type, bind_id, match_source)
+    values (v_record.found_wxid, v_record.found_nickname, 'customer_contact', v_record.contact_id, 'nickname')
+    on conflict (wechat_id) do nothing;
+
+    -- 回填已有真实 wxid 的会话成员
+    update public.crm_wx_conversation_member
+    set member_type = 'customer_contact',
+        contact_id = v_record.contact_id,
+        updated_at = now()
+    where wechat_id = v_record.found_wxid
+      and member_type = 'external_unknown';
+
+    -- 迁移占位成员（name:xxx → 真实 wxid）
+    update public.crm_wx_conversation_member
+    set member_type = 'customer_contact',
+        contact_id = v_record.contact_id,
+        updated_at = now()
+    where wechat_id = v_record.found_wxid
+      and member_type = 'external_unknown';
+    delete from public.crm_wx_conversation_member
+    where wechat_id = 'name:' || v_record.matched_nickname_key
+      and exists (
+        select 1 from public.crm_wx_conversation_member real
+        where real.wechat_id = v_record.found_wxid
+          and real.conversation_id = crm_wx_conversation_member.conversation_id
+      );
+    update public.crm_wx_conversation_member
+    set wechat_id = v_record.found_wxid,
+        member_type = 'customer_contact',
+        contact_id = v_record.contact_id,
+        updated_at = now()
+    where wechat_id = 'name:' || v_record.matched_nickname_key
+      and member_type = 'external_unknown';
+
+    matched_type := 'customer_contact';
+    matched_name := v_record.contact_name;
+    matched_wxid := v_record.found_wxid;
+    bind_id := v_record.contact_id;
+    return next;
+  end loop;
+
+  -- ========= 收集重名冲突 =========
+  insert into public.crm_wechat_unresolved_nickname
+    (nickname, candidate_wxids, status)
+  select
+    u.wechat_name,
+    jsonb_agg(distinct jsonb_build_object(
+      'wxid', sn.wechat_id,
+      'nickname', sn.original_nickname,
+      'source', sn.source_table
+    )),
+    'pending'
+  from public.users u
+  join public.crm_wechat_name_snapshot sn
+    on sn.nickname_normalized = lower(regexp_replace(u.wechat_name, '[^a-z0-9\u4e00-\u9fff]', '', 'g'))
+  where u.wechat_id is null
+    and u.wechat_name is not null
+    and trim(u.wechat_name) != ''
+  group by u.wechat_name
+  having count(distinct sn.wechat_id) > 1
+  on conflict (nickname) do nothing;
+
+  insert into public.crm_wechat_unresolved_nickname
+    (nickname, candidate_wxids, status)
+  select
+    con.wechat_name,
+    jsonb_agg(distinct jsonb_build_object(
+      'wxid', sn.wechat_id,
+      'nickname', sn.original_nickname,
+      'source', sn.source_table
+    )),
+    'pending'
+  from public.crm_customer_contact con
+  join public.crm_wechat_name_snapshot sn
+    on sn.nickname_normalized = lower(regexp_replace(con.wechat_name, '[^a-z0-9\u4e00-\u9fff]', '', 'g'))
+  where con.wechat_id is null
+    and con.wechat_name is not null
+    and trim(con.wechat_name) != ''
+  group by con.wechat_name
+  having count(distinct sn.wechat_id) > 1
+  on conflict (nickname) do nothing;
+end;
 $$;
 
 -- ========= OPEN RLS POLICIES (anon + authenticated) =========

@@ -314,7 +314,12 @@ class CrmWxProjectionService:
                 message_context["my_wechat_id"],
                 message_context["peer_wechat_id"],
                 message_context["peer_display_name"],
+                peer_name_tokens=message_context.get("peer_name_tokens"),
             )
+
+        # 刷新昵称快照 + 触发自动绑定匹配
+        self.contact_sync_service.refresh_wechat_name_snapshot()
+        self.contact_sync_service.auto_match_wechat_bindings()
 
     def _build_message_context(
         self,
@@ -928,6 +933,7 @@ class CrmWxProjectionService:
         my_wechat_id: str | None,
         peer_wechat_id: str | None,
         peer_display_name: str | None,
+        peer_name_tokens: list[str] | None = None,
     ) -> None:
         now_iso = utc_now_iso()
         rows: list[dict[str, Any]] = []
@@ -968,12 +974,64 @@ class CrmWxProjectionService:
                     "updated_at": now_iso,
                 }
             )
+        elif peer_name_tokens:
+            # 转发消息场景：对方只有昵称没有 wxid。
+            # 尝试从 name_snapshot 反查 wxid，找不到则用 name:昵称 作为占位 key。
+            seen: set[str] = set()
+            for name in peer_name_tokens:
+                clean_name = safe_str(name)
+                if not clean_name:
+                    continue
+                normalized = self._normalize_person_name_key(clean_name)
+                if not normalized or normalized in seen:
+                    continue
+                seen.add(normalized)
+
+                # 从快照反查 wxid
+                resolved_wxid = self._resolve_wxid_by_nickname(guid, clean_name)
+                if resolved_wxid:
+                    wechat_id = resolved_wxid
+                    display_name = clean_name
+                else:
+                    # 占位 key：后续 auto_match 匹配到真实 wxid 后可以更新
+                    wechat_id = f"name:{normalized}"
+                    display_name = clean_name
+
+                rows.append(
+                    {
+                        "conversation_id": conversation_id,
+                        "wechat_id": wechat_id,
+                        "display_name": display_name,
+                        "member_type": "external_unknown",
+                        "contact_id": None,
+                        "employee_id": None,
+                        "is_internal": False,
+                        "updated_at": now_iso,
+                    }
+                )
         if rows:
             self.supabase.upsert(
                 "crm_wx_conversation_member",
                 rows,
                 on_conflict="conversation_id,wechat_id",
             )
+
+    def _resolve_wxid_by_nickname(self, guid: str, nickname: str) -> str | None:
+        """从 name_snapshot 反查昵称对应的唯一 wxid。多个匹配时返回 None（无法确定）。"""
+        normalized = self._normalize_person_name_key(nickname)
+        if not normalized:
+            return None
+        rows = self.supabase.select(
+            "crm_wechat_name_snapshot",
+            columns="wechat_id",
+            filters={"nickname_normalized": f"eq.{normalized}"},
+            order="last_seen_at.desc",
+            limit=10,
+        )
+        if not rows:
+            return None
+        wxids = list(dict.fromkeys(safe_str(r.get("wechat_id")) for r in rows if safe_str(r.get("wechat_id"))))
+        return wxids[0] if len(wxids) == 1 else None  # 唯一匹配才返回
 
     def _sync_group_members(
         self,

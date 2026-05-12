@@ -466,6 +466,18 @@ class ContactSyncService:
     def resolve_room_display_name(self, guid: str, room_username: str | None, fallback: str | None = None) -> str | None:
         return self.resolve_room_names(guid, room_username, fallback).get("display_name")
 
+    def refresh_wechat_name_snapshot(self) -> None:
+        try:
+            self.supabase.rpc("refresh_wechat_name_snapshot")
+        except Exception:
+            logger.exception("refresh_wechat_name_snapshot rpc failed")
+
+    def auto_match_wechat_bindings(self) -> None:
+        try:
+            self.supabase.rpc("auto_match_wechat_bindings")
+        except Exception:
+            logger.exception("auto_match_wechat_bindings rpc failed")
+
     def resolve_chatroom_member_display_name(
         self,
         guid: str,

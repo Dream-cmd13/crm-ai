@@ -7,6 +7,45 @@ export interface WeChatUserMapping {
   mappedName?: string;
 }
 
+export interface WechatBinding {
+  id: number;
+  wechatId: string;
+  wechatName?: string;
+  bindType: 'employee' | 'customer_contact';
+  bindId: string;
+  bindName?: string;       // JOIN getUserName / getContactName
+  matchSource: string;
+  isVerified: boolean;
+  createdAt: string;
+}
+
+export interface ConversationMember {
+  id: number;
+  conversationId: number;
+  wechatId: string;
+  displayName?: string;
+  memberType: 'customer_contact' | 'employee' | 'external_unknown';
+  contactId?: string;
+  employeeId?: string;
+  isInternal: boolean;
+  // 来自 JOIN 的绑定信息
+  binding?: WechatBinding;
+}
+
+export interface UnresolvedNickname {
+  id: number;
+  nickname: string;
+  candidateWxids: CandidateWxid[];
+  status: 'pending' | 'resolved' | 'ignored';
+  createdAt: string;
+}
+
+export interface CandidateWxid {
+  wxid: string;
+  nickname: string;
+  source: string;
+}
+
 export interface ChatMessage {
   id: string;
   sender: string;

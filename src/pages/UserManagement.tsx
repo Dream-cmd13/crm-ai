@@ -85,6 +85,7 @@ export default function UserManagement() {
     { key: 'english_name', label: '英文名' },
     { key: 'role', label: '角色', type: 'select', options: ['Admin', 'User'] },
     { key: 'department_id', label: '部门', type: 'select', options: departments.map(d => ({ value: d.id, label: d.name })) },
+    { key: 'wechat_name', label: '微信昵称', placeholder: '员工微信昵称，用于自动匹配' },
   ];
 
   const handleSaveUser = async (data: any) => {
