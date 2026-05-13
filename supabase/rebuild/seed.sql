@@ -107,6 +107,13 @@ begin
 end;
 $$;
 
+-- 关联 public.users.auth_id ↔ auth.users.id（种子数据使用了相同的 ID）
+update public.users u
+set auth_id = a.id
+from auth.users a
+where u.id = a.id::text
+  and u.auth_id is null;
+
 insert into public.departments(id, name, roles, role_members, sub_departments, okrs, reviews) values
   ('dept-fae', 'FAE部', '["FAE工程师"]'::jsonb, '{}'::jsonb, '[]'::jsonb, '{}'::jsonb, '{}'::jsonb),
   ('dept-product', '产品部', '["产品工程师","产品报价工程师","产品开发工程师","技术员","PE工程师","IE工程师"]'::jsonb, '{}'::jsonb, '[]'::jsonb, '{}'::jsonb, '{}'::jsonb),

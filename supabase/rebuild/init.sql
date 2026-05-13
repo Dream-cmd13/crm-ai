@@ -621,6 +621,12 @@ create table if not exists public.crm_customer_contact (
   updated_at timestamptz not null default now()
 );
 
+alter table public.crm_customer_contact
+  add column if not exists wechat_name text;
+
+create index if not exists idx_crm_customer_contact_wechat_name
+  on public.crm_customer_contact(wechat_name);
+
 comment on column public.crm_customer_contact.wechat_id is '联系人微信ID（系统自动回填）';
 comment on column public.crm_customer_contact.wechat_name is '联系人微信昵称（人工预设，用于匹配）';
 
@@ -1152,10 +1158,10 @@ create index if not exists idx_crm_wechat_binding_bind
   on public.crm_wechat_binding (bind_type, bind_id);
 
 -- 昵称快照表（机器人从群成员/好友列表采集的昵称↔wxid映射）
+-- 匹配规则：用户填写的 wechat_name 与 original_nickname 完全一致（含大小写、特殊字符）才匹配
 create table if not exists public.crm_wechat_name_snapshot (
   id bigint generated always as identity primary key,
-  nickname_normalized text not null,
-  original_nickname text,
+  original_nickname text not null,
   display_name text,
   wechat_id text not null,
   source_table text not null,
@@ -1163,11 +1169,11 @@ create table if not exists public.crm_wechat_name_snapshot (
   first_seen_at timestamptz not null default now(),
   last_seen_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
-  unique (nickname_normalized, wechat_id)
+  unique (original_nickname, wechat_id)
 );
 
 create index if not exists idx_crm_wx_name_snapshot_lookup
-  on public.crm_wechat_name_snapshot (nickname_normalized);
+  on public.crm_wechat_name_snapshot (original_nickname);
 create index if not exists idx_crm_wx_name_snapshot_wxid
   on public.crm_wechat_name_snapshot (wechat_id);
 
@@ -1184,8 +1190,23 @@ create table if not exists public.crm_wechat_unresolved_nickname (
   resolved_by text,
   resolved_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (nickname)
 );
+
+do $$
+begin
+  if to_regclass('public.crm_wechat_unresolved_nickname') is not null
+     and not exists (
+       select 1 from pg_constraint
+       where conname = 'crm_wechat_unresolved_nickname_nickname_key'
+         and conrelid = 'public.crm_wechat_unresolved_nickname'::regclass
+     ) then
+    alter table public.crm_wechat_unresolved_nickname
+      add constraint crm_wechat_unresolved_nickname_nickname_key unique (nickname);
+  end if;
+end;
+$$;
 
 create index if not exists idx_crm_wechat_unresolved_status
   on public.crm_wechat_unresolved_nickname (status, created_at desc);
@@ -2067,51 +2088,54 @@ end
 $$;
 
 -- ========= WECHAT BINDING RPC FUNCTIONS =========
--- 从群成员和好友列表刷新昵称快照表
+
+-- 从群成员和好友列表刷新昵称快照表（源表不存在时静默跳过）
 create or replace function public.refresh_wechat_name_snapshot()
 returns void
-language sql
+language plpgsql
 as $$
-  -- 从群成员表同步
-  insert into public.crm_wechat_name_snapshot
-    (nickname_normalized, original_nickname, display_name, wechat_id, source_table, source_context)
-  select
-    lower(regexp_replace(
-      coalesce(nullif(trim(m.nickname), ''), m.username),
-      '[^a-z0-9\u4e00-\u9fff]', '', 'g'
-    )),
-    m.nickname,
-    m.display_name,
-    m.username,
-    'wechat_chatroom_members',
-    m.room_username
-  from wechat_raw.wechat_chatroom_members m
-  where m.is_deleted = false
-    and coalesce(nullif(trim(m.nickname), ''), m.username) is not null
-  on conflict (nickname_normalized, wechat_id)
-  do update set
-    original_nickname = excluded.original_nickname,
-    display_name = excluded.display_name,
-    source_context = excluded.source_context,
-    last_seen_at = now();
+begin
+  if to_regclass('wechat_raw.wechat_chatroom_members') is not null then
+    insert into public.crm_wechat_name_snapshot
+      (original_nickname, display_name, wechat_id, source_table, source_context)
+    select distinct on (
+      trim(coalesce(nullif(trim(m.nickname), ''), m.username)),
+      m.username
+    )
+      trim(coalesce(nullif(trim(m.nickname), ''), m.username)),
+      m.display_name,
+      m.username,
+      'wechat_chatroom_members',
+      m.room_username
+    from wechat_raw.wechat_chatroom_members m
+    where m.is_deleted = false
+      and coalesce(nullif(trim(m.nickname), ''), m.username) is not null
+    order by 1, 3, m.updated_at desc nulls last
+    on conflict (original_nickname, wechat_id)
+    do update set
+      display_name = excluded.display_name,
+      source_context = excluded.source_context,
+      last_seen_at = now();
+  end if;
 
-  -- 从好友列表同步
-  insert into public.crm_wechat_name_snapshot
-    (nickname_normalized, original_nickname, wechat_id, source_table)
-  select
-    lower(regexp_replace(
-      coalesce(nullif(trim(c.remark), ''), nullif(trim(c.nickname), ''), c.username),
-      '[^a-z0-9\u4e00-\u9fff]', '', 'g'
-    )),
-    coalesce(nullif(trim(c.remark), ''), nullif(trim(c.nickname), ''), c.username),
-    c.username,
-    'wechat_contacts'
-  from wechat_raw.wechat_contacts c
-  where c.is_deleted = false
-  on conflict (nickname_normalized, wechat_id)
-  do update set
-    original_nickname = excluded.original_nickname,
-    last_seen_at = now();
+  if to_regclass('wechat_raw.wechat_contacts') is not null then
+    insert into public.crm_wechat_name_snapshot
+      (original_nickname, wechat_id, source_table)
+    select distinct on (
+      trim(coalesce(nullif(trim(c.remark), ''), nullif(trim(c.nickname), ''), c.username)),
+      c.username
+    )
+      trim(coalesce(nullif(trim(c.remark), ''), nullif(trim(c.nickname), ''), c.username)),
+      c.username,
+      'wechat_contacts'
+    from wechat_raw.wechat_contacts c
+    where c.is_deleted = false
+    order by 1, 2, c.updated_at desc nulls last
+    on conflict (original_nickname, wechat_id)
+    do update set
+      last_seen_at = now();
+  end if;
+end;
 $$;
 
 -- 自动匹配：根据预设的 wechat_name 匹配 snapshot 中的 wxid，回填并写入绑定
@@ -2131,17 +2155,17 @@ begin
       u.wechat_name as seed_nickname,
       sn.wechat_id as found_wxid,
       sn.original_nickname as found_nickname,
-      sn.nickname_normalized as matched_nickname_key
+      sn.original_nickname as matched_nickname_key
     from public.users u
     join public.crm_wechat_name_snapshot sn
-      on sn.nickname_normalized = lower(regexp_replace(u.wechat_name, '[^a-z0-9\u4e00-\u9fff]', '', 'g'))
+      on sn.original_nickname = trim(u.wechat_name)
     where u.wechat_id is null
       and u.wechat_name is not null
       and trim(u.wechat_name) != ''
       and not exists (
         -- 排除重名（同一昵称匹配到多个不同wxid）
         select 1 from public.crm_wechat_name_snapshot sn2
-        where sn2.nickname_normalized = sn.nickname_normalized
+        where sn2.original_nickname = sn.original_nickname
           and sn2.wechat_id != sn.wechat_id
       )
   loop
@@ -2217,16 +2241,16 @@ begin
       con.wechat_name as seed_nickname,
       sn.wechat_id as found_wxid,
       sn.original_nickname as found_nickname,
-      sn.nickname_normalized as matched_nickname_key
+      sn.original_nickname as matched_nickname_key
     from public.crm_customer_contact con
     join public.crm_wechat_name_snapshot sn
-      on sn.nickname_normalized = lower(regexp_replace(con.wechat_name, '[^a-z0-9\u4e00-\u9fff]', '', 'g'))
+      on sn.original_nickname = trim(con.wechat_name)
     where con.wechat_id is null
       and con.wechat_name is not null
       and trim(con.wechat_name) != ''
       and not exists (
         select 1 from public.crm_wechat_name_snapshot sn2
-        where sn2.nickname_normalized = sn.nickname_normalized
+        where sn2.original_nickname = sn.original_nickname
           and sn2.wechat_id != sn.wechat_id
       )
   loop
@@ -2299,13 +2323,15 @@ begin
     'pending'
   from public.users u
   join public.crm_wechat_name_snapshot sn
-    on sn.nickname_normalized = lower(regexp_replace(u.wechat_name, '[^a-z0-9\u4e00-\u9fff]', '', 'g'))
+    on sn.original_nickname = trim(u.wechat_name)
   where u.wechat_id is null
     and u.wechat_name is not null
     and trim(u.wechat_name) != ''
   group by u.wechat_name
   having count(distinct sn.wechat_id) > 1
-  on conflict (nickname) do nothing;
+  on conflict (nickname) do update
+    set candidate_wxids = excluded.candidate_wxids,
+        updated_at = now();
 
   insert into public.crm_wechat_unresolved_nickname
     (nickname, candidate_wxids, status)
@@ -2319,15 +2345,46 @@ begin
     'pending'
   from public.crm_customer_contact con
   join public.crm_wechat_name_snapshot sn
-    on sn.nickname_normalized = lower(regexp_replace(con.wechat_name, '[^a-z0-9\u4e00-\u9fff]', '', 'g'))
+    on sn.original_nickname = trim(con.wechat_name)
   where con.wechat_id is null
     and con.wechat_name is not null
     and trim(con.wechat_name) != ''
   group by con.wechat_name
   having count(distinct sn.wechat_id) > 1
-  on conflict (nickname) do nothing;
+  on conflict (nickname) do update
+    set candidate_wxids = excluded.candidate_wxids,
+        updated_at = now();
 end;
 $$;
+
+-- ========= AUTO-MATCH TRIGGERS (前端填写 wechat_name 后自动触发匹配) =========
+create or replace function public.trg_on_wechat_name_change()
+returns trigger
+language plpgsql
+security definer
+as $$
+begin
+  -- 只在 wechat_name 从空→有值 或 值变化时触发
+  if NEW.wechat_name is not null
+     and (TG_OP = 'INSERT' or OLD.wechat_name is null or OLD.wechat_name <> NEW.wechat_name) then
+    -- 先确保快照是最新的
+    perform public.refresh_wechat_name_snapshot();
+    -- 再执行自动匹配
+    perform public.auto_match_wechat_bindings();
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_users_wechat_name on public.users;
+create trigger trg_users_wechat_name
+  after insert or update of wechat_name on public.users
+  for each row execute function public.trg_on_wechat_name_change();
+
+drop trigger if exists trg_contact_wechat_name on public.crm_customer_contact;
+create trigger trg_contact_wechat_name
+  after insert or update of wechat_name on public.crm_customer_contact
+  for each row execute function public.trg_on_wechat_name_change();
 
 -- ========= OPEN RLS POLICIES (anon + authenticated) =========
 create or replace function app_meta.apply_open_policies(target_table text)

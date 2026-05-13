@@ -994,7 +994,8 @@ class CrmWxProjectionService:
                     display_name = clean_name
                 else:
                     # 占位 key：后续 auto_match 匹配到真实 wxid 后可以更新
-                    wechat_id = f"name:{normalized}"
+                    # 使用 trim-only 与 snapshot.original_nickname 保持一致
+                    wechat_id = f"name:{safe_str(clean_name).strip()}"
                     display_name = clean_name
 
                 rows.append(
@@ -1018,16 +1019,20 @@ class CrmWxProjectionService:
 
     def _resolve_wxid_by_nickname(self, guid: str, nickname: str) -> str | None:
         """从 name_snapshot 反查昵称对应的唯一 wxid。多个匹配时返回 None（无法确定）。"""
-        normalized = self._normalize_person_name_key(nickname)
-        if not normalized:
+        name_key = safe_str(nickname).strip()
+        if not name_key:
             return None
-        rows = self.supabase.select(
-            "crm_wechat_name_snapshot",
-            columns="wechat_id",
-            filters={"nickname_normalized": f"eq.{normalized}"},
-            order="last_seen_at.desc",
-            limit=10,
-        )
+        try:
+            rows = self.supabase.select(
+                "crm_wechat_name_snapshot",
+                columns="wechat_id",
+                filters={"original_nickname": f"eq.{name_key}"},
+                order="last_seen_at.desc",
+                limit=10,
+            )
+        except Exception:
+            # 表不存在或查询失败时返回 None，降级为 name:xxx 占位符
+            return None
         if not rows:
             return None
         wxids = list(dict.fromkeys(safe_str(r.get("wechat_id")) for r in rows if safe_str(r.get("wechat_id"))))

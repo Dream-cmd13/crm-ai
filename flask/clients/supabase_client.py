@@ -183,6 +183,14 @@ class SupabaseClient:
             return response.json()
         return None
 
+    def rpc(self, function_name: str, *, params: dict[str, Any] | None = None):
+        """Call a Postgres function via Supabase RPC (POST /rpc/<name>)."""
+        response = self._request("POST", f"rpc/{function_name}", json_body=params or {})
+        try:
+            return response.json()
+        except Exception:
+            return None
+
     def delete(self, table: str, *, filters=None, returning: str = "minimal"):
         headers = {"Prefer": f"return={returning}"}
         response = self._request("DELETE", table, params=filters, headers=headers)

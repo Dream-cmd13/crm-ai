@@ -2,29 +2,19 @@
 """
 Supabase 数据迁移脚本: 从 Supabase A (有数据) 复制所有 CRM-WeChat 表到 Supabase B (空库).
 
-用法一: 使用 PostgreSQL 连接字符串 (推荐)
-  1. 获取连接字符串:
+使用前:
+  1. 填写下方 SOURCE_DB_URL / TARGET_DB_URL
      Supabase Cloud → Dashboard → Project Settings → Database → Connection string
-     自建 Supabase → 自行获取 postgres 连接信息
+     格式: postgresql://postgres:PASSWORD@db.PROJECT_REF.supabase.co:5432/postgres
 
   2. 运行:
-     set SOURCE_DATABASE_URL=postgresql://postgres:PASS@db.xxx.supabase.co:5432/postgres
-     set TARGET_DATABASE_URL=postgresql://postgres:PASS@db.yyy.supabase.co:5432/postgres
-     python migrate_supabase.py --dry-run    # 试运行
+     python migrate_supabase.py --dry-run    # 试运行 (检查连通性和行数)
      python migrate_supabase.py              # 执行迁移
 
-用法二: 使用 Supabase 项目 URL + 数据库密码
-  需要提供 Supabase 项目 URL 和数据库密码 (不是 service_role key):
-     python migrate_supabase.py \
-       --source-url https://xxx.supabase.co --source-db-pass PASSWORD_A \
-       --target-url https://yyy.supabase.co --target-db-pass PASSWORD_B
-
-  数据库密码在 Supabase Dashboard → Project Settings → Database 页面获取.
-
-用法三: 混合使用
-  python migrate_supabase.py \
-    --source postgresql://... \
-    --target-url https://yyy.supabase.co --target-db-pass PASSWORD_B
+  3. 其他选项:
+     python migrate_supabase.py --list-tables        # 列出所有表
+     python migrate_supabase.py --skip-schema        # 目标库已有表结构
+     python migrate_supabase.py --table schema.table # 只迁移一张表
 
 依赖: pip install psycopg2-binary
 """
@@ -33,7 +23,6 @@ import argparse
 import os
 import re
 import sys
-import textwrap
 import time
 
 try:
@@ -44,6 +33,17 @@ except ImportError:
     print("请先安装 psycopg2: pip install psycopg2-binary")
     sys.exit(1)
 
+
+# ============================================================================
+# ★ 在这里填写两个数据库的连接信息 ★
+# ============================================================================
+# 从 Supabase Dashboard → Project Settings → Database → Connection string 获取
+# 格式: postgresql://postgres:PASSWORD@db.PROJECT_REF.supabase.co:5432/postgres
+
+SOURCE_DB_URL = "postgresql://postgres:YOUR_SOURCE_PASSWORD@db.xxx.supabase.co:5432/postgres"
+TARGET_DB_URL = "postgresql://postgres:YOUR_TARGET_PASSWORD@db.yyy.supabase.co:5432/postgres"
+
+# ============================================================================
 
 SCHEMA_SQL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
 
@@ -94,73 +94,8 @@ ALL_TABLES = [f"{s}.{t}" for s, t, _, _ in MIGRATION_TABLES]
 
 
 # ============================================================================
-# 连接字符串解析
+# 连接管理
 # ============================================================================
-
-def supabase_url_to_db_host(project_url: str) -> str:
-    """从 Supabase 项目 URL 推导数据库主机名."""
-    # https://xxx.supabase.co → db.xxx.supabase.co
-    # https://mudyunyuvccdxgfnmmxg.supabase.co → db.mudyunyuvccdxgfnmmxg.supabase.co
-    m = re.match(r"https?://([^.]+)\.supabase\.(?:co|com)", project_url)
-    if m:
-        return f"db.{m.group(1)}.supabase.co"
-    # 自建实例: http://47.115.252.150 → 直连 47.115.252.150
-    m = re.match(r"https?://([^/:]+)", project_url)
-    if m:
-        return m.group(1)
-    raise ValueError(f"无法从 URL 提取数据库主机: {project_url}")
-
-
-def build_conn_string(*, url: str | None = None, db_pass: str | None = None,
-                      conn_string: str | None = None) -> str:
-    """构建 PostgreSQL 连接字符串.
-
-    支持三种输入:
-    1. 直接提供 postgresql:// 连接字符串
-    2. 提供 Supabase 项目 URL + 数据库密码
-    3. 从环境变量 SOURCE_DATABASE_URL / TARGET_DATABASE_URL 读取
-    """
-    # 优先使用连接字符串
-    if conn_string:
-        cs = conn_string.strip().strip('"').strip("'")
-        if cs.startswith("postgresql://") or cs.startswith("postgres://"):
-            return cs
-        # 可能是仅密码 (与 url 配合)
-        if cs and not cs.startswith("http"):
-            db_pass = cs
-            conn_string = None
-
-    if conn_string and (conn_string.startswith("http://") or conn_string.startswith("https://")):
-        url = conn_string
-
-    # 从 Supabase URL + 密码构建
-    if url and db_pass:
-        url = url.strip().strip('"').strip("'")
-        db_pass = db_pass.strip().strip('"').strip("'")
-        host = supabase_url_to_db_host(url)
-        # 使用连接池端口 6543 (更稳定)
-        conn_str = f"postgresql://postgres:{db_pass}@{host}:5432/postgres"
-        return conn_str
-
-    # 只有 URL 没有密码
-    if url and not db_pass:
-        print(f"\n错误: 提供了 Supabase URL 但缺少数据库密码.")
-        print(f"  URL: {url}")
-        print(f"  请在 Supabase Dashboard → Project Settings → Database 获取密码.")
-        print(f"  然后使用 --source-db-pass 或 --target-db-pass 参数传入.")
-        sys.exit(1)
-
-    # 只有密码没有 URL
-    if db_pass and not url:
-        print(f"\n错误: 提供了数据库密码但缺少 Supabase URL.")
-        print(f"  请使用 --source-url 或 --target-url 参数传入.")
-        sys.exit(1)
-
-    print(f"\n错误: 无法构建数据库连接字符串. 请提供:")
-    print(f"  1) --source / --target (postgresql:// 连接字符串), 或")
-    print(f"  2) --source-url / --target-url (Supabase 项目 URL) + --source-db-pass / --target-db-pass")
-    sys.exit(1)
-
 
 def parse_conn_string(conn_str: str) -> dict:
     """解析 PostgreSQL 连接字符串."""
@@ -175,6 +110,7 @@ def parse_conn_string(conn_str: str) -> dict:
     m = re.match(pattern, conn_str)
     if not m:
         print(f"错误: 无法解析连接字符串: {conn_str}")
+        print(f"格式: postgresql://postgres:PASSWORD@db.xxx.supabase.co:5432/postgres")
         sys.exit(1)
     return {
         "host": m.group("host"),
@@ -257,6 +193,69 @@ def get_identity_sequence(cursor, schema: str, table: str) -> str | None:
 # Schema 建表
 # ============================================================================
 
+def split_sql_statements(ddl: str) -> list:
+    """分割 DDL 为独立语句, 正确处理 dollar-quoted 块 (如 DO $$ ... $$)."""
+    statements = []
+    buf = []
+    depth = 0          # dollar-quote 嵌套深度
+    dollar_tag = None  # 当前 dollar-quote 的标签 (如 $tag$)
+    dollar_match = None
+
+    for line in ddl.splitlines(keepends=True):
+        stripped = line.strip()
+        # 跳过纯注释行
+        if stripped.startswith("--"):
+            continue
+
+        i = 0
+        while i < len(line):
+            if depth > 0:
+                # 在 dollar-quote 内部, 寻找结束标签
+                end_idx = line.find(dollar_tag, i)
+                if end_idx != -1:
+                    depth -= 1
+                    buf.append(line[i:end_idx + len(dollar_tag)])
+                    i = end_idx + len(dollar_tag)
+                    dollar_tag = None if depth == 0 else dollar_tag
+                else:
+                    buf.append(line[i:])
+                    i = len(line)
+            elif depth < 0:
+                # 不应该出现
+                depth = 0
+            else:
+                # 在 dollar-quote 外部
+                semicol = line.find(";", i)
+                dollar_match = re.search(r"(\$[a-zA-Z_]*\$)", line[i:])
+                dollar_pos = (i + dollar_match.start()) if dollar_match else -1
+
+                if dollar_match and (semicol == -1 or dollar_pos < semicol):
+                    # dollar-quote 先出现
+                    buf.append(line[i:dollar_pos + len(dollar_match.group(1))])
+                    depth = 1
+                    dollar_tag = dollar_match.group(1)
+                    i = dollar_pos + len(dollar_match.group(1))
+                elif semicol != -1:
+                    # 分号先出现, 语句结束
+                    buf.append(line[i:semicol])
+                    stmt = "".join(buf).strip()
+                    if stmt:
+                        statements.append(stmt)
+                    buf = []
+                    i = semicol + 1
+                else:
+                    # 没有分号也没有 dollar-quote
+                    buf.append(line[i:])
+                    i = len(line)
+
+    # 最后残留
+    stmt = "".join(buf).strip()
+    if stmt:
+        statements.append(stmt)
+
+    return statements
+
+
 def run_schema_sql(conn, dry_run: bool = False):
     """在目标库执行 schema.sql 建表."""
     if dry_run:
@@ -270,11 +269,7 @@ def run_schema_sql(conn, dry_run: bool = False):
     with open(SCHEMA_SQL_PATH, "r", encoding="utf-8") as f:
         ddl = f.read()
 
-    statements = []
-    for stmt in ddl.split(";"):
-        stripped = stmt.strip()
-        if stripped:
-            statements.append(stripped)
+    statements = split_sql_statements(ddl)
 
     print(f"执行 schema.sql ({len(statements)} 条语句)...")
     cursor = conn.cursor()
@@ -475,56 +470,23 @@ def reset_all_sequences(conn):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="从 Supabase A 迁移数据到 Supabase B (CRM-WeChat 全部表)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=textwrap.dedent("""\
-            示例:
-              # 方式1: 使用连接字符串
-              python migrate_supabase.py --source postgresql://... --target postgresql://...
-
-              # 方式2: 使用 Supabase URL + 数据库密码
-              python migrate_supabase.py \\
-                --source-url https://xxx.supabase.co --source-db-pass PASS_A \\
-                --target-url https://yyy.supabase.co --target-db-pass PASS_B
-
-              # 试运行
-              python migrate_supabase.py --source ... --target ... --dry-run
-
-              # 只迁移一张表
-              python migrate_supabase.py --source ... --target ... --table wechat_raw.wechat_contacts
-            """),
-    )
-
-    # 连接参数
-    conn_group = parser.add_argument_group("数据库连接")
-    conn_group.add_argument("--source", "-s",
-                            help="源 PostgreSQL 连接字符串 (postgresql://...)")
-    conn_group.add_argument("--target", "-t",
-                            help="目标 PostgreSQL 连接字符串 (postgresql://...)")
-    conn_group.add_argument("--source-url",
-                            help="源 Supabase 项目 URL (如 https://xxx.supabase.co)")
-    conn_group.add_argument("--target-url",
-                            help="目标 Supabase 项目 URL")
-    conn_group.add_argument("--source-db-pass",
-                            help="源数据库密码 (配合 --source-url 使用)")
-    conn_group.add_argument("--target-db-pass",
-                            help="目标数据库密码 (配合 --target-url 使用)")
-
-    # 运行参数
-    run_group = parser.add_argument_group("运行选项")
-    run_group.add_argument("--dry-run", "-n", action="store_true",
-                           help="试运行: 只检查连通性和行数, 不修改数据")
-    run_group.add_argument("--skip-schema", action="store_true",
-                           help="跳过建表步骤 (目标库已有表结构)")
-    run_group.add_argument("--no-truncate", action="store_true",
-                           help="不 TRUNCATE 目标表 (增量追加模式)")
-    run_group.add_argument("--table",
-                           help="只迁移指定表 (如 wechat_raw.wechat_contacts)")
-    run_group.add_argument("--batch-size", type=int, default=5000,
-                           help="每批插入行数 (默认 5000)")
-    run_group.add_argument("--list-tables", action="store_true",
-                           help="列出所有待迁移表并退出")
-
+        description="从 Supabase A 迁移数据到 Supabase B (CRM-WeChat 全部表)")
+    parser.add_argument("--source", "-s",
+                        help="源 PostgreSQL 连接字符串 (覆盖脚本内 SOURCE_DB_URL)")
+    parser.add_argument("--target", "-t",
+                        help="目标 PostgreSQL 连接字符串 (覆盖脚本内 TARGET_DB_URL)")
+    parser.add_argument("--dry-run", "-n", action="store_true",
+                        help="试运行: 只检查连通性和行数, 不修改数据")
+    parser.add_argument("--skip-schema", action="store_true",
+                        help="跳过建表步骤 (目标库已有表结构)")
+    parser.add_argument("--no-truncate", action="store_true",
+                        help="不 TRUNCATE 目标表 (增量追加模式)")
+    parser.add_argument("--table",
+                        help="只迁移指定表 (如 wechat_raw.wechat_contacts)")
+    parser.add_argument("--batch-size", type=int, default=5000,
+                        help="每批插入行数 (默认 5000)")
+    parser.add_argument("--list-tables", action="store_true",
+                        help="列出所有待迁移表并退出")
     args = parser.parse_args()
 
     if args.list_tables:
@@ -534,17 +496,15 @@ def main():
             print(f"  {i:2d}. {s}.{t}  (PK: {pk_str}, ID: {ik})")
         return
 
-    # 构建连接字符串
-    source_cs = build_conn_string(
-        conn_string=args.source or os.environ.get("SOURCE_DATABASE_URL"),
-        url=args.source_url or os.environ.get("SOURCE_SUPABASE_URL"),
-        db_pass=args.source_db_pass or os.environ.get("SOURCE_DB_PASSWORD"),
-    )
-    target_cs = build_conn_string(
-        conn_string=args.target or os.environ.get("TARGET_DATABASE_URL"),
-        url=args.target_url or os.environ.get("TARGET_SUPABASE_URL"),
-        db_pass=args.target_db_pass or os.environ.get("TARGET_DB_PASSWORD"),
-    )
+    source_cs = args.source or SOURCE_DB_URL
+    target_cs = args.target or TARGET_DB_URL
+
+    # 检查是否填写了密码
+    for name, cs in [("源", source_cs), ("目标", target_cs)]:
+        if "YOUR_" in cs or "PASSWORD@" in cs.upper() and "YOUR" in cs:
+            print(f"错误: 请在脚本开头的 {name}_DB_URL 中填写真实的数据库连接字符串!")
+            print(f"当前值: {cs}")
+            sys.exit(1)
 
     mode = "DRY RUN" if args.dry_run else "MIGRATION"
     print("=" * 60)

@@ -303,6 +303,8 @@ class ContactSyncService:
             )
 
         self.save_sync_state(guid, current_contact_seq, current_room_seq, sync_kind=sync_kind)
+        self.refresh_wechat_name_snapshot()
+        self.auto_match_wechat_bindings()
 
     def handle_contact_change_event(self, guid: str, notify_type: int, payload: dict[str, Any]) -> None:
         if not guid:
@@ -1160,6 +1162,9 @@ class ContactSyncService:
                 chatroom_payload,
                 on_conflict="guid,room_username",
             )
+
+        self.refresh_wechat_name_snapshot()
+        self.auto_match_wechat_bindings()
 
     def _fetch_room_profile(self, guid: str, room_username: str) -> dict[str, Any]:
         room_contact_result = self.wechat_client.get_contact(guid, username_list=[room_username], room_username="")

@@ -883,8 +883,7 @@ create index if not exists idx_crm_wechat_binding_bind
 
 create table if not exists public.crm_wechat_name_snapshot (
     id bigint generated always as identity primary key,
-    nickname_normalized text not null,
-    original_nickname text,
+    original_nickname text not null,
     display_name text,
     wechat_id text not null,
     source_table text not null,
@@ -892,11 +891,11 @@ create table if not exists public.crm_wechat_name_snapshot (
     first_seen_at timestamptz not null default now(),
     last_seen_at timestamptz not null default now(),
     created_at timestamptz not null default now(),
-    unique (nickname_normalized, wechat_id)
+    unique (original_nickname, wechat_id)
 );
 
 create index if not exists idx_crm_wx_name_snapshot_lookup
-    on public.crm_wechat_name_snapshot (nickname_normalized);
+    on public.crm_wechat_name_snapshot (original_nickname);
 create index if not exists idx_crm_wx_name_snapshot_wxid
     on public.crm_wechat_name_snapshot (wechat_id);
 
@@ -912,8 +911,23 @@ create table if not exists public.crm_wechat_unresolved_nickname (
     resolved_by text,
     resolved_at timestamptz,
     created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
+    updated_at timestamptz not null default now(),
+    unique (nickname)
 );
+
+do $$
+begin
+    if to_regclass('public.crm_wechat_unresolved_nickname') is not null
+       and not exists (
+         select 1 from pg_constraint
+         where conname = 'crm_wechat_unresolved_nickname_nickname_key'
+           and conrelid = 'public.crm_wechat_unresolved_nickname'::regclass
+       ) then
+        alter table public.crm_wechat_unresolved_nickname
+          add constraint crm_wechat_unresolved_nickname_nickname_key unique (nickname);
+    end if;
+end;
+$$;
 
 create index if not exists idx_crm_wechat_unresolved_status
     on public.crm_wechat_unresolved_nickname (status, created_at desc);
