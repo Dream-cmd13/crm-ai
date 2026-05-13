@@ -201,6 +201,20 @@ export const searchContacts = async (query: string) => {
   return data || [];
 };
 
+// ---- Name Snapshots ----
+
+export const fetchNameSnapshots = async () => {
+  if (!isSupabaseConfigured()) return [];
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('crm_wechat_name_snapshot')
+    .select('*')
+    .order('last_seen_at', { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return data || [];
+};
+
 // ---- Mappers ----
 
 const mapBinding = (row: any): WechatBinding => ({
