@@ -101,7 +101,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
   const [communications, setCommunications] = useState<CommunicationDetail[]>([]);
   const [regeneratingNodes, setRegeneratingNodes] = useState<Record<string, boolean>>({});
   const [groupChats, setGroupChats] = useState<GroupChat[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers] = useState<Customer[]>([]);
   const [selectedChat, setSelectedChat] = useState<GroupChat | null>(null);
   const [isManagingMembers, setIsManagingMembers] = useState(false);
   const [isSyncingChats, setIsSyncingChats] = useState(false);
@@ -611,64 +611,6 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     }
   };
 
-  const handleGenerateCustomerProfile = () => {
-    if (!selectedOpp?.customerId || !selectedOpp.customerName) {
-      toast.error('请先确保商机中存在客户ID和客户名称');
-      return;
-    }
-    const customerDbId = toNullableInt(selectedOpp.customerId);
-    if (customerDbId === null) {
-      toast.error('当前客户ID不是正式客户ID，请先在客户模块完成转正。');
-      return;
-    }
-    const exists = customers.some((c) => c.id === selectedOpp.customerId);
-    if (exists) {
-      toast.error('该客户资料已存在，客户ID保持不变。');
-      return;
-    }
-    const newCustomer: Customer = {
-      id: selectedOpp.customerId,
-      name: selectedOpp.customerName,
-      level: '普通客户',
-      status: '活跃',
-      industry: selectedOpp.productIndustry || '未分类',
-      source: '商机生成',
-      region: '待完善',
-      salesRep: selectedOpp.salesRep || role,
-      creatorId: 'system',
-      creatorNo: 'system',
-      creatorName: role,
-      createDate: new Date().toISOString().split('T')[0],
-      contacts: [],
-      followUps: [],
-      opportunityIds: [selectedOpp.id]
-    };
-    const saveCustomer = async () => {
-      if (isSupabaseConfigured()) {
-        const supabase = getSupabaseClient();
-        const { error } = await supabase.from('ba_manucustinfo').upsert({
-          id: customerDbId,
-          name: newCustomer.name,
-          level: newCustomer.level,
-          status: newCustomer.status,
-          industry: newCustomer.industry,
-          source: newCustomer.source,
-          region: newCustomer.region,
-          sales_rep: newCustomer.salesRep
-        }, { onConflict: 'id' });
-        if (error) throw error;
-      }
-      setCustomers((prev) => [newCustomer, ...prev]);
-      setOpportunities((prev) => prev.map((item) => item.id === selectedOpp.id ? { ...item, customerType: '新客户' } : item));
-      setSelectedOpp({ ...selectedOpp, customerType: '新客户' });
-      toast.error(`已按客户ID ${selectedOpp.customerId} 生成客户资料。`);
-    };
-    saveCustomer().catch((error) => {
-      console.error('Error generating customer profile:', error);
-      toast.error('生成客户资料失败，请检查 Supabase 权限与连接。');
-    });
-  };
-
   const handleRegenerateAI = async (nodeId: string, field: string, prompt: string) => {
     if (!selectedOpp) return;
     setRegeneratingNodes(prev => ({ ...prev, [nodeId]: true }));
@@ -1033,12 +975,6 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                 关闭商机
               </button>
             )}
-            <button
-              onClick={handleGenerateCustomerProfile}
-              className="px-4 py-2 bg-violet-50 text-violet-700 border border-violet-100 rounded-lg text-sm font-medium hover:bg-violet-100"
-            >
-              生成客户资料
-            </button>
           </div>
         </div>
         

@@ -510,6 +510,7 @@
 | source\_channel   | crm\_inquiry\_source\_channel\_enum | <br />                                       | <br />        | 来源渠道   |
 | category          | text                                | <br />                                       | <br />        | 分类     |
 | product\_series   | text                                | not null                                     | ''            | 产品系列   |
+| classification\_product\_line | integer                     | <br />                                       | <br />        | 分类产品线（存数字key，前端映射显示） |
 | province          | text                                | <br />                                       | <br />        | 省份     |
 | situation         | text                                | <br />                                       | <br />        | 情况     |
 | status            | crm\_inquiry\_status\_enum          | not null                                     | '待处理'         | 状态     |
@@ -550,6 +551,7 @@
 | source\_type          | crm\_lead\_source\_type\_enum       | <br />                                       | <br />        | 来源类型   |
 | product\_category     | text                                | <br />                                       | <br />        | 产品分类   |
 | product\_series       | text                                | <br />                                       | <br />        | 产品系列   |
+| classification\_product\_line | integer                     | <br />                                       | <br />        | 分类产品线（存数字key，前端映射显示） |
 | source\_status        | crm\_lead\_source\_status\_enum     | <br />                                       | <br />        | 来源状态   |
 | inquiry\_id           | integer                             | references crm\_inquiry(id)                  | <br />        | 询盘ID   |
 | contact\_id           | text                                | references crm\_customer\_contact(id)        | <br />        | 联系人ID  |

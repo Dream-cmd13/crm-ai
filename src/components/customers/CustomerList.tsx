@@ -1,8 +1,9 @@
 import React from 'react';
-import { Plus, Search, Filter, Building2, Clock, ChevronRight, AlertCircle } from 'lucide-react';
+import { Plus, Search, Filter, Building2, Clock, ChevronRight } from 'lucide-react';
 import { Customer } from '../../types';
 import { cn } from '../../lib/utils';
 import { formatCustomerTypeLabel } from '../../lib/customerEnums';
+import { confirmDialog } from '../../lib/toastConfirm';
 
 interface CustomerListProps {
   customers: Customer[];
@@ -17,7 +18,7 @@ interface CustomerListProps {
   uniqueIndustries: string[];
   onSelectCustomer: (customer: Customer) => void;
   onAddCustomer: () => void;
-  onDeleteCustomer?: (customerId: string) => void;
+  onDeleteCustomer?: (customerId: string) => void | Promise<void>;
   displayCount: number;
 }
 
@@ -119,8 +120,11 @@ export const CustomerList = ({
                 </div>
               </div>
 
-              <h3 className="text-sm font-bold text-gray-900 mb-0.5 group-hover:text-indigo-600 transition-colors truncate">{customer.name}</h3>
-              <p className="text-[11px] text-gray-500 mb-2">客户编号: {customer.customerNumber || customer.id}</p>
+              <h3 className="text-sm font-bold text-gray-900 mb-0.5 group-hover:text-indigo-600 transition-colors truncate">
+                {customer.name}
+                {customer.customerNumber ? `（${customer.customerNumber}）` : ''}
+              </h3>
+              <p className="text-[11px] text-gray-500 mb-2">客户编号: {customer.customerNumber || '-'}</p>
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
@@ -156,10 +160,11 @@ export const CustomerList = ({
                 <div className="flex items-center gap-2">
                   {onDeleteCustomer && (
                     <button
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
-                        if (confirm('确定要删除这个客户吗？')) {
-                          onDeleteCustomer(customer.id);
+                        const confirmed = await confirmDialog('确定要删除这个客户吗？');
+                        if (confirmed) {
+                          await onDeleteCustomer(customer.id);
                         }
                       }}
                       className="text-red-500 hover:text-red-700 transition-colors"

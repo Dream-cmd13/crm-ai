@@ -15,16 +15,18 @@ interface DetailModalProps {
   data: any;
   onSave?: (data: any) => void | boolean | Promise<void | boolean>;
   fields: { key: string; label: string; type?: string; options?: (string | { value: string; label: string })[]; required?: boolean; hidden?: boolean; customerIdKey?: string; disabled?: boolean; allowPotential?: boolean }[];
+  fieldValidators?: Record<string, (value: any, formData: any) => string>;
   isEditing?: boolean;
   onEdit?: () => void;
   moduleCode?: string;
 }
 
-export default function DetailModal({ isOpen, onClose, title, data, onSave, fields, isEditing = true, onEdit, moduleCode }: DetailModalProps) {
+export default function DetailModal({ isOpen, onClose, title, data, onSave, fields, fieldValidators, isEditing = true, onEdit, moduleCode }: DetailModalProps) {
   const [formData, setFormData] = useState<any>({});
   const [activeSelector, setActiveSelector] = useState<{ key: string, type: 'user' | 'product' | 'customer' | 'category', customerIdKey?: string } | null>(null);
   const [activeCustomerLookup, setActiveCustomerLookup] = useState<{ key: string; customerIdKey?: string; allowPotential?: boolean } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
   const [userNameMap, setUserNameMap] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
@@ -33,6 +35,7 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
     if (isOpen && data) {
       setFormData(data);
       setFieldErrors({});
+      setCustomFieldErrors({});
     }
   }, [isOpen, data?.id]);
 
@@ -73,6 +76,28 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
       const next = { ...prev };
       delete next[key];
       return next;
+    });
+    setCustomFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const handleFieldBlur = (key: string) => {
+    const validator = fieldValidators?.[key];
+    if (!validator) return;
+    const value = getFieldValue(key);
+    const message = String(validator(value, formData) || '').trim();
+    setCustomFieldErrors((prev) => {
+      if (!message) {
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      return { ...prev, [key]: message };
     });
   };
 
@@ -232,14 +257,15 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
                     {field.label}
                     {field.required ? <span className="text-rose-600 ml-1">*</span> : null}
                   </label>
-                  {field.type === 'select' ? (
+                {field.type === 'select' ? (
                   <select
                     aria-label={field.label}
                     data-field-key={field.key}
                     value={getFieldValue(field.key) || ''}
                     onChange={(e) => handleChange(field.key, e.target.value)}
+                    onBlur={() => handleFieldBlur(field.key)}
                     disabled={!isEditing || Boolean(field.disabled)}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-500 ${fieldErrors[field.key] ? 'border-rose-300 focus:ring-rose-500' : 'border-gray-200 focus:ring-indigo-500'}`}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-500 ${(fieldErrors[field.key] || customFieldErrors[field.key]) ? 'border-rose-300 focus:ring-rose-500' : 'border-gray-200 focus:ring-indigo-500'}`}
                   >
                     <option value="">请选择</option>
                     {field.options?.map((opt) => {
@@ -254,14 +280,15 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
                     data-field-key={field.key}
                     value={getFieldValue(field.key) || ''}
                     onChange={(e) => handleChange(field.key, e.target.value)}
+                    onBlur={() => handleFieldBlur(field.key)}
                     rows={3}
                     disabled={!isEditing || Boolean(field.disabled)}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-500 ${fieldErrors[field.key] ? 'border-rose-300 focus:ring-rose-500' : 'border-gray-200 focus:ring-indigo-500'}`}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-500 ${(fieldErrors[field.key] || customFieldErrors[field.key]) ? 'border-rose-300 focus:ring-rose-500' : 'border-gray-200 focus:ring-indigo-500'}`}
                   />
                 ) : field.type === 'multi-select' ? (
                   <div
                     data-field-key={field.key}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm space-y-2 ${fieldErrors[field.key] ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-200'} ${(!isEditing || field.disabled) ? 'bg-gray-50 text-gray-500' : ''}`}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm space-y-2 ${(fieldErrors[field.key] || customFieldErrors[field.key]) ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-200'} ${(!isEditing || field.disabled) ? 'bg-gray-50 text-gray-500' : ''}`}
                   >
                     {(field.options || []).map((opt) => {
                       const value = typeof opt === 'string' ? opt : opt.value;
@@ -306,7 +333,7 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
                     <div 
                       data-field-key={field.key}
                       onClick={() => isEditing && !field.disabled && setActiveSelector({ key: field.key, type: 'user' })}
-                      className={`w-full px-3 py-2 border rounded-lg text-sm flex items-center justify-between cursor-pointer ${fieldErrors[field.key] ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-200'} ${(!isEditing || field.disabled) ? 'bg-gray-50 text-gray-500' : 'hover:border-indigo-300'}`}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm flex items-center justify-between cursor-pointer ${(fieldErrors[field.key] || customFieldErrors[field.key]) ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-200'} ${(!isEditing || field.disabled) ? 'bg-gray-50 text-gray-500' : 'hover:border-indigo-300'}`}
                     >
                       <span>{getDisplayName(field.key, 'user') || '请选择用户'}</span>
                       <UserIcon className="w-4 h-4 text-gray-400" />
@@ -317,7 +344,7 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
                     <div 
                       data-field-key={field.key}
                       onClick={() => isEditing && !field.disabled && setActiveSelector({ key: field.key, type: 'product' })}
-                      className={`w-full px-3 py-2 border rounded-lg text-sm flex items-center justify-between cursor-pointer ${fieldErrors[field.key] ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-200'} ${(!isEditing || field.disabled) ? 'bg-gray-50 text-gray-500' : 'hover:border-indigo-300'}`}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm flex items-center justify-between cursor-pointer ${(fieldErrors[field.key] || customFieldErrors[field.key]) ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-200'} ${(!isEditing || field.disabled) ? 'bg-gray-50 text-gray-500' : 'hover:border-indigo-300'}`}
                     >
                       <span>{getDisplayName(field.key, 'product') || '请选择产品'}</span>
                       <Package className="w-4 h-4 text-gray-400" />
@@ -328,7 +355,7 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
                     <div 
                       data-field-key={field.key}
                       onClick={() => isEditing && !field.disabled && setActiveSelector({ key: field.key, type: 'customer', customerIdKey: field.customerIdKey })}
-                      className={`w-full px-3 py-2 border rounded-lg text-sm flex items-center justify-between cursor-pointer ${fieldErrors[field.key] ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-200'} ${(!isEditing || field.disabled) ? 'bg-gray-50 text-gray-500' : 'hover:border-indigo-300'}`}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm flex items-center justify-between cursor-pointer ${(fieldErrors[field.key] || customFieldErrors[field.key]) ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-200'} ${(!isEditing || field.disabled) ? 'bg-gray-50 text-gray-500' : 'hover:border-indigo-300'}`}
                     >
                       <span>{getDisplayName(field.key, 'customer') || '请选择客户'}</span>
                       <Building2 className="w-4 h-4 text-gray-400" />
@@ -339,7 +366,7 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
                     <div
                       data-field-key={field.key}
                       onClick={() => isEditing && !field.disabled && setActiveCustomerLookup({ key: field.key, customerIdKey: field.customerIdKey, allowPotential: field.allowPotential !== false })}
-                      className={`w-full px-3 py-2 border rounded-lg text-sm flex items-center justify-between cursor-pointer ${fieldErrors[field.key] ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-200'} ${(!isEditing || field.disabled) ? 'bg-gray-50 text-gray-500' : 'hover:border-indigo-300'}`}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm flex items-center justify-between cursor-pointer ${(fieldErrors[field.key] || customFieldErrors[field.key]) ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-200'} ${(!isEditing || field.disabled) ? 'bg-gray-50 text-gray-500' : 'hover:border-indigo-300'}`}
                     >
                       <span>{getFieldValue(field.key) || '点击查找/选择客户'}</span>
                       <Search className="w-4 h-4 text-gray-400" />
@@ -391,7 +418,7 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
                   <div className="space-y-3">
                     <div
                       data-field-key={field.key}
-                      className={`w-full p-3 border rounded-lg text-sm ${fieldErrors[field.key] ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-200'} ${(!isEditing || field.disabled) ? 'bg-gray-50 text-gray-500' : ''}`}
+                    className={`w-full p-3 border rounded-lg text-sm ${(fieldErrors[field.key] || customFieldErrors[field.key]) ? 'border-rose-300 ring-2 ring-rose-100' : 'border-gray-200'} ${(!isEditing || field.disabled) ? 'bg-gray-50 text-gray-500' : ''}`}
                     >
                       <div className="space-y-2">
                         {(Array.isArray(getFieldValue(field.key)) ? getFieldValue(field.key) : []).map((item: any, idx: number) => (
@@ -449,12 +476,13 @@ export default function DetailModal({ isOpen, onClose, title, data, onSave, fiel
                     type={field.type || 'text'}
                     value={getFieldValue(field.key) || ''}
                     onChange={(e) => handleChange(field.key, field.type === 'number' ? Number(e.target.value) : e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-500 ${fieldErrors[field.key] ? 'border-rose-300 focus:ring-rose-500' : 'border-gray-200 focus:ring-indigo-500'}`}
+                    onBlur={() => handleFieldBlur(field.key)}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-500 ${(fieldErrors[field.key] || customFieldErrors[field.key]) ? 'border-rose-300 focus:ring-rose-500' : 'border-gray-200 focus:ring-indigo-500'}`}
                     disabled={!isEditing || Boolean(field.disabled) || (field.key === 'id' && Boolean(data?.id) && !data?._isNew)}
                   />
                 )}
-                {fieldErrors[field.key] ? (
-                  <div className="text-xs text-rose-600">{fieldErrors[field.key]}</div>
+                {(fieldErrors[field.key] || customFieldErrors[field.key]) ? (
+                  <div className="text-xs text-rose-600">{fieldErrors[field.key] || customFieldErrors[field.key]}</div>
                 ) : null}
               </div>
             ))}

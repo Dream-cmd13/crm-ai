@@ -59,6 +59,7 @@ export default function PotentialCustomerList({ items, searchTerm, setSearchTerm
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 tracking-wider">客户名称</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 tracking-wider">系统客户编号</th>
                 <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 tracking-wider">潜在客户ID</th>
                 <th className="px-6 py-3 text-right text-xs font-bold text-gray-600 tracking-wider">操作</th>
               </tr>
@@ -67,6 +68,7 @@ export default function PotentialCustomerList({ items, searchTerm, setSearchTerm
               {filtered.map((item) => (
                 <tr key={item.id} onClick={() => onSelectCustomer(item)} className="hover:bg-indigo-50/40 cursor-pointer">
                   <td className="px-6 py-4 font-medium text-gray-900">{item.name}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{item.customerNumber || '-'}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{item.id}</td>
                   <td className="px-6 py-4 text-right">
                     <button
@@ -85,7 +87,7 @@ export default function PotentialCustomerList({ items, searchTerm, setSearchTerm
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-6 py-16 text-center text-sm text-gray-500">
+                  <td colSpan={4} className="px-6 py-16 text-center text-sm text-gray-500">
                     暂无潜在客户
                   </td>
                 </tr>
@@ -97,4 +99,3 @@ export default function PotentialCustomerList({ items, searchTerm, setSearchTerm
     </div>
   );
 }
-

@@ -122,6 +122,11 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
       return false;
     }
 
+    if (!isEditingExisting) {
+      toast.error('产品资料页面不支持新增产品分类，请前往“产品分类”页面维护');
+      return false;
+    }
+
     try {
       const saved = await saveProductCategoryToSupabase({
         id: isEditingExisting ? String(editingCategory?.id || '') : '',
@@ -347,25 +352,6 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setEditingCategory({
-                    id: '',
-                    name: '',
-                    parentId: category.id,
-                    status: 1,
-                    fab: { features: '', advantages: '', benefits: '' },
-                    children: []
-                  });
-                  setIsAddingCategory(true);
-                }}
-                className="p-1 text-gray-400 hover:text-indigo-600"
-                title="新增子类别"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
                   handleDeleteCategory(category.id, category.name);
                 }}
                 className="p-1 text-gray-400 hover:text-rose-600"
@@ -419,18 +405,9 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
       <div className="flex-1 flex flex-col md:flex-row gap-4 md:gap-6 overflow-hidden">
         {/* Left Sidebar - Categories */}
         <div className="w-full md:w-64 shrink-0 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-48 md:h-auto">
-          <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+          <div className="p-4 border-b border-gray-200">
             <h3 className="font-semibold text-gray-900 text-sm">产品分类</h3>
-            <button
-              onClick={() => {
-                setEditingCategory({ id: '', name: '', parentId: null, status: 1, fab: { features: '', advantages: '', benefits: '' }, children: [] });
-                setIsAddingCategory(true);
-              }}
-              className="p-1 hover:bg-gray-100 rounded text-gray-500"
-              title="新增产品分类"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
+            <p className="mt-1 text-xs text-gray-500">此处仅选择和维护已有分类，新增请前往“产品分类”页面。</p>
           </div>
           <div className="p-2 flex-1 overflow-y-auto">
             {renderCategoryTree(categories)}
@@ -478,10 +455,11 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
                             编辑
                           </button>
                           <button 
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              if (confirm('确定要删除这个产品吗？')) {
-                                handleDeleteProduct(product.id);
+                              const confirmed = await confirmDialog('确定要删除这个产品吗？');
+                              if (confirmed) {
+                                await handleDeleteProduct(product.id);
                               }
                             }}
                             className="text-red-600 hover:text-red-800 flex items-center gap-1"
@@ -535,10 +513,11 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
 
                   <div className="pt-3 border-t border-gray-100 flex justify-between">
                     <button 
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
-                        if (confirm('确定要删除这个产品吗？')) {
-                          handleDeleteProduct(product.id);
+                        const confirmed = await confirmDialog('确定要删除这个产品吗？');
+                        if (confirmed) {
+                          await handleDeleteProduct(product.id);
                         }
                       }}
                       className="text-red-600 text-sm font-medium flex items-center gap-1"
@@ -603,7 +582,7 @@ export default function Products({ viewParams, navigateTo }: ProductsProps) {
             setIsAddingCategory(false);
             setEditingCategory(null);
           }}
-          title={editingCategory.parentId ? "新增子分类" : editingCategory.id && categories.some(c => c.id === editingCategory.id || c.children?.some(ch => ch.id === editingCategory.id)) ? "编辑产品分类" : "新增产品分类"}
+          title="编辑产品分类"
           data={editingCategory}
           fields={categoryFields}
           onSave={handleSaveCategory}

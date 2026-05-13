@@ -10,6 +10,7 @@ import {
   fetchProductSpuFromSupabase,
   saveProductSpuToSupabase
 } from '../lib/productRepository';
+import { confirmDialog } from '../lib/toastConfirm';
 
 type ModalMode = 'view' | 'edit' | 'add' | null;
 
@@ -234,7 +235,7 @@ export default function ProductSpuPage() {
 
   const handleDelete = async (spu: ProductSpu) => {
     if (!spu.id) return;
-    if (!window.confirm(`确认删除产品品类 ${spu.id}？`)) return;
+    if (!(await confirmDialog(`确认删除产品品类 ${spu.id}？`))) return;
 
     try {
       await deleteProductSpuFromSupabase(spu.id);

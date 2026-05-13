@@ -28,6 +28,11 @@ export const CUSTOMER_TYPE_OPTIONS: CustomerEnumOption[] = [
   { value: '2', label: '个人' }
 ];
 
+export const CUSTOMER_CURRENCY_OPTIONS: CustomerEnumOption[] = [
+  { value: '1', label: '人民币' },
+  { value: '2', label: '美元' }
+];
+
 export const PAYMENT_TERM_OPTIONS: CustomerEnumOption[] = [
   { value: '3', label: '30天' },
   { value: '6', label: '60天' },
@@ -65,5 +70,15 @@ export const formatCustomerRegionLabel = (value: string | number | null | undefi
 export const formatCustomerTypeLabel = (value: string | number | null | undefined): string =>
   resolveEnumLabel(value, CUSTOMER_TYPE_OPTIONS);
 
+export const formatCustomerCurrencyLabel = (value: string | number | null | undefined): string =>
+  resolveEnumLabel(value, CUSTOMER_CURRENCY_OPTIONS);
+
 export const formatPaymentTermLabel = (value: string | number | null | undefined): string =>
   resolveEnumLabel(value, PAYMENT_TERM_OPTIONS);
+
+export const resolveCustomerCurrencyValue = (label: string | null | undefined): string => {
+  const raw = String(label || '').trim();
+  if (!raw) return '';
+  const hit = CUSTOMER_CURRENCY_OPTIONS.find((item) => item.label === raw || item.value === raw);
+  return hit?.value || '';
+};

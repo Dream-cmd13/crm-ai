@@ -5,6 +5,7 @@ import DetailModal from '../components/DetailModal';
 import { Group, User } from '../types';
 import { deleteGroupFromSupabase, fetchGroupListFromSupabase, saveGroupToSupabase } from '../lib/productRepository';
 import { fetchUsersFromSupabase } from '../lib/userRepository';
+import { confirmDialog } from '../lib/toastConfirm';
 
 type ModalMode = 'view' | 'edit' | 'add' | null;
 
@@ -127,7 +128,7 @@ export default function GroupsPage() {
 
   const handleDelete = async (row: Group) => {
     if (!row.id) return;
-    if (!window.confirm(`确认删除归属小组 ${row.id}？`)) return;
+    if (!(await confirmDialog(`确认删除归属小组 ${row.id}？`))) return;
     try {
       await deleteGroupFromSupabase(row.id);
       await refreshData();

@@ -11,6 +11,7 @@ import SwotMatrixPanel from '../SwotMatrixPanel';
 import StakeholderMapPanel from '../stakeholder/StakeholderMapPanel';
 import { loadLocalState, saveLocalState } from '../../lib/localState';
 import {
+  formatCustomerCurrencyLabel,
   formatCustomerRegionLabel,
   formatCustomerSourceLabel,
   formatCustomerTypeLabel,
@@ -102,6 +103,7 @@ export const CustomerDetail = ({
   const pendingTasks = customerTasks.filter((t: any) => t.status !== '已完成' && t.status !== '已取消');
   const completedTasks = customerTasks.filter((t: any) => t.status === '已完成');
   const customerTypeLabel = formatCustomerTypeLabel(selectedCustomer.customerType) || '-';
+  const customerCurrencyLabel = selectedCustomer.currency || formatCustomerCurrencyLabel(selectedCustomer.currencyId) || '-';
   const latestFollowUpText = useMemo(() => {
     const first = (selectedCustomer.followUps || [])[0];
     if (!first) return '暂无跟进记录';
@@ -311,7 +313,7 @@ export const CustomerDetail = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
           <div>
             <p className="text-sm text-gray-500 mb-1">客户编号</p>
-            <p className="font-medium text-gray-900">{selectedCustomer.customerNumber || selectedCustomer.id}</p>
+            <p className="font-medium text-gray-900">{selectedCustomer.customerNumber || '-'}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500 mb-1">客户名称</p>
@@ -363,7 +365,7 @@ export const CustomerDetail = ({
           </div>
           <div>
             <p className="text-sm text-gray-500 mb-1">币别</p>
-            <p className="font-medium text-gray-900">{selectedCustomer.currency || '-'}</p>
+            <p className="font-medium text-gray-900">{customerCurrencyLabel}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500 mb-1">账期(天)</p>

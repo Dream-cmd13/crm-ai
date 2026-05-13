@@ -25,6 +25,13 @@ import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { ensureDeleteAllowed } from '../lib/deleteGuard';
 import { notifySupabaseFailure } from '../lib/supabaseFailureNotice';
 import { fetchProductSeriesFromSupabase } from '../lib/productRepository';
+import {
+  CLASSIFICATION_PRODUCT_LINE_OPTIONS,
+  getClassificationProductLineLabel,
+  normalizeClassificationProductLineKey,
+  toClassificationProductLineDbValue
+} from '../lib/classificationProductLine';
+import { CUSTOMER_INDUSTRY_OPTIONS } from '../lib/customerEnums';
 
 const LEAD_STATUS_OPTIONS = ['未跟进', '跟进中', '关闭', '转商机'];
 const OPPORTUNITY_PRODUCT_LINE_OPTIONS = ['接插件', '线束', '工业连接器', 'IO连接器', '电子电气', '其他'];
@@ -157,6 +164,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
     source: row.source_type || row.source || row.clue_source || '',
     productCategory: row.product_category || '',
     productSeries: row.product_series || '',
+    classificationProductLine: normalizeClassificationProductLineKey(row.classification_product_line),
     sourceStatus: row.source_status || '',
     productIndustry: row.product_industry || undefined,
     customerOpportunity: row.customer_opportunity || '',
@@ -409,6 +417,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
             source: '在线',
             productCategory: sourceInquiry?.category || '',
             productSeries: sourceInquiry?.product_series || '',
+            classificationProductLine: normalizeClassificationProductLineKey(sourceInquiry?.classification_product_line),
             customerId: sourceInquiry?.customer_id ? String(sourceInquiry.customer_id) : '',
             customerType: sourceInquiry?.customer_id ? '老客户' : '新客户',
             sourceStatus: '客服',
@@ -474,6 +483,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           source_channel: normalizeSourceChannel(data.channelPlatform),
           product_category: data.productCategory,
           product_series: data.productSeries,
+          classification_product_line: toClassificationProductLineDbValue(data.classificationProductLine),
           source_status: normalizeSourceStatus(data.sourceStatus),
           product_industry: normalizeProductIndustry(data.productIndustry),
           customer_opportunity: data.customerOpportunity,
@@ -536,6 +546,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
           source_channel: normalizeSourceChannel(data.channelPlatform),
           product_category: data.productCategory,
           product_series: data.productSeries,
+          classification_product_line: toClassificationProductLineDbValue(data.classificationProductLine),
           source_status: normalizeSourceStatus(data.sourceStatus),
           product_industry: normalizeProductIndustry(data.productIndustry),
           customer_opportunity: data.customerOpportunity,
@@ -580,6 +591,66 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
         console.error('Error updating lead:', error);
         notifySupabaseFailure('线索保存', error);
       }
+    }
+  };
+
+  const handleGenerateCustomerProfile = async () => {
+    if (!selectedLead?.customerId || !selectedLead.customerName) {
+      toast.error('请先确保线索中存在客户ID和客户名称');
+      return;
+    }
+    if (!isSupabaseConfigured()) {
+      toast.error('未配置 Supabase，无法生成客户资料');
+      return;
+    }
+    const customerDbId = toNullableInt(selectedLead.customerId);
+    if (customerDbId === null) {
+      toast.error('当前客户ID不是正式客户ID，请先在客户模块完成转正。');
+      return;
+    }
+
+    try {
+      const supabase = getSupabaseClient();
+      const { data: existingCustomer, error: existsError } = await supabase
+        .from('ba_manucustinfo')
+        .select('id')
+        .eq('id', customerDbId)
+        .limit(1);
+      if (existsError) throw existsError;
+      if (existingCustomer && existingCustomer.length > 0) {
+        toast.error('该客户资料已存在，客户ID保持不变。');
+        return;
+      }
+
+      const customerPayload = {
+        id: customerDbId,
+        name: selectedLead.customerName,
+        level: '普通客户',
+        status: 1,
+        industry: selectedLead.productIndustry || selectedLead.industry || '未分类',
+        source: null,
+        region: null,
+        sales_rep: selectedLead.assignee || role
+      };
+
+      const { data: savedCustomer, error: saveError } = await supabase
+        .from('ba_manucustinfo')
+        .upsert(customerPayload, { onConflict: 'id' })
+        .select('id, customer_number')
+        .single();
+      if (saveError) throw saveError;
+
+      setLeads((prev) => prev.map((item) => (
+        item.id === selectedLead.id ? { ...item, customerType: '老客户' } : item
+      )));
+      setSelectedLead((prev) => (
+        prev ? { ...prev, customerType: '老客户' } : prev
+      ));
+      setSelectedCustomerNumber(String(savedCustomer?.customer_number || ''));
+      toast.success(`已按客户ID ${selectedLead.customerId} 生成客户资料。`);
+    } catch (error) {
+      console.error('Error generating customer profile from lead:', error);
+      notifySupabaseFailure('生成客户资料', error);
     }
   };
 
@@ -852,6 +923,13 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
     }
   };
 
+  const leadIndustryOptionsForEdit = Array.from(
+    new Set([
+      ...CUSTOMER_INDUSTRY_OPTIONS,
+      String(selectedLead?.industry || '').trim()
+    ].filter(Boolean))
+  );
+
   const fields = [
     { key: 'leadNo', label: '线索编号', disabled: true },
     { key: 'customerId', label: '客户ID', hidden: true },
@@ -860,7 +938,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
     { key: 'name', label: '姓名' },
     { key: 'phone', label: '手机号' },
     { key: 'customerAction', label: '客户行动', type: 'select', options: LEAD_CUSTOMER_ACTION_OPTIONS },
-    { key: 'industry', label: '客户行业' },
+    { key: 'industry', label: '客户行业', type: 'select', options: CUSTOMER_INDUSTRY_OPTIONS },
     { key: 'buyerRole', label: '买家角色', type: 'select', options: ['技术买家', '用户买家', '经济买家', '教练'] },
     { key: 'buyingMode', label: '购买模式', type: 'select', options: ['增长模式', '困难模式', '平稳模式', '过度自信模式'] },
     { key: 'intentScore', label: '意向得分', type: 'number' },
@@ -871,6 +949,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
     { key: 'channelPlatform', label: '来源渠道', type: 'select', options: LEAD_SOURCE_CHANNEL_OPTIONS },
     { key: 'source', label: '来源类型', type: 'select', options: LEAD_SOURCE_TYPE_OPTIONS },
     { key: 'productSeries', label: '产品系列', type: 'select', options: productSeriesOptions },
+    { key: 'classificationProductLine', label: '分类产品线', type: 'select', options: CLASSIFICATION_PRODUCT_LINE_OPTIONS },
     { key: 'productIndustry', label: '产品所属行业', type: 'select', options: LEAD_PRODUCT_INDUSTRY_OPTIONS },
     { key: 'productCategory', label: '兼容旧字段(可选)' },
     { key: 'sourceStatus', label: '线索来源状态', type: 'select', options: LEAD_SOURCE_STATUS_OPTIONS },
@@ -881,7 +960,13 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
     { key: 'creator', label: '创建人', type: 'user' },
     { key: 'createDate', label: '创建日期', type: 'date' },
   ];
-  const editFields = fields.filter((f) => !['creator', 'createDate', 'closeTime', 'closeReason'].includes(f.key));
+  const editFields = fields
+    .filter((f) => !['creator', 'createDate', 'closeTime', 'closeReason'].includes(f.key))
+    .map((field) => (
+      field.key === 'industry'
+        ? { ...field, type: 'select', options: leadIndustryOptionsForEdit }
+        : field
+    ));
   const closeFields = [
     { key: 'closeTime', label: '关闭时间', type: 'date', required: true },
     { key: 'closeReason', label: '关闭原因', type: 'textarea', required: true }
@@ -947,6 +1032,12 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                 关闭线索
               </button>
             )}
+            <button
+              onClick={handleGenerateCustomerProfile}
+              className="px-4 py-2 bg-violet-50 text-violet-700 border border-violet-100 rounded-lg text-sm font-medium hover:bg-violet-100"
+            >
+              生成客户资料
+            </button>
           </div>
         </div>
         
@@ -1007,7 +1098,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                   <FileText className="w-5 h-5 text-indigo-500" />
                   基本信息
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-y-6 gap-x-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-y-6 gap-x-8">
                   <div>
                     <p className="text-sm text-gray-500 mb-1">客户联系人</p>
                     <p className="font-medium text-indigo-600">{selectedLead.contactPerson || '未关联'}</p>
@@ -1126,6 +1217,10 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                     <p className="font-medium text-gray-900">{selectedLead.productSeries || selectedLead.productCategory || '-'}</p>
                   </div>
                   <div>
+                    <p className="text-sm text-gray-500 mb-1">分类产品线</p>
+                    <p className="font-medium text-gray-900">{getClassificationProductLineLabel(selectedLead.classificationProductLine) || '-'}</p>
+                  </div>
+                  <div>
                     <p className="text-sm text-gray-500 mb-1">客户机会</p>
                     <p className="font-medium text-gray-900">{selectedLead.customerOpportunity || '-'}</p>
                   </div>
@@ -1133,7 +1228,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                     <p className="text-sm text-gray-500 mb-1">关闭时间</p>
                     <p className="font-medium text-gray-900">{selectedLead.closeTime || '-'}</p>
                   </div>
-                  <div className="md:col-span-2 xl:col-span-3">
+                  <div className="md:col-span-3">
                     <p className="text-sm text-gray-500 mb-1">关闭原因</p>
                     <p className="font-medium text-gray-900">{selectedLead.closeReason || '-'}</p>
                   </div>
@@ -1149,7 +1244,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                       </button>
                     </div>
                   )}
-                  <div className="md:col-span-2 xl:col-span-3">
+                  <div className="md:col-span-3">
                     <p className="text-sm text-gray-500 mb-1">附件</p>
                     {Array.isArray(selectedLead.attachments) && selectedLead.attachments.length > 0 ? (
                       <div className="space-y-2">
@@ -1456,6 +1551,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                       <th className="px-6 py-4">来源渠道</th>
                       <th className="px-6 py-4">来源类型</th>
                       <th className="px-6 py-4">产品系列</th>
+                      <th className="px-6 py-4">分类产品线</th>
                       <th className="px-6 py-4">线索来源状态</th>
                       <th className="px-6 py-4">客户机会</th>
                       <th className="px-6 py-4">关闭时间</th>
@@ -1500,6 +1596,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                     <td className="px-6 py-4 text-gray-600">{lead.channelPlatform}</td>
                     <td className="px-6 py-4 text-gray-600">{lead.source}</td>
                     <td className="px-6 py-4 text-gray-600">{lead.productSeries || lead.productCategory || '-'}</td>
+                    <td className="px-6 py-4 text-gray-600">{getClassificationProductLineLabel(lead.classificationProductLine) || '-'}</td>
                     <td className="px-6 py-4 text-gray-600">{lead.sourceStatus}</td>
                     <td className="px-6 py-4 text-gray-600">{lead.customerOpportunity || '-'}</td>
                     <td className="px-6 py-4 text-gray-600">{lead.closeTime || '-'}</td>
@@ -1593,6 +1690,10 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                 <div>
                   <p className="text-gray-500 text-xs">客户行业</p>
                   <p className="text-gray-900">{lead.industry}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">分类产品线</p>
+                  <p className="text-gray-900">{getClassificationProductLineLabel(lead.classificationProductLine) || '-'}</p>
                 </div>
                 <div>
                   <p className="text-gray-500 text-xs">处理人</p>

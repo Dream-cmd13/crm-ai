@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, Search, X, Building2, UserCircle, Plus } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { Customer, PotentialCustomer } from '../types';
 import { cn } from '../lib/utils';
 import { searchCustomersByNameFromSupabase } from '../lib/customerRepository';
@@ -62,6 +63,7 @@ export default function CustomerLookupModal({ isOpen, initialQuery, onClose, onS
     setError('');
     try {
       const created = await createPotentialCustomerInSupabase(q);
+      toast.success(`已创建潜在客户：${created.name}`);
       onSelect({ id: created.id, name: created.name, source: 'potential' });
       onClose();
     } catch (e) {
@@ -161,6 +163,7 @@ export default function CustomerLookupModal({ isOpen, initialQuery, onClose, onS
                     const isCustomer = r.source === 'customer';
                     const id = r.data.id;
                     const name = (r.data as any).name || '';
+                    const customerNumber = isCustomer ? ((r.data as Customer).customerNumber || '') : '';
                     return (
                       <button
                         key={`${r.source}-${id}`}
@@ -176,10 +179,10 @@ export default function CustomerLookupModal({ isOpen, initialQuery, onClose, onS
                           {isCustomer ? <Building2 className="w-5 h-5" /> : <UserCircle className="w-5 h-5" />}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-bold text-gray-900 truncate">{name}</div>
-                          <div className="text-xs text-gray-500 truncate">
-                            {r.source === 'customer' && (r.data as Customer).customerNumber ? (r.data as Customer).customerNumber : id}
+                          <div className="text-sm font-bold text-gray-900 truncate">
+                            {isCustomer ? `${name}${customerNumber ? `（${customerNumber}）` : ''}` : name}
                           </div>
+                          <div className="text-xs text-gray-500 truncate">{isCustomer ? (customerNumber || '-') : id}</div>
                         </div>
                         <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", isCustomer ? "bg-indigo-50 text-indigo-700" : "bg-amber-50 text-amber-700")}>
                           {isCustomer ? '客户库' : '潜在客户'}

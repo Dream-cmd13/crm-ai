@@ -2,11 +2,12 @@ import React from 'react';
 import { Calendar, Users, MessageSquare, ChevronRight } from 'lucide-react';
 import { Project } from '../../types';
 import { cn } from '../../lib/utils';
+import { confirmDialog } from '../../lib/toastConfirm';
 
 interface ProjectCardProps {
   project: Project;
   onClick: () => void;
-  onDelete?: (projectId: string) => void;
+  onDelete?: (projectId: string) => void | Promise<void>;
 }
 
 export const ProjectCard = ({ project, onClick, onDelete }: ProjectCardProps) => (
@@ -39,10 +40,11 @@ export const ProjectCard = ({ project, onClick, onDelete }: ProjectCardProps) =>
           )}
           {onDelete && (
             <button
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.stopPropagation();
-                if (confirm('确定要删除这个项目吗？')) {
-                  onDelete(project.id);
+                const confirmed = await confirmDialog('确定要删除这个项目吗？');
+                if (confirmed) {
+                  await onDelete(project.id);
                 }
               }}
               className="text-red-500 hover:text-red-700 transition-colors"

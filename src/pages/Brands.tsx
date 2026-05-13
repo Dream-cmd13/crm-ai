@@ -4,6 +4,7 @@ import { Eye, Edit2, Plus, Trash2, Search } from 'lucide-react';
 import DetailModal from '../components/DetailModal';
 import { Brand } from '../types';
 import { deleteBrandFromSupabase, fetchBrandListFromSupabase, saveBrandToSupabase } from '../lib/productRepository';
+import { confirmDialog } from '../lib/toastConfirm';
 
 type ModalMode = 'view' | 'edit' | 'add' | null;
 
@@ -97,7 +98,7 @@ export default function BrandsPage() {
 
   const handleDelete = async (row: Brand) => {
     if (!row.id) return;
-    if (!window.confirm(`确认删除品牌 ${row.id}？`)) return;
+    if (!(await confirmDialog(`确认删除品牌 ${row.id}？`))) return;
     try {
       await deleteBrandFromSupabase(row.id);
       await refreshData();

@@ -18,6 +18,7 @@ const isDuplicateCustomerPrimaryKeyError = (error: any): boolean => {
 const mapDbToUi = (row: any): PotentialCustomer => ({
   id: row.id,
   name: row.name || '',
+  customerNumber: row.customerNumber || undefined,
   createdAt: row.created_at || undefined,
   updatedAt: row.updated_at || undefined
 });
@@ -33,6 +34,29 @@ const generateFormalCustomerNumberFromSupabase = async (): Promise<string> => {
   return generated;
 };
 
+const findLinkedCustomerByPotentialId = async (potentialId: string) => {
+  const cleanId = String(potentialId || '').trim();
+  if (!cleanId) return null;
+  const supabase = getSupabaseClient();
+
+  const { data: byPotentialId, error: byPotentialIdError } = await supabase
+    .from(CUSTOMER_TABLE)
+    .select('id, customer_number, potential_customer_id')
+    .eq('potential_customer_id', cleanId)
+    .maybeSingle();
+  if (byPotentialIdError) throw byPotentialIdError;
+  if (byPotentialId?.id) return byPotentialId;
+
+  // 兼容历史数据：潜在客户 UUID 曾直接写入 customer_number
+  const { data: legacyByCustomerNumber, error: legacyError } = await supabase
+    .from(CUSTOMER_TABLE)
+    .select('id, customer_number, potential_customer_id')
+    .eq('customer_number', cleanId)
+    .maybeSingle();
+  if (legacyError) throw legacyError;
+  return legacyByCustomerNumber || null;
+};
+
 const upsertPotentialStubCustomerInSupabase = async (id: string, name: string) => {
   const cleanId = (id || '').trim();
   const cleanName = (name || '').trim();
@@ -40,15 +64,15 @@ const upsertPotentialStubCustomerInSupabase = async (id: string, name: string) =
   if (!isSupabaseConfigured()) return;
   const supabase = getSupabaseClient();
   const now = new Date().toISOString();
-  const { data: existing, error: queryError } = await supabase
-    .from(CUSTOMER_TABLE)
-    .select('id')
-    .eq('customer_number', cleanId)
-    .maybeSingle();
-  if (queryError) throw queryError;
+  const existing = await findLinkedCustomerByPotentialId(cleanId);
+  const normalizedNumber = String(existing?.customer_number || '').trim();
+  const customerNumber = FORMAL_CUSTOMER_NUMBER_PATTERN.test(normalizedNumber)
+    ? normalizedNumber
+    : await generateFormalCustomerNumberFromSupabase();
 
   const customerPayload = {
-    customer_number: cleanId,
+    customer_number: customerNumber,
+    potential_customer_id: cleanId,
     name: cleanName,
     level: '潜在客户',
     status: 1,
@@ -97,7 +121,27 @@ export const searchPotentialCustomersByNameFromSupabase = async (name: string, l
     .limit(limit);
 
   if (error) throw error;
-  return (data || []).map(mapDbToUi);
+  const rows = data || [];
+  const potentialIds = rows.map((row) => String(row.id || '').trim()).filter(Boolean);
+  const customerNumberByPotentialId = new Map<string, string>();
+  if (potentialIds.length > 0) {
+    const { data: linkedCustomers, error: linkedCustomersError } = await supabase
+      .from(CUSTOMER_TABLE)
+      .select('potential_customer_id, customer_number')
+      .in('potential_customer_id', potentialIds);
+    if (linkedCustomersError) throw linkedCustomersError;
+    (linkedCustomers || []).forEach((row: any) => {
+      const potentialId = String(row.potential_customer_id || '').trim();
+      const customerNumber = String(row.customer_number || '').trim();
+      if (potentialId && customerNumber) {
+        customerNumberByPotentialId.set(potentialId, customerNumber);
+      }
+    });
+  }
+  return rows.map((row) => mapDbToUi({
+    ...row,
+    customerNumber: customerNumberByPotentialId.get(String(row.id || '').trim()) || ''
+  }));
 };
 
 export const createPotentialCustomerInSupabase = async (name: string, id?: string): Promise<PotentialCustomer> => {
@@ -119,10 +163,12 @@ export const createPotentialCustomerInSupabase = async (name: string, id?: strin
   if (error) throw error;
 
   await upsertPotentialStubCustomerInSupabase(payload.id, payload.name);
+  const linkedCustomer = await findLinkedCustomerByPotentialId(payload.id);
 
   return {
     id: payload.id,
     name: payload.name,
+    customerNumber: String(linkedCustomer?.customer_number || '').trim() || undefined,
     updatedAt: payload.updated_at
   };
 };
@@ -144,7 +190,27 @@ export const fetchPotentialCustomersFromSupabase = async (limit: number = 200): 
     .order('updated_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
-  return (data || []).map(mapDbToUi);
+  const rows = data || [];
+  const potentialIds = rows.map((row) => String(row.id || '').trim()).filter(Boolean);
+  const customerNumberByPotentialId = new Map<string, string>();
+  if (potentialIds.length > 0) {
+    const { data: linkedCustomers, error: linkedCustomersError } = await supabase
+      .from(CUSTOMER_TABLE)
+      .select('potential_customer_id, customer_number')
+      .in('potential_customer_id', potentialIds);
+    if (linkedCustomersError) throw linkedCustomersError;
+    (linkedCustomers || []).forEach((row: any) => {
+      const potentialId = String(row.potential_customer_id || '').trim();
+      const customerNumber = String(row.customer_number || '').trim();
+      if (potentialId && customerNumber) {
+        customerNumberByPotentialId.set(potentialId, customerNumber);
+      }
+    });
+  }
+  return rows.map((row) => mapDbToUi({
+    ...row,
+    customerNumber: customerNumberByPotentialId.get(String(row.id || '').trim()) || ''
+  }));
 };
 
 export const deletePotentialCustomerFromSupabase = async (id: string) => {
@@ -167,12 +233,7 @@ export const convertPotentialCustomerToCustomerInSupabase = async (potential: Po
 
   const supabase = getSupabaseClient();
   const now = new Date().toISOString();
-  const { data: existing, error: queryError } = await supabase
-    .from(CUSTOMER_TABLE)
-    .select('id, customer_number')
-    .eq('customer_number', id)
-    .maybeSingle();
-  if (queryError) throw queryError;
+  const existing = await findLinkedCustomerByPotentialId(id);
 
   if (existing?.id) {
     const normalizedNumber = String(existing.customer_number || '').trim();
@@ -181,6 +242,7 @@ export const convertPotentialCustomerToCustomerInSupabase = async (potential: Po
       : await generateFormalCustomerNumberFromSupabase();
     const customerPayload = {
       customer_number: formalCustomerNumber,
+      potential_customer_id: null,
       name,
       level: '普通客户',
       status: 1,
