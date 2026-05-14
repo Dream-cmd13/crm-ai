@@ -188,6 +188,10 @@ export default function StakeholderMapPanel({
 
   const handleSaveBaseInfo = async () => {
     if (!editingId || !String(editDraft.name || '').trim()) return;
+    if (!customerId) {
+      toast.error('客户信息缺失，无法保存联系人，请返回客户列表重新进入');
+      return;
+    }
     try {
       const isCreateMode = editingId === NEW_CONTACT_EDIT_ID;
       const sourceContactId = isCreateMode
@@ -330,6 +334,10 @@ export default function StakeholderMapPanel({
   };
 
   const handleQuickCreateByAi = async () => {
+    if (!customerId) {
+      toast.error('客户信息缺失，无法AI搜集联系人，请返回客户列表重新进入');
+      return;
+    }
     setAiCollectingId('__quick_create__');
     try {
       const cfg = await fetchCustomerFollowStrategyConfig();
@@ -729,13 +737,19 @@ export default function StakeholderMapPanel({
         <div className="flex items-center justify-between gap-3">
           <div className="text-xs text-gray-500">默认仅展示组织架构图中的联系人，点击“新增联系人”后弹出字段填写。</div>
           <div className="flex items-center gap-2 shrink-0">
-            <button onClick={openCreateContactModal} className="px-3 py-2 bg-indigo-600 text-white rounded text-sm font-bold flex items-center justify-center gap-1">
+            <button
+              onClick={openCreateContactModal}
+              disabled={!customerId}
+              title={!customerId ? '客户信息缺失，无法新增联系人' : ''}
+              className="px-3 py-2 bg-indigo-600 text-white rounded text-sm font-bold flex items-center justify-center gap-1 disabled:opacity-50"
+            >
               <Plus className="w-4 h-4" />
               新增联系人
             </button>
             <button
               onClick={handleQuickCreateByAi}
-              disabled={aiCollectingId === '__quick_create__'}
+              disabled={aiCollectingId === '__quick_create__' || !customerId}
+              title={!customerId ? '客户信息缺失，无法AI搜集联系人' : ''}
               className="px-3 py-2 border border-indigo-200 text-indigo-700 bg-white rounded text-sm font-bold disabled:opacity-60"
             >
               {aiCollectingId === '__quick_create__' ? 'AI搜集中...' : '新联系人AI搜集'}
