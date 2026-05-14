@@ -972,16 +972,19 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
     { key: 'closeReason', label: '关闭原因', type: 'textarea', required: true }
   ];
 
-  const [displayCount, setDisplayCount] = useState(20);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const PAGE_SIZE_OPTIONS = [20, 50, 100];
+  const total = filteredLeads.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    if (scrollHeight - scrollTop <= clientHeight + 100) {
-      if (displayCount < leads.length) {
-        setDisplayCount(prev => prev + 20);
-      }
+  useEffect(() => {
+    if (page > totalPages && totalPages > 0) {
+      setPage(totalPages);
     }
-  };
+  }, [totalPages, page]);
+
+  const paginatedLeads = filteredLeads.slice((page - 1) * pageSize, page * pageSize);
 
   if (isLoading) {
     return (
@@ -1517,7 +1520,6 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
 
       <div 
         className="flex-grow overflow-auto min-h-0"
-        onScroll={handleScroll}
       >
         {isLoading ? (
           <div className="h-full flex items-center justify-center">
@@ -1561,9 +1563,9 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredLeads.slice(0, displayCount).map((lead, index) => (
+                {paginatedLeads.map((lead, index) => (
                   <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-gray-500">{index + 1}</td>
+                    <td className="px-6 py-4 text-gray-500">{(page - 1) * pageSize + index + 1}</td>
                     <td className="px-6 py-4 font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => setSelectedLead(lead)}>{lead.leadNo || '-'}</td>
                     <td className="px-6 py-4 font-medium text-gray-900">{lead.customerName}</td>
                     <td className="px-6 py-4 text-gray-600">{lead.name}</td>
@@ -1648,7 +1650,7 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
 
         {/* Mobile Card View */}
         <div className="md:hidden space-y-4">
-          {filteredLeads.slice(0, displayCount).map((lead) => (
+          {paginatedLeads.map((lead) => (
             <div 
               key={lead.id} 
               className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3"
@@ -1754,12 +1756,49 @@ export default function Leads({ role, currentUser, viewParams, navigateTo, goBac
               </div>
             </div>
           ))}
-          
-          {displayCount < filteredLeads.length && (
-            <div className="py-4 text-center text-gray-500 text-sm">
-              正在加载更多...
-            </div>
-          )}
+        </div>
+
+        <div className="px-4 py-3 mt-4 bg-white border border-gray-200 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span>共 {total} 条</span>
+            <span className="ml-2">每页</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              className="px-2 py-1 border border-gray-200 rounded-lg text-sm"
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+            <span>条</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-50"
+            >
+              上一页
+            </button>
+            <span className="text-sm text-gray-500">
+              第 {Math.min(page, totalPages)} / {totalPages} 页
+            </span>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-50"
+            >
+              下一页
+            </button>
+          </div>
         </div>
         </>
         )}

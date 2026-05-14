@@ -287,24 +287,28 @@
 
 ### ba\_spu (产品品类表)
 
-| 字段名            | 数据类型        | 约束                                   | 默认值    | 描述   |
-| -------------- | ----------- | ------------------------------------ | ------ | ---- |
-| id             | int         | not null auto\_increment primary key | <br /> | 主键   |
-| name           | text        | not null                             | <br /> | 品类名称 |
-| brand\_id      | int         | references ba\_brand(id)             | <br /> | 品牌ID |
-| category\_id   | int         | references ba\_cptype(id)            | <br /> | 分类ID |
-| category\_name | text        | <br />                               | <br /> | 分类名称 |
-| product\_no    | text        | unique                               | <br /> | 产品编号（唯一，允许为空） |
-| industry       | text        | <br />                               | <br /> | 所属行业 |
-| eco\_property  | text        | <br />                               | <br /> | 环保性质 |
-| certification\_standard | text | <br />                             | <br /> | 认证标准 |
-| product\_drawings | jsonb     | not null                             | []     | 产品图纸（附件数组） |
-| product\_image | text        | <br />                               | <br /> | 产品主图（URL或dataURL） |
-| packaging\_method | text     | <br />                               | <br /> | 包装方式 |
-| min\_order\_qty | numeric(18,2) | <br />                            | <br /> | 最小起订量 |
-| status         | int         | not null                             | 1      | 状态（0下架 1正常 10违规） |
-| created\_at    | timestamptz | not null                             | now()  | 创建时间 |
-| updated\_at    | timestamptz | not null                             | now()  | 更新时间 |
+| 字段名                     | 数据类型          | 约束                                     | 默认值    | 描述                |
+| ----------------------- | ------------- | -------------------------------------- | ------ | ----------------- |
+| id                      | int           | not null auto\_increment primary key   | <br /> | 主键                |
+| name                    | text          | not null                               | <br /> | 品类名称              |
+| brand\_id               | int           | references ba\_brand(id)               | <br /> | 品牌ID              |
+| category\_id            | int           | references ba\_cptype(id)              | <br /> | 分类ID              |
+| category\_name          | text          | <br />                                 | <br /> | 分类名称              |
+| product\_no             | text          | 条件唯一索引（仅非空且非空字符串）                      | <br /> | 产品编号              |
+| industry                | text          | <br />                                 | <br /> | 所属行业              |
+| eco\_property           | text          | <br />                                 | <br /> | 环保性质              |
+| certification\_standard | text          | <br />                                 | <br /> | 认证标准              |
+| product\_drawings       | jsonb         | not null                               | \[]    | 产品图纸（附件数组）        |
+| product\_image          | text          | <br />                                 | <br /> | 产品主图（URL或dataURL） |
+| packaging\_method       | text          | <br />                                 | <br /> | 包装方式              |
+| min\_order\_qty         | numeric(18,2) | <br />                                 | <br /> | 最小起订量             |
+| status                  | int           | not null, check (status in (0, 1, 10)) | 1      | 状态（0下架 1正常 10违规）  |
+| created\_at             | timestamptz   | not null                               | now()  | 创建时间              |
+| updated\_at             | timestamptz   | not null                               | now()  | 更新时间              |
+
+补充说明：
+
+- `idx_ba_spu_product_no_unique` 为条件唯一索引，仅对 `product_no is not null and product_no <> ''` 生效。
 
 ### ba\_product\_property\_relation (产品本体属性关系表)
 
@@ -361,7 +365,7 @@
 | 字段名                              | 数据类型        | 约束                                   | 默认值    | 描述                                                                |
 | -------------------------------- | ----------- | ------------------------------------ | ------ | ----------------------------------------------------------------- |
 | id                               | int         | not null auto\_increment primary key | <br /> | 客户ID                                                              |
-| customer\_number                 | text        | not null default ''                  | <br /> | 客户编号（系统自动生成，格式：CUS-YYYYMMDD-XXX）                                  |
+| customer\_number                 | text        | not null                             | <br /> | 客户编号（系统自动生成，格式：KH+YYYYMMDD+6位序号）                                  |
 | name                             | text        | not null                             | <br /> | 客户名称                                                              |
 | level                            | text        | not null                             | '普通客户' | 客户等级                                                              |
 | status                           | int         | not null                             | 1      | 状态（1正常, 0冻结）                                                      |
@@ -404,8 +408,14 @@
 | month\_settlement\_agreement     | text        | <br />                               | <br /> | 月结协议                                                              |
 | business\_scope                  | text        | <br />                               | <br /> | 经营范围                                                              |
 | website                          | text        | <br />                               | <br /> | 网站                                                                |
+| potential\_customer\_id          | text        | <br />                               | <br /> | 关联潜在客户ID（通常为潜在客户UUID）                                             |
 | created\_at                      | timestamptz | not null                             | now()  | 创建时间                                                              |
 | updated\_at                      | timestamptz | not null                             | now()  | 更新时间                                                              |
+
+补充说明：
+
+- `idx_ba_manucustinfo_potential_customer_id` 索引用于加速按潜在客户ID回查正式客户。
+- 对于 `level='潜在客户'` 的历史数据，迁移会先把旧的非标准 `customer_number` 回填到 `potential_customer_id`，再将 `customer_number` 重置为标准 `KH+YYYYMMDD+6位序号`。
 
 ### ba\_customer\_user (用户表)
 
@@ -499,76 +509,76 @@
 
 ### crm\_inquiry (询盘表)
 
-| 字段名               | 数据类型                                | 约束                                           | 默认值           | 描述     |
-| ----------------- | ----------------------------------- | -------------------------------------------- | ------------- | ------ |
-| id                | integer                             | generated by default as identity primary key | <br />        | 询盘ID   |
-| inquiry\_no       | text                                | not null                                     | ''            | 询盘编号   |
-| customer\_id      | text                                | <br />                                       | <br />        | 客户ID   |
-| company\_name     | text                                | not null                                     | <br />        | 公司名称   |
-| customer\_name    | text                                | <br />                                       | <br />        | 客户名称   |
-| contact           | text                                | <br />                                       | <br />        | 联系方式   |
-| source\_channel   | crm\_inquiry\_source\_channel\_enum | <br />                                       | <br />        | 来源渠道   |
-| category          | text                                | <br />                                       | <br />        | 分类     |
-| product\_series   | text                                | not null                                     | ''            | 产品系列   |
-| classification\_product\_line | integer                     | <br />                                       | <br />        | 分类产品线（存数字key，前端映射显示） |
-| province          | text                                | <br />                                       | <br />        | 省份     |
-| situation         | text                                | <br />                                       | <br />        | 情况     |
-| status            | crm\_inquiry\_status\_enum          | not null                                     | '待处理'         | 状态     |
-| classification    | text                                | <br />                                       | <br />        | 分类     |
-| unconvert\_reason | text                                | <br />                                       | <br />        | 未转化原因  |
-| customer\_inquiry | text                                | <br />                                       | <br />        | 客户询盘内容 |
-| unconverted\_time | date                                | <br />                                       | <br />        | 未转化时间  |
-| notes             | text                                | <br />                                       | <br />        | 备注     |
-| associated\_lead  | text                                | <br />                                       | <br />        | 关联线索   |
-| attachments       | jsonb                               | <br />                                       | <br />        | 附件     |
-| create\_date      | date                                | not null                                     | current\_date | 创建日期   |
-| update\_date      | date                                | <br />                                       | <br />        | 更新日期   |
-| creator\_id       | text                                | <br />                                       | <br />        | 创建者ID  |
-| creator\_name     | text                                | <br />                                       | <br />        | 创建者姓名  |
-| updater           | text                                | <br />                                       | <br />        | 更新者    |
-| created\_at       | timestamptz                         | not null                                     | now()         | 创建时间   |
-| updated\_at       | timestamptz                         | not null                                     | now()         | 更新时间   |
-| <br />            | <br />                              | check (id > 0)                               | <br />        | ID正数约束 |
+| 字段名                           | 数据类型                                | 约束                                                                                                | 默认值           | 描述                                          |
+| ----------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------- |
+| id                            | integer                             | generated by default as identity primary key                                                      | <br />        | 询盘ID                                        |
+| inquiry\_no                   | text                                | not null                                                                                          | ''            | 询盘编号                                        |
+| customer\_id                  | integer                             | references ba\_manucustinfo(id)                                                                   | <br />        | 客户ID                                        |
+| company\_name                 | text                                | not null                                                                                          | <br />        | 公司名称                                        |
+| customer\_name                | text                                | <br />                                                                                            | <br />        | 客户名称                                        |
+| contact                       | text                                | <br />                                                                                            | <br />        | 联系方式                                        |
+| source\_channel               | crm\_inquiry\_source\_channel\_enum | <br />                                                                                            | <br />        | 来源渠道                                        |
+| category                      | text                                | <br />                                                                                            | <br />        | 分类                                          |
+| product\_series               | text                                | not null                                                                                          | ''            | 产品系列                                        |
+| classification\_product\_line | integer                             | check (classification\_product\_line is null or classification\_product\_line in (1,2,3,4,5,6,7)) | <br />        | 分类产品线（1=IO、5=线束、2=工业、6=新能源、4=接插件、7=原厂、3=加工） |
+| province                      | text                                | <br />                                                                                            | <br />        | 省份                                          |
+| situation                     | text                                | <br />                                                                                            | <br />        | 情况                                          |
+| status                        | crm\_inquiry\_status\_enum          | not null                                                                                          | '待处理'         | 状态                                          |
+| classification                | text                                | <br />                                                                                            | <br />        | 分类                                          |
+| unconvert\_reason             | text                                | <br />                                                                                            | <br />        | 未转化原因                                       |
+| customer\_inquiry             | text                                | <br />                                                                                            | <br />        | 客户询盘内容                                      |
+| unconverted\_time             | date                                | <br />                                                                                            | <br />        | 未转化时间                                       |
+| notes                         | text                                | <br />                                                                                            | <br />        | 备注                                          |
+| associated\_lead              | text                                | <br />                                                                                            | <br />        | 关联线索                                        |
+| attachments                   | jsonb                               | <br />                                                                                            | <br />        | 附件                                          |
+| create\_date                  | date                                | not null                                                                                          | current\_date | 创建日期                                        |
+| update\_date                  | date                                | <br />                                                                                            | <br />        | 更新日期                                        |
+| creator\_id                   | text                                | <br />                                                                                            | <br />        | 创建者ID                                       |
+| creator\_name                 | text                                | <br />                                                                                            | <br />        | 创建者姓名                                       |
+| updater                       | text                                | <br />                                                                                            | <br />        | 更新者                                         |
+| created\_at                   | timestamptz                         | not null                                                                                          | now()         | 创建时间                                        |
+| updated\_at                   | timestamptz                         | not null                                                                                          | now()         | 更新时间                                        |
+| <br />                        | <br />                              | check (id > 0)                                                                                    | <br />        | ID正数约束                                      |
 
 ### crm\_lead (线索表)
 
-| 字段名                   | 数据类型                                | 约束                                           | 默认值           | 描述     |
-| --------------------- | ----------------------------------- | -------------------------------------------- | ------------- | ------ |
-| id                    | integer                             | generated by default as identity primary key | <br />        | 线索ID   |
-| lead\_no              | text                                | not null                                     | ''            | 线索编号   |
-| customer\_id          | text                                | <br />                                       | <br />        | 客户ID   |
-| customer\_type        | text                                | <br />                                       | <br />        | 客户类型   |
-| customer\_name        | text                                | not null                                     | <br />        | 客户名称   |
-| name                  | text                                | <br />                                       | <br />        | 联系人姓名  |
-| phone                 | text                                | <br />                                       | <br />        | 电话     |
-| customer\_action      | crm\_lead\_customer\_action\_enum   | <br />                                       | <br />        | 客户动作   |
-| industry              | text                                | <br />                                       | <br />        | 行业     |
-| status                | crm\_lead\_status\_enum             | not null                                     | '未跟进'         | 状态     |
-| classification        | text                                | <br />                                       | <br />        | 分类     |
-| assignee              | text                                | <br />                                       | <br />        | 负责人    |
-| entry\_time           | text                                | <br />                                       | <br />        | 录入时间   |
-| source\_channel       | crm\_inquiry\_source\_channel\_enum | <br />                                       | <br />        | 来源渠道   |
-| source\_type          | crm\_lead\_source\_type\_enum       | <br />                                       | <br />        | 来源类型   |
-| product\_category     | text                                | <br />                                       | <br />        | 产品分类   |
-| product\_series       | text                                | <br />                                       | <br />        | 产品系列   |
-| classification\_product\_line | integer                     | <br />                                       | <br />        | 分类产品线（存数字key，前端映射显示） |
-| source\_status        | crm\_lead\_source\_status\_enum     | <br />                                       | <br />        | 来源状态   |
-| inquiry\_id           | integer                             | references crm\_inquiry(id)                  | <br />        | 询盘ID   |
-| contact\_id           | text                                | references crm\_customer\_contact(id)        | <br />        | 联系人ID  |
-| intent\_score         | numeric(10,2)                       | <br />                                       | <br />        | 意向评分   |
-| buying\_mode          | text                                | <br />                                       | <br />        | 采购模式   |
-| buyer\_role           | text                                | <br />                                       | <br />        | 采购角色   |
-| product\_industry     | crm\_lead\_product\_industry\_enum  | <br />                                       | <br />        | 产品行业   |
-| close\_time           | date                                | <br />                                       | <br />        | 关闭时间   |
-| close\_reason         | text                                | <br />                                       | <br />        | 关闭原因   |
-| customer\_opportunity | text                                | <br />                                       | <br />        | 客户机会   |
-| attachments           | jsonb                               | <br />                                       | <br />        | 附件     |
-| create\_date          | date                                | not null                                     | current\_date | 创建日期   |
-| creator\_id           | text                                | <br />                                       | <br />        | 创建者ID  |
-| creator\_name         | text                                | <br />                                       | <br />        | 创建者姓名  |
-| created\_at           | timestamptz                         | not null                                     | now()         | 创建时间   |
-| updated\_at           | timestamptz                         | not null                                     | now()         | 更新时间   |
-| <br />                | <br />                              | check (id > 0)                               | <br />        | ID正数约束 |
+| 字段名                           | 数据类型                                | 约束                                                                                                | 默认值           | 描述                                          |
+| ----------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------- |
+| id                            | integer                             | generated by default as identity primary key                                                      | <br />        | 线索ID                                        |
+| lead\_no                      | text                                | not null                                                                                          | ''            | 线索编号                                        |
+| customer\_id                  | integer                             | references ba\_manucustinfo(id)                                                                   | <br />        | 客户ID                                        |
+| customer\_type                | text                                | <br />                                                                                            | <br />        | 客户类型                                        |
+| customer\_name                | text                                | not null                                                                                          | <br />        | 客户名称                                        |
+| name                          | text                                | <br />                                                                                            | <br />        | 联系人姓名                                       |
+| phone                         | text                                | <br />                                                                                            | <br />        | 电话                                          |
+| customer\_action              | crm\_lead\_customer\_action\_enum   | <br />                                                                                            | <br />        | 客户动作                                        |
+| industry                      | text                                | <br />                                                                                            | <br />        | 行业                                          |
+| status                        | crm\_lead\_status\_enum             | not null                                                                                          | '未跟进'         | 状态                                          |
+| classification                | text                                | <br />                                                                                            | <br />        | 分类                                          |
+| assignee                      | text                                | <br />                                                                                            | <br />        | 负责人                                         |
+| entry\_time                   | text                                | <br />                                                                                            | <br />        | 录入时间                                        |
+| source\_channel               | crm\_inquiry\_source\_channel\_enum | <br />                                                                                            | <br />        | 来源渠道                                        |
+| source\_type                  | crm\_lead\_source\_type\_enum       | <br />                                                                                            | <br />        | 来源类型                                        |
+| product\_category             | text                                | <br />                                                                                            | <br />        | 产品分类                                        |
+| product\_series               | text                                | <br />                                                                                            | <br />        | 产品系列                                        |
+| classification\_product\_line | integer                             | check (classification\_product\_line is null or classification\_product\_line in (1,2,3,4,5,6,7)) | <br />        | 分类产品线（1=IO、5=线束、2=工业、6=新能源、4=接插件、7=原厂、3=加工） |
+| source\_status                | crm\_lead\_source\_status\_enum     | <br />                                                                                            | <br />        | 来源状态                                        |
+| inquiry\_id                   | integer                             | references crm\_inquiry(id)                                                                       | <br />        | 询盘ID                                        |
+| contact\_id                   | text                                | references crm\_customer\_contact(id)                                                             | <br />        | 联系人ID                                       |
+| intent\_score                 | numeric(10,2)                       | <br />                                                                                            | <br />        | 意向评分                                        |
+| buying\_mode                  | text                                | <br />                                                                                            | <br />        | 采购模式                                        |
+| buyer\_role                   | text                                | <br />                                                                                            | <br />        | 采购角色                                        |
+| product\_industry             | crm\_lead\_product\_industry\_enum  | <br />                                                                                            | <br />        | 产品行业                                        |
+| close\_time                   | date                                | <br />                                                                                            | <br />        | 关闭时间                                        |
+| close\_reason                 | text                                | <br />                                                                                            | <br />        | 关闭原因                                        |
+| customer\_opportunity         | text                                | <br />                                                                                            | <br />        | 客户机会                                        |
+| attachments                   | jsonb                               | <br />                                                                                            | <br />        | 附件                                          |
+| create\_date                  | date                                | not null                                                                                          | current\_date | 创建日期                                        |
+| creator\_id                   | text                                | <br />                                                                                            | <br />        | 创建者ID                                       |
+| creator\_name                 | text                                | <br />                                                                                            | <br />        | 创建者姓名                                       |
+| created\_at                   | timestamptz                         | not null                                                                                          | now()         | 创建时间                                        |
+| updated\_at                   | timestamptz                         | not null                                                                                          | now()         | 更新时间                                        |
+| <br />                        | <br />                              | check (id > 0)                                                                                    | <br />        | ID正数约束                                      |
 
 ### crm\_opportunity (商机表)
 
@@ -576,7 +586,7 @@
 | --------------------------------- | ---------------------------------- | -------------------------------------------- | ------------- | ------ |
 | id                                | integer                            | generated by default as identity primary key | <br />        | 商机ID   |
 | opportunity\_no                   | text                               | not null                                     | ''            | 商机编号   |
-| customer\_id                      | text                               | <br />                                       | <br />        | 客户ID   |
+| customer\_id                      | integer                            | references ba\_manucustinfo(id)              | <br />        | 客户ID   |
 | customer\_type                    | text                               | <br />                                       | <br />        | 客户类型   |
 | customer\_name                    | text                               | not null                                     | <br />        | 客户名称   |
 | opp\_date                         | date                               | not null                                     | current\_date | 商机日期   |
@@ -610,62 +620,63 @@
 
 ### crm\_project (项目表)
 
-| 字段名                               | 数据类型                               | 约束                                           | 默认值    | 描述     |
-| --------------------------------- | ---------------------------------- | -------------------------------------------- | ------ | ------ |
-| id                                | integer                            | generated by default as identity primary key | <br /> | 项目ID   |
-| project\_no                       | text                               | not null                                     | ''     | 项目编号   |
-| customer\_id                      | text                               | <br />                                       | <br /> | 客户ID   |
-| customer\_name                    | text                               | not null                                     | <br /> | 客户名称   |
-| project\_name                     | text                               | not null                                     | <br /> | 项目名称   |
-| status                            | crm\_project\_status\_enum         | not null                                     | '跟进中'  | 状态     |
-| stage                             | crm\_project\_stage\_enum          | not null                                     | '需求阶段' | 阶段     |
-| manager                           | text                               | <br />                                       | <br /> | 经理     |
-| amount                            | numeric(18,2)                      | <br />                                       | <br /> | 金额     |
-| project\_type                     | text                               | <br />                                       | <br /> | 项目类型   |
-| project\_level                    | text                               | <br />                                       | <br /> | 项目等级   |
-| wechat\_group                     | text                               | <br />                                       | <br /> | 微信群    |
-| team                              | jsonb                              | <br />                                       | <br /> | 团队     |
-| notes                             | jsonb                              | <br />                                       | <br /> | 备注     |
-| requirements                      | jsonb                              | <br />                                       | <br /> | 需求     |
-| progress                          | jsonb                              | <br />                                       | <br /> | 进度     |
-| tasks                             | jsonb                              | <br />                                       | <br /> | 任务     |
-| samples                           | jsonb                              | <br />                                       | <br /> | 样品     |
-| purchasing\_quotes                | jsonb                              | <br />                                       | <br /> | 采购报价   |
-| quotations                        | jsonb                              | <br />                                       | <br /> | 报价单    |
-| requirement\_changes              | jsonb                              | <br />                                       | <br /> | 需求变更   |
-| communication\_details            | jsonb                              | <br />                                       | <br /> | 沟通详情   |
-| is\_key\_project                  | boolean                            | <br />                                       | false  | 是否关键项目 |
-| ai\_analysis                      | jsonb                              | <br />                                       | <br /> | AI分析   |
-| creator\_id                       | text                               | <br />                                       | <br /> | 创建者ID  |
-| creator\_no                       | text                               | <br />                                       | <br /> | 创建者编号  |
-| creator\_name                     | text                               | <br />                                       | <br /> | 创建者姓名  |
-| create\_date                      | date                               | <br />                                       | <br /> | 创建日期   |
-| end\_customer                     | text                               | <br />                                       | <br /> | 终端客户   |
-| opp\_summary                      | text                               | <br />                                       | <br /> | 商机摘要   |
-| application\_scenario             | text                               | <br />                                       | <br /> | 应用场景   |
-| intent\_amount                    | numeric(18,2)                      | <br />                                       | <br /> | 意向金额   |
-| end\_project                      | text                               | <br />                                       | <br /> | 终端项目   |
-| product\_industry                 | crm\_lead\_product\_industry\_enum | <br />                                       | <br /> | 产品行业   |
-| estimated\_usage                  | text                               | <br />                                       | <br /> | 预计用量   |
-| estimated\_mass\_production\_date | date                               | <br />                                       | <br /> | 预计量产日期 |
-| customer\_action                  | crm\_lead\_customer\_action\_enum  | <br />                                       | <br /> | 客户动作   |
-| sales\_rep                        | text                               | <br />                                       | <br /> | 销售代表   |
-| product\_owner                    | text                               | <br />                                       | <br /> | 产品负责人  |
-| quality\_owner                    | text                               | <br />                                       | <br /> | 质量负责人  |
-| purchaser                         | text                               | <br />                                       | <br /> | 采购     |
-| fae                               | text                               | <br />                                       | <br /> | 技术支持   |
-| lead\_id                          | integer                            | references crm\_lead(id)                     | <br /> | 线索ID   |
-| opportunity\_id                   | integer                            | references crm\_opportunity(id)              | <br /> | 商机ID   |
-| inquiry\_id                       | integer                            | references crm\_inquiry(id)                  | <br /> | 询盘ID   |
-| close\_time                       | date                               | <br />                                       | <br /> | 关闭时间   |
-| close\_reason                     | text                               | <br />                                       | <br /> | 关闭原因   |
-| product\_line                     | crm\_product\_line\_enum           | <br />                                       | <br /> | 产品线    |
-| start\_date                       | date                               | <br />                                       | <br /> | 开始日期   |
-| end\_date                         | date                               | <br />                                       | <br /> | 结束日期   |
-| attachments                       | jsonb                              | <br />                                       | <br /> | 附件     |
-| created\_at                       | timestamptz                        | not null                                     | now()  | 创建时间   |
-| updated\_at                       | timestamptz                        | not null                                     | now()  | 更新时间   |
-| <br />                            | <br />                             | check (id > 0)                               | <br /> | ID正数约束 |
+| 字段名                               | 数据类型                               | 约束                                                                         | 默认值    | 描述     |
+| --------------------------------- | ---------------------------------- | -------------------------------------------------------------------------- | ------ | ------ |
+| id                                | integer                            | generated by default as identity primary key                               | <br /> | 项目ID   |
+| project\_no                       | text                               | not null                                                                   | ''     | 项目编号   |
+| customer\_id                      | integer                            | references ba\_manucustinfo(id)                                            | <br /> | 客户ID   |
+| customer\_name                    | text                               | not null                                                                   | <br /> | 客户名称   |
+| project\_name                     | text                               | not null                                                                   | <br /> | 项目名称   |
+| status                            | crm\_project\_status\_enum         | not null                                                                   | '跟进中'  | 状态     |
+| stage                             | crm\_project\_stage\_enum          | not null                                                                   | '需求阶段' | 阶段     |
+| manager                           | text                               | <br />                                                                     | <br /> | 经理     |
+| amount                            | numeric(18,2)                      | <br />                                                                     | <br /> | 金额     |
+| project\_type                     | text                               | <br />                                                                     | <br /> | 项目类型   |
+| project\_category                 | text                               | check (project\_category in ('定制项目', '标准项目') or project\_category is null) | <br /> | 项目类别   |
+| project\_level                    | text                               | <br />                                                                     | <br /> | 项目等级   |
+| wechat\_group                     | text                               | <br />                                                                     | <br /> | 微信群    |
+| team                              | jsonb                              | <br />                                                                     | <br /> | 团队     |
+| notes                             | jsonb                              | <br />                                                                     | <br /> | 备注     |
+| requirements                      | jsonb                              | <br />                                                                     | <br /> | 需求     |
+| progress                          | jsonb                              | <br />                                                                     | <br /> | 进度     |
+| tasks                             | jsonb                              | <br />                                                                     | <br /> | 任务     |
+| samples                           | jsonb                              | <br />                                                                     | <br /> | 样品     |
+| purchasing\_quotes                | jsonb                              | <br />                                                                     | <br /> | 采购报价   |
+| quotations                        | jsonb                              | <br />                                                                     | <br /> | 报价单    |
+| requirement\_changes              | jsonb                              | <br />                                                                     | <br /> | 需求变更   |
+| communication\_details            | jsonb                              | <br />                                                                     | <br /> | 沟通详情   |
+| is\_key\_project                  | boolean                            | <br />                                                                     | false  | 是否关键项目 |
+| ai\_analysis                      | jsonb                              | <br />                                                                     | <br /> | AI分析   |
+| creator\_id                       | text                               | <br />                                                                     | <br /> | 创建者ID  |
+| creator\_no                       | text                               | <br />                                                                     | <br /> | 创建者编号  |
+| creator\_name                     | text                               | <br />                                                                     | <br /> | 创建者姓名  |
+| create\_date                      | date                               | <br />                                                                     | <br /> | 创建日期   |
+| end\_customer                     | text                               | <br />                                                                     | <br /> | 终端客户   |
+| opp\_summary                      | text                               | <br />                                                                     | <br /> | 商机摘要   |
+| application\_scenario             | text                               | <br />                                                                     | <br /> | 应用场景   |
+| intent\_amount                    | numeric(18,2)                      | <br />                                                                     | <br /> | 意向金额   |
+| end\_project                      | text                               | <br />                                                                     | <br /> | 终端项目   |
+| product\_industry                 | crm\_lead\_product\_industry\_enum | <br />                                                                     | <br /> | 产品行业   |
+| estimated\_usage                  | text                               | <br />                                                                     | <br /> | 预计用量   |
+| estimated\_mass\_production\_date | date                               | <br />                                                                     | <br /> | 预计量产日期 |
+| customer\_action                  | crm\_lead\_customer\_action\_enum  | <br />                                                                     | <br /> | 客户动作   |
+| sales\_rep                        | text                               | <br />                                                                     | <br /> | 销售代表   |
+| product\_owner                    | text                               | <br />                                                                     | <br /> | 产品负责人  |
+| quality\_owner                    | text                               | <br />                                                                     | <br /> | 质量负责人  |
+| purchaser                         | text                               | <br />                                                                     | <br /> | 采购     |
+| fae                               | text                               | <br />                                                                     | <br /> | 技术支持   |
+| lead\_id                          | integer                            | references crm\_lead(id)                                                   | <br /> | 线索ID   |
+| opportunity\_id                   | integer                            | references crm\_opportunity(id)                                            | <br /> | 商机ID   |
+| inquiry\_id                       | integer                            | references crm\_inquiry(id)                                                | <br /> | 询盘ID   |
+| close\_time                       | date                               | <br />                                                                     | <br /> | 关闭时间   |
+| close\_reason                     | text                               | <br />                                                                     | <br /> | 关闭原因   |
+| product\_line                     | crm\_product\_line\_enum           | <br />                                                                     | <br /> | 产品线    |
+| start\_date                       | date                               | <br />                                                                     | <br /> | 开始日期   |
+| end\_date                         | date                               | <br />                                                                     | <br /> | 结束日期   |
+| attachments                       | jsonb                              | <br />                                                                     | <br /> | 附件     |
+| created\_at                       | timestamptz                        | not null                                                                   | now()  | 创建时间   |
+| updated\_at                       | timestamptz                        | not null                                                                   | now()  | 更新时间   |
+| <br />                            | <br />                             | check (id > 0)                                                             | <br /> | ID正数约束 |
 
 ## 4. 沟通与任务
 
@@ -750,6 +761,10 @@
 | public\_property\_name | text        | not null                                       | <br /> | 公共属性名称 |
 | created\_at            | timestamptz | not null                                       | now()  | 创建时间   |
 | updated\_at            | timestamptz | not null                                       | now()  | 更新时间   |
+
+补充说明：
+
+- 迁移 `20260512_fix_public_property_sequences.sql` 会分别对 `public_property_name.id` 与 `public_property_value.id` 执行 `setval(...)`，将序列游标校正到当前最大 `id + 1`，避免后续插入主键冲突。
 
 ## 4.6 竞争对手与SWOT分析
 
@@ -1312,6 +1327,7 @@ SQL 文件中定义了以下索引：
 | ----------------------------------------------------- | -------------------------------- | -------------------------------------- |
 | idx\_ba\_manucustinfo\_name                           | ba\_manucustinfo                 | name                                   |
 | idx\_ba\_manucustinfo\_customer\_number               | ba\_manucustinfo                 | customer\_number                       |
+| idx\_ba\_manucustinfo\_potential\_customer\_id        | ba\_manucustinfo                 | potential\_customer\_id                |
 | idx\_crm\_customer\_contact\_customer                 | crm\_customer\_contact           | customer\_id                           |
 | idx\_crm\_customer\_contact\_wechat\_id               | crm\_customer\_contact           | wechat\_id                             |
 | idx\_crm\_customer\_persona\_customer                 | crm\_customer\_persona           | customer\_id                           |
@@ -1334,6 +1350,7 @@ SQL 文件中定义了以下索引：
 | idx\_ba\_product\_property\_relation\_category\_id    | ba\_product\_property\_relation  | category\_id                           |
 | idx\_ba\_spu\_brand\_id                               | ba\_spu                          | brand\_id                              |
 | idx\_ba\_spu\_category\_id                            | ba\_spu                          | category\_id                           |
+| idx\_ba\_spu\_product\_no\_unique                     | ba\_spu                          | product\_no（条件唯一：非空且非空字符串）             |
 | idx\_ba\_cpinfo\_category\_id                         | ba\_cpinfo                       | category\_id                           |
 | idx\_ba\_cpinfo\_brand\_id                            | ba\_cpinfo                       | brand\_id                              |
 | idx\_ba\_cpinfo\_product\_line\_level1\_id            | ba\_cpinfo                       | product\_line\_level1\_id              |
@@ -1402,6 +1419,60 @@ $$;
 - crm\_ontology\_object, crm\_system\_config, crm\_potential\_customer
 - ba\_brand, ba\_group, ba\_product\_line, public\_property\_name, public\_property\_value
 - ba\_product\_property\_relation, ba\_spu, crm\_purchase\_quotation, crm\_purchase\_quotation\_item
+
+### public.generate\_customer\_number()
+
+按当前日期生成客户编号，格式为 `KH+YYYYMMDD+6位序号`。
+
+```sql
+create or replace function public.generate_customer_number()
+returns text
+language plpgsql
+as $$
+declare
+  today_str text;
+  current_max integer;
+begin
+  today_str := to_char(current_date, 'YYYYMMDD');
+
+  select coalesce(max(substring(customer_number from '([0-9]{3})$')::integer), 0)
+    into current_max
+    from public.ba_manucustinfo
+  where customer_number ~ ('^KH' || today_str || '[0-9]{6}$');
+
+  return 'KH' || today_str || lpad((current_max + 1)::text, 6, '0');
+end;
+$$;
+```
+
+### public.set\_customer\_number()
+
+在插入 `ba_manucustinfo` 时，若 `customer_number` 为空、空字符串或字符串 `'null'`，自动补齐标准客户编号。
+
+```sql
+create or replace function public.set_customer_number()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.customer_number is null
+     or btrim(new.customer_number) = ''
+     or lower(btrim(new.customer_number)) = 'null' then
+    new.customer_number := public.generate_customer_number();
+  end if;
+  return new;
+end;
+$$;
+```
+
+### trigger\_set\_customer\_number
+
+```sql
+create trigger trigger_set_customer_number
+before insert on public.ba_manucustinfo
+for each row
+execute function public.set_customer_number();
+```
 
 ## 8. RLS 策略
 
@@ -1614,12 +1685,13 @@ create policy p_open_delete on public.{table_name} for delete to anon, authentic
 
 ### crm\_wx\_sender\_inbox\_v（发送方收件箱视图）
 
-| 字段名                      | 数据类型        | 描述      |
-| ------------------------ | ----------- | ------- |
-| sender\_key              | text        | 发送方唯一键  |
-| sender\_wechat\_id       | text        | 发送方微信ID |
-| sender\_display\_name    | text        | 发送方展示名  |
-| message\_count           | integer     | 消息总数    |
-| last\_message\_at        | timestamptz | 最后消息时间  |
-| last\_message\_preview   | text        | 最后消息预览  |
-| archived\_message\_count | integer     | 已归档消息数  |
+| 字段名                      | 数据类型        | 描述                                      |
+| ------------------------ | ----------- | --------------------------------------- |
+| sender\_key              | text        | 发送方唯一键                                  |
+| sender\_wechat\_id       | text        | 发送方微信ID                                 |
+| sender\_display\_name    | text        | 发送方展示名                                  |
+| message\_count           | integer     | 消息总数                                    |
+| last\_message\_at        | timestamptz | 最后消息时间                                  |
+| last\_message\_preview   | text        | 最后消息预览                                  |
+| archived\_message\_count | integer     | 已归档消息数crm\_lead\_customer\_action\_enum |
+

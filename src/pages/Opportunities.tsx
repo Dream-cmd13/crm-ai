@@ -915,16 +915,19 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
     { key: 'closeReason', label: '关闭原因', type: 'textarea', required: true }
   ];
 
-  const [displayCount, setDisplayCount] = useState(20);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const PAGE_SIZE_OPTIONS = [20, 50, 100];
+  const total = filteredOpportunities.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    if (scrollHeight - scrollTop <= clientHeight + 100) {
-      if (displayCount < opportunities.length) {
-        setDisplayCount(prev => prev + 20);
-      }
+  useEffect(() => {
+    if (page > totalPages && totalPages > 0) {
+      setPage(totalPages);
     }
-  };
+  }, [totalPages, page]);
+
+  const paginatedOpportunities = filteredOpportunities.slice((page - 1) * pageSize, page * pageSize);
 
   if (isLoading) {
     return (
@@ -1455,7 +1458,6 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
 
       <div 
         className="flex-grow overflow-auto min-h-0"
-        onScroll={handleScroll}
       >
         {isLoading ? (
           <div className="h-full flex items-center justify-center">
@@ -1501,10 +1503,10 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
                       <th className="px-6 py-4 sticky right-0 bg-gray-50 z-10">操作</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredOpportunities.slice(0, displayCount).map((opp, index) => (
+              <tbody className="divide-y divide-gray-100">
+                {paginatedOpportunities.map((opp, index) => (
                   <tr key={opp.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-gray-500">{index + 1}</td>
+                    <td className="px-6 py-4 text-gray-500">{(page - 1) * pageSize + index + 1}</td>
                     <td className="px-6 py-4 font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => setSelectedOpp(opp)}>{opp.opportunityNo || '-'}</td>
                     <td className="px-6 py-4 font-medium text-gray-900">{opp.customerName}</td>
                     <td className="px-6 py-4 text-gray-600">{opp.oppDate}</td>
@@ -1597,7 +1599,7 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
 
         {/* Mobile Card View */}
         <div className="md:hidden space-y-4">
-          {filteredOpportunities.slice(0, displayCount).map((opp) => (
+          {paginatedOpportunities.map((opp) => (
             <div 
               key={opp.id} 
               className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3"
@@ -1690,14 +1692,51 @@ export default function Opportunities({ role, currentUser, viewParams, navigateT
               </div>
             </div>
           ))}
-          
-          {displayCount < filteredOpportunities.length && (
-            <div className="py-4 text-center text-gray-500 text-sm">
-              正在加载更多...
-            </div>
-          )}
         </div>
-          </>
+
+        <div className="px-4 py-3 mt-4 bg-white border border-gray-200 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span>共 {total} 条</span>
+            <span className="ml-2">每页</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              className="px-2 py-1 border border-gray-200 rounded-lg text-sm"
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+            <span>条</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-50"
+            >
+              上一页
+            </button>
+            <span className="text-sm text-gray-500">
+              第 {Math.min(page, totalPages)} / {totalPages} 页
+            </span>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-50"
+            >
+              下一页
+            </button>
+          </div>
+        </div>
+        </>
         )}
       </div>
 
