@@ -2,27 +2,27 @@ begin;
 
 -- 用户表（与 okr-ai 共用，在 okr-ai users 表基础上扩展）
 create table if not exists public.users (
-  id text primary key,
-  auth_id uuid unique,              -- 关联 Supabase Auth
-  username text not null,
-  name text not null,
-  email text,
-  phone text,                       -- 手机号
-  english_name text,                -- 英文名
-  employee_no text,                 -- 工号
-  role text not null default 'User',
-  department_id text,
-  is_active boolean default true,
-  wechat_name text,                 -- 员工微信昵称（人工预设，用于匹配）
-  wechat_id text,                   -- 员工微信ID（系统自动回填，不可手动编辑）
-  crm_id text,                      -- 关联CRM系统用户ID，用于数据迁移
-  saas_id text,                     -- 关联SaaS系统用户ID，用于数据迁移
-  pad_permissions jsonb,
-  reviews jsonb,
-  system_role_ids jsonb,
-  custom_permissions jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  id text primary key,                              -- 用户ID（主键）
+  auth_id uuid unique,                              -- 关联 Supabase Auth
+  username text not null,                           -- 用户名
+  name text not null,                               -- 姓名
+  email text,                                       -- 邮箱
+  phone text,                                       -- 手机号
+  english_name text,                                -- 英文名
+  employee_no text,                                 -- 工号
+  role text not null default 'User',                -- 角色（Admin/User）
+  department_id text,                               -- 部门ID
+  is_active boolean default true,                   -- 是否启用
+  wechat_name text,                                 -- 员工微信昵称（人工预设，用于匹配）
+  wechat_id text,                                   -- 员工微信ID（系统自动回填，不可手动编辑）
+  crm_id text,                                      -- 关联CRM系统用户ID（数据迁移用）
+  saas_id text,                                     -- 关联SaaS系统用户ID（数据迁移用）
+  pad_permissions jsonb,                            -- PAD权限配置（JSON）
+  reviews jsonb,                                    -- 复盘记录（JSON）
+  system_role_ids jsonb,                            -- 系统角色ID列表（JSON）
+  custom_permissions jsonb,                         -- 自定义权限配置（JSON）
+  created_at timestamptz not null default now(),    -- 创建时间
+  updated_at timestamptz not null default now()     -- 更新时间
 );
 
 create index if not exists idx_users_auth_id on public.users(auth_id);

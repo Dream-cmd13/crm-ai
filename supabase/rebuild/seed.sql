@@ -524,4 +524,31 @@ begin
 end
 $$;
 
+-- 修正 public_property 序列值（防止手动指定 ID 后序列号错位）
+select setval(
+  pg_get_serial_sequence('public.public_property_name', 'id'),
+  (select coalesce(max(id), 0) + 1 from public.public_property_name),
+  false
+);
+
+select setval(
+  pg_get_serial_sequence('public.public_property_value', 'id'),
+  (select coalesce(max(id), 0) + 1 from public.public_property_value),
+  false
+);
+
+-- 修复潜在客户关联与客户编号（迁移兼容）
+update public.ba_manucustinfo
+set potential_customer_id = customer_number
+where level = '潜在客户'
+  and coalesce(btrim(potential_customer_id), '') = ''
+  and customer_number is not null
+  and customer_number !~ '^KH[0-9]{8}[0-9]{6}$';
+
+update public.ba_manucustinfo
+set customer_number = public.generate_customer_number()
+where level = '潜在客户'
+  and potential_customer_id is not null
+  and customer_number !~ '^KH[0-9]{8}[0-9]{6}$';
+
 commit;
