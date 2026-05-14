@@ -60,17 +60,4 @@ create policy users_update on public.users for update to authenticated
   with check (auth_id = auth.uid() or public.is_admin());
 create policy users_delete on public.users for delete to authenticated using (public.is_admin());
 
--- 自动匹配触发器：前端填写 wechat_name 后自动触发微信绑定匹配
--- 函数 trg_on_wechat_name_change() 定义在 init.sql，仅在函数存在时创建触发器
-do $$
-begin
-  if exists (select 1 from pg_proc where proname = 'trg_on_wechat_name_change') then
-    drop trigger if exists trg_users_wechat_name on public.users;
-    create trigger trg_users_wechat_name
-      after insert or update of wechat_name on public.users
-      for each row execute function public.trg_on_wechat_name_change();
-  end if;
-end;
-$$;
-
 commit;

@@ -2404,6 +2404,11 @@ begin
 end;
 $$;
 
+drop trigger if exists trg_users_wechat_name on public.users;
+create trigger trg_users_wechat_name
+  after insert or update of wechat_name on public.users
+  for each row execute function public.trg_on_wechat_name_change();
+
 drop trigger if exists trg_contact_wechat_name on public.crm_customer_contact;
 create trigger trg_contact_wechat_name
   after insert or update of wechat_name on public.crm_customer_contact
