@@ -183,7 +183,10 @@
 | role                | text        | not null    | 'User' | 角色 (Admin/User)  |
 | department\_id      | text        | <br />      | <br /> | 部门ID             |
 | is\_active          | boolean     | <br />      | true   | 是否激活             |
-| legacy\_wanlian\_id | integer     | <br />      | <br /> | wanlian 原系统用户ID  |
+| wechat\_name        | text        | <br />      | <br /> | 员工微信昵称（人工预设，用于匹配） |
+| wechat\_id          | text        | <br />      | <br /> | 员工微信ID（系统自动回填）    |
+| crm\_id             | text        | <br />      | <br /> | 关联CRM系统用户ID，用于数据迁移 |
+| saas\_id            | text        | <br />      | <br /> | 关联SaaS系统用户ID，用于数据迁移 |
 | pad\_permissions    | jsonb       | <br />      | <br /> | 可见部门权限           |
 | reviews             | jsonb       | <br />      | <br /> | 用户考核记录           |
 | system\_role\_ids   | jsonb       | <br />      | <br /> | 系统角色ID数组         |
@@ -205,7 +208,6 @@
 | sub\_departments    | jsonb       | <br />      | <br /> | 递归子部门数组          |
 | parent\_id          | text        | <br />      | <br /> | 父部门ID（wanlian兼容） |
 | type                | smallint    | <br />      | 0      | 0=部门 1=办事处       |
-| legacy\_wanlian\_id | integer     | <br />      | <br /> | wanlian 原系统部门ID  |
 | okrs                | jsonb       | <br />      | <br /> | 部门OKR            |
 | reviews             | jsonb       | <br />      | <br /> | 部门考核记录           |
 | created\_at         | timestamptz | not null    | now()  | 创建时间             |
@@ -1325,6 +1327,11 @@ SQL 文件中定义了以下索引：
 
 | 索引名                                                   | 表名                               | 字段                                     |
 | ----------------------------------------------------- | -------------------------------- | -------------------------------------- |
+| idx\_users\_auth\_id                                  | users                            | auth\_id                               |
+| idx\_users\_username                                  | users                            | username                               |
+| idx\_users\_department\_id                            | users                            | department\_id                         |
+| idx\_users\_wechat\_id                                | users                            | wechat\_id                             |
+| idx\_users\_wechat\_name                              | users                            | wechat\_name                           |
 | idx\_ba\_manucustinfo\_name                           | ba\_manucustinfo                 | name                                   |
 | idx\_ba\_manucustinfo\_customer\_number               | ba\_manucustinfo                 | customer\_number                       |
 | idx\_ba\_manucustinfo\_potential\_customer\_id        | ba\_manucustinfo                 | potential\_customer\_id                |
@@ -1476,7 +1483,7 @@ execute function public.set_customer_number();
 
 ## 8. RLS 策略
 
-所有表都应用了开放的 RLS（Row Level Security）策略，允许 `anon` 和 `authenticated` 角色进行完整的 CRUD 操作：
+除 `users` 和 `departments` 外，所有表都应用了开放的 RLS（Row Level Security）策略，允许 `anon` 和 `authenticated` 角色进行完整的 CRUD 操作：
 
 ```sql
 alter table public.{table_name} enable row level security;
@@ -1487,7 +1494,22 @@ create policy p_open_update on public.{table_name} for update to anon, authentic
 create policy p_open_delete on public.{table_name} for delete to anon, authenticated using (true);
 ```
 
-这意味着所有表对所有用户都是完全开放的，无需额外认证。
+`users` 和 `departments` 使用基于认证的 RLS：
+
+| 表 | 策略 | 说明 |
+|---|---|---|
+| users | `users_select` | 所有认证用户可读 |
+| users | `users_insert` | 仅管理员可写 |
+| users | `users_update` | 用户可更新自身 + 管理员可更新 |
+| users | `users_delete` | 仅管理员可删 |
+| departments | `departments_select` | 所有认证用户可读 |
+| departments | `departments_insert` | 仅管理员可写 |
+| departments | `departments_update` | 仅管理员可写 |
+| departments | `departments_delete` | 仅管理员可删 |
+
+辅助函数：
+- `public.is_admin()` — 检查当前认证用户是否为 Admin 角色
+- `public.current_user_id()` — 返回当前认证用户对应的 users.id
 
 ### wechat\_raw\.wechat\_group\_message\_events（原始微信群消息事件）
 
