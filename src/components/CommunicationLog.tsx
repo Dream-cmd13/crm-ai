@@ -15,7 +15,7 @@ import { toast } from 'react-hot-toast';
 interface CommunicationLogProps {
   onAddCommunication: (comm: Partial<CommunicationDetail>) => void;
   title?: string;
-  contacts?: { id: string; name: string; position?: string; department?: string; wechatId?: string }[];
+  contacts?: { id: string; name: string; position?: string; department?: string; wechatName?: string }[];
   employees?: { id: string; name: string; role?: string }[];
   customerId?: string;
   customerName?: string;

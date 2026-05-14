@@ -74,7 +74,7 @@ export const ontologyDbFieldPresets: Preset = {
     { code: 'position', name: '职位', type: 'String' },
     { code: 'phone', name: '电话', type: 'String' },
     { code: 'email', name: '邮箱', type: 'String' },
-    { code: 'wechat_id', name: '微信ID', type: 'String' }
+    { code: 'wechat_name', name: '微信昵称', type: 'String' }
   ],
   crm_communication_log: [
     { code: 'id', name: '沟通ID', type: 'String', required: true },

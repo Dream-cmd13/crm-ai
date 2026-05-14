@@ -123,10 +123,6 @@ export const ContactEditModal = ({ isOpen, onClose, onSave, editingContact, setE
               <input type="email" value={editingContact.email} onChange={e => setEditingContact({...editingContact, email: e.target.value})} className="w-full text-sm p-2 border border-gray-200 rounded-lg" />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">微信号</label>
-              <input type="text" value={editingContact.wechatId || ''} onChange={e => setEditingContact({...editingContact, wechatId: e.target.value})} className="w-full text-sm p-2 border border-gray-200 rounded-lg" />
-            </div>
-            <div>
               <label className="block text-xs text-gray-500 mb-1">
                 微信昵称
                 <span className="text-gray-400 font-normal ml-1">（与微信里昵称完全一致，用于自动匹配）</span>

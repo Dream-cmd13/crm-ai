@@ -186,7 +186,8 @@
 | department         | 部门    | text        | <br />                 |
 | phone              | 电话    | text        | <br />                 |
 | email              | 邮箱    | text        | <br />                 |
-| wechat\_id         | 微信号   | text        | <br />                 |
+| wechat\_id         | 微信ID  | text        | 系统自动回填                |
+| wechat\_name       | 微信昵称  | text        | 人工填写，用于匹配             |
 | is\_primary        | 首要联系人 | boolean     | true/false             |
 | buying\_role       | 购买角色  | text        | 经济买家/技术买家/用户买家/教练      |
 | buying\_mode       | 购买模式  | text        | 增长模式/困难模式/平稳模式/过度自信模式  |
