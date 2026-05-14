@@ -11,8 +11,13 @@ interface ProjectListProps {
   projectCategoryFilter: '全部' | '定制项目' | '标准项目';
   setProjectCategoryFilter: (v: '全部' | '定制项目' | '标准项目') => void;
   filteredProjects: Project[];
-  displayCount: number;
-  onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
+  page: number;
+  setPage: React.Dispatch<React.SetStateAction<number>>;
+  pageSize: number;
+  setPageSize: React.Dispatch<React.SetStateAction<number>>;
+  PAGE_SIZE_OPTIONS: number[];
+  total: number;
+  totalPages: number;
   onProjectClick: (p: Project) => void;
   onDeleteProject?: (projectId: string) => void;
   onAddProject?: () => void;
@@ -21,7 +26,7 @@ interface ProjectListProps {
 export const ProjectList = ({
   searchTerm, setSearchTerm, activeTab, setActiveTab,
   projectCategoryFilter, setProjectCategoryFilter,
-  filteredProjects, displayCount, onScroll, onProjectClick, onDeleteProject, onAddProject
+  filteredProjects, page, setPage, pageSize, setPageSize, PAGE_SIZE_OPTIONS, total, totalPages, onProjectClick, onDeleteProject, onAddProject
 }: ProjectListProps) => {
   const tabs = ['全部项目', '战略客户项目池', '成长型客户项目池', '普通客户项目池'];
 
@@ -98,10 +103,9 @@ export const ProjectList = ({
 
       <div 
         className="flex-1 overflow-y-auto pr-2 -mr-2"
-        onScroll={onScroll}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredProjects.slice(0, displayCount).map(project => (
+          {filteredProjects.map(project => (
             <ProjectCard 
               key={project.id} 
               project={project} 
@@ -117,6 +121,49 @@ export const ProjectList = ({
             <p>未找到匹配的项目</p>
           </div>
         )}
+      </div>
+
+      <div className="px-4 py-3 mt-4 bg-white border border-gray-200 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <span>共 {total} 条</span>
+          <span className="ml-2">每页</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+            className="px-2 py-1 border border-gray-200 rounded-lg text-sm"
+          >
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+          <span>条</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setPage((prev: number) => Math.max(1, prev - 1))}
+            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-50"
+          >
+            上一页
+          </button>
+          <span className="text-sm text-gray-500">
+            第 {Math.min(page, totalPages)} / {totalPages} 页
+          </span>
+          <button
+            type="button"
+            disabled={page >= totalPages}
+            onClick={() => setPage((prev: number) => Math.min(totalPages, prev + 1))}
+            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-50"
+          >
+            下一页
+          </button>
+        </div>
       </div>
     </div>
   );

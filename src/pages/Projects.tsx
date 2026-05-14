@@ -60,7 +60,9 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
   const [communications, setCommunications] = useState<CommunicationDetail[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [displayCount, setDisplayCount] = useState(20);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const PAGE_SIZE_OPTIONS = [20, 50, 100];
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isEditingMembers, setIsEditingMembers] = useState(false);
   const [regeneratingNodes, setRegeneratingNodes] = useState<Record<string, boolean>>({});
@@ -746,14 +748,16 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
     syncProject(updatedProject);
   };
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    if (scrollHeight - scrollTop <= clientHeight + 100) {
-      if (displayCount < filteredProjects.length) {
-        setDisplayCount(prev => prev + 20);
-      }
+  const total = filteredProjects.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages && totalPages > 0) {
+      setPage(totalPages);
     }
-  };
+  }, [totalPages, page]);
+
+  const paginatedProjects = filteredProjects.slice((page - 1) * pageSize, page * pageSize);
 
   const handleDeleteProject = async (projectId: string) => {
     try {
@@ -942,9 +946,14 @@ export default function Projects({ role, currentUser, viewParams, navigateTo, go
             setActiveTab={setActiveTab}
             projectCategoryFilter={projectCategoryFilter}
             setProjectCategoryFilter={setProjectCategoryFilter}
-            filteredProjects={filteredProjects}
-            displayCount={displayCount}
-            onScroll={handleScroll}
+            filteredProjects={paginatedProjects}
+            page={page}
+            setPage={setPage}
+            pageSize={pageSize}
+            setPageSize={setPageSize}
+            PAGE_SIZE_OPTIONS={PAGE_SIZE_OPTIONS}
+            total={total}
+            totalPages={totalPages}
             onProjectClick={setSelectedProject}
             onDeleteProject={handleDeleteProject}
             onAddProject={() => setIsAdding(true)}
