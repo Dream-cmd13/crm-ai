@@ -10,6 +10,7 @@ import { fetchTaskTypeConfigFromSupabase } from '../lib/taskTypeConfigRepository
 import { fetchLlmConfigFromSupabase } from '../lib/llmConfigRepository';
 import { decodeSopTriggerRule, encodeSopTriggerRule, SopTriggerMode } from '../lib/sopTrigger';
 import { List } from 'lucide-react';
+import { confirmDialog } from '../lib/toastConfirm';
 
 const DEFAULT_SOP_OQAR_UNIFIED_PROMPT = [
   '你是资深大客户销售教练，请按 OQAR 体系处理问答场景。',
@@ -909,9 +910,9 @@ export default function ArchitectureSettings() {
     }));
   };
 
-  const handleDeleteFlow = (flowId: string) => {
+  const handleDeleteFlow = async (flowId: string) => {
     if (!ensureDraftEditable()) return;
-    const confirmed = window.confirm('确认删除该 SOP 模板？此操作会同步到草稿。');
+    const confirmed = await confirmDialog('确认删除该 SOP 模板？此操作会同步到草稿。');
     if (!confirmed) return;
     setObjects((prev) =>
       prev.map((obj) => {
@@ -922,9 +923,9 @@ export default function ArchitectureSettings() {
     if (designFlowId === flowId) setDesignFlowId(null);
   };
 
-  const handleDeleteNode = (flowId: string, nodeId: string) => {
+  const handleDeleteNode = async (flowId: string, nodeId: string) => {
     if (!ensureDraftEditable()) return;
-    const confirmed = window.confirm('确认删除该 SOP 处理块？');
+    const confirmed = await confirmDialog('确认删除该 SOP 处理块？');
     if (!confirmed) return;
     setObjects((prev) =>
       prev.map((obj) => {

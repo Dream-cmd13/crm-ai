@@ -51,6 +51,14 @@ type OpenTab = {
 };
 
 export default function App() {
+  const toasterProps = {
+    position: 'top-center' as const,
+    containerStyle: { zIndex: 2147483647, top: 16 },
+    toastOptions: {
+      style: { zIndex: 2147483647 }
+    }
+  };
+
   const { isAuthenticated, currentUser, login, logout } = useAuthStore();
   const [isInitializing, setIsInitializing] = useState(true);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -240,7 +248,7 @@ export default function App() {
     return (
       <>
         <LoginPage onLoginSuccess={() => {}} />
-        <Toaster position="top-center" />
+        <Toaster {...toasterProps} />
       </>
     );
   }
@@ -292,7 +300,7 @@ export default function App() {
       {showChangePassword && (
         <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
       )}
-      <Toaster position="top-center" />
+      <Toaster {...toasterProps} />
     </div>
   );
 }

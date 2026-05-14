@@ -10,6 +10,7 @@ import {
   saveProductLineToSupabase
 } from '../lib/productRepository';
 import { fetchUsersFromSupabase } from '../lib/userRepository';
+import { confirmDialog } from '../lib/toastConfirm';
 
 type ModalMode = 'view' | 'edit' | 'add' | null;
 type TreeRow = ProductLine & { level: number };
@@ -172,7 +173,7 @@ export default function ProductLinesPage() {
 
   const handleDelete = async (row: ProductLine) => {
     if (!row.id) return;
-    if (!window.confirm(`确认删除产品线 ${row.id}？`)) return;
+    if (!(await confirmDialog(`确认删除产品线 ${row.id}？`))) return;
     try {
       await deleteProductLineFromSupabase(row.id);
       await refreshData();

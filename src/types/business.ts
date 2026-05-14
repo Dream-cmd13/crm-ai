@@ -94,6 +94,7 @@ export interface Inquiry extends BaseEntity {
   sourceChannel: string;
   category: string;
   productSeries: string;
+  classificationProductLine?: string;
   province: string;
   situation: string;
   customerInquiry?: string;
@@ -145,6 +146,7 @@ export interface Lead extends BaseEntity {
   source: string;
   productCategory: string;
   productSeries: string;
+  classificationProductLine?: string;
   sourceStatus: string;
   productIndustry?: '基础接插件' | '新能源' | '线束' | '定制' | '胜蓝' | '胜蓝电气' | '工业';
   customerOpportunity?: string;
@@ -488,6 +490,7 @@ export interface Customer extends BaseEntity {
   monthSettlementApplyStatus?: string;
   businessManager?: string;
   currency?: string;
+  currencyId?: string;
   customerCategory?: string;
   groupName?: string;
   isListedCompany?: boolean;
@@ -665,6 +668,7 @@ export interface CustomerCase extends BaseEntity {
 export interface PotentialCustomer {
   id: string;
   name: string;
+  customerNumber?: string;
   createdAt?: string;
   updatedAt?: string;
 }

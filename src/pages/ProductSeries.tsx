@@ -10,6 +10,7 @@ import {
   fetchProductSeriesFromSupabase,
   saveProductSeriesToSupabase
 } from '../lib/productRepository';
+import { confirmDialog } from '../lib/toastConfirm';
 
 type ModalMode = 'view' | 'edit' | 'add' | null;
 interface ProductSeriesProps {
@@ -199,7 +200,7 @@ export default function ProductSeriesPage({ navigateTo }: ProductSeriesProps) {
 
   const handleDelete = async (series: ProductSeries) => {
     if (!series.id) return;
-    if (!window.confirm(`确认删除产品系列 ${series.id}？`)) return;
+    if (!(await confirmDialog(`确认删除产品系列 ${series.id}？`))) return;
 
     try {
       await deleteProductSeriesFromSupabase(series.id);

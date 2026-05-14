@@ -25,6 +25,12 @@ import { generateBusinessNumber, ID_PREFIX } from '../lib/idUtils';
 import { triggerAutoFlowsForCreate } from '../lib/workflowRunner';
 import { notifySupabaseFailure } from '../lib/supabaseFailureNotice';
 import { fetchProductSeriesFromSupabase } from '../lib/productRepository';
+import {
+  CLASSIFICATION_PRODUCT_LINE_OPTIONS,
+  getClassificationProductLineLabel,
+  normalizeClassificationProductLineKey,
+  toClassificationProductLineDbValue
+} from '../lib/classificationProductLine';
 
 const INQUIRY_SOURCE_CHANNEL_OPTIONS = ['万连', '电子谷', '1688', '爱采购', '胜蓝', '新电子谷', '其他', '淘宝', '官网', '展会'];
 
@@ -189,6 +195,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       sourceChannel: row.source_channel || '',
       category: row.category || '',
       productSeries: row.product_series || '',
+      classificationProductLine: normalizeClassificationProductLineKey(row.classification_product_line),
       province: row.province || '',
       situation: row.situation || '',
       customerInquiry: row.customer_inquiry || '',
@@ -370,11 +377,12 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
         inquiry_no: isNew ? await generateBusinessNumber(ID_PREFIX.INQUIRY) : (data.inquiryNo || selectedInquiry?.inquiryNo || null),
         customer_id: customerIdForDb,
         company_name: data.companyName,
-        customer_name: data.customerName,
+        customer_name: data.customerName ?? selectedInquiry?.customerName ?? '',
         contact: data.contact,
         source_channel: normalizeSourceChannel(data.sourceChannel),
         category: data.category,
         product_series: data.productSeries,
+        classification_product_line: toClassificationProductLineDbValue(data.classificationProductLine),
         province: data.province,
         situation: data.situation,
         customer_inquiry: data.customerInquiry,
@@ -522,6 +530,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       source_channel: inquiry.sourceChannel || null,
       category: inquiry.category || '',
       product_series: inquiry.productSeries || '',
+      classification_product_line: toClassificationProductLineDbValue(inquiry.classificationProductLine),
       province: inquiry.province || '',
       situation: inquiry.situation || '',
       customer_inquiry: inquiry.customerInquiry || '',
@@ -611,6 +620,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
       buyerRole: inquiry.buyerRole,
       buyingMode: inquiry.buyingMode,
       intentScore: inquiry.intentScore,
+      classificationProductLine: inquiry.classificationProductLine,
     });
     setIsConvertingToLead(true);
   };
@@ -672,6 +682,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     { key: 'channelPlatform', label: '来源渠道', type: 'select', options: INQUIRY_SOURCE_CHANNEL_OPTIONS },
     { key: 'source', label: '来源类型', type: 'select', options: LEAD_SOURCE_TYPE_OPTIONS },
     { key: 'productSeries', label: '产品系列', type: 'select', options: productSeriesOptions },
+    { key: 'classificationProductLine', label: '分类产品线', type: 'select', options: CLASSIFICATION_PRODUCT_LINE_OPTIONS },
   ];
 
   const handleRegenerateAI = async (nodeId: string, field: string, prompt: string) => {
@@ -814,7 +825,6 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     { key: 'customerId', label: '客户ID', hidden: true },
     { key: 'createDate', label: '创建日期', type: 'date', required: true },
     { key: 'companyName', label: '客户', type: 'customer_lookup', customerIdKey: 'customerId', required: true },
-    { key: 'customerName', label: '客户名称' },
     { key: 'contactPerson', label: '客户联系人' },
     { key: 'contact', label: '联系方式' },
     { key: 'buyerRole', label: '买家角色', type: 'select', options: ['技术买家', '用户买家', '经济买家', '教练'] },
@@ -822,6 +832,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
     { key: 'intentScore', label: '意向得分', type: 'number' },
     { key: 'sourceChannel', label: '来源渠道', type: 'select', options: INQUIRY_SOURCE_CHANNEL_OPTIONS },
     { key: 'productSeries', label: '产品系列', type: 'select', options: productSeriesOptions },
+    { key: 'classificationProductLine', label: '分类产品线', type: 'select', options: CLASSIFICATION_PRODUCT_LINE_OPTIONS },
     { key: 'province', label: '客户省市' },
     { key: 'customerInquiry', label: '客户咨询内容', type: 'textarea' },
     { key: 'situation', label: '客户情况', type: 'textarea' },
@@ -926,10 +937,10 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                       onClick={() => navigateTo?.('customers', { customerId: selectedInquiry.customerId })}
                       className="text-indigo-600 hover:text-indigo-700 hover:underline"
                     >
-                      {selectedInquiry.companyName || selectedInquiry.customerName || '未知客户'}
+                      {selectedInquiry.customerName || selectedInquiry.companyName || '未知客户'}
                     </button>
                   ) : (
-                    selectedInquiry.companyName || selectedInquiry.customerName || '未知客户'
+                    selectedInquiry.customerName || selectedInquiry.companyName || '未知客户'
                   )}
                 </h2>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -969,14 +980,6 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                     <p className="font-medium text-gray-900">{selectedInquiry.createDate || selectedInquiry.date}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">公司名称</p>
-                    <p className="font-medium text-gray-900">{selectedInquiry.companyName}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">客户联系人</p>
-                    <p className="font-medium text-indigo-600">{selectedInquiry.contactPerson || '未关联'}</p>
-                  </div>
-                  <div>
                     <p className="text-sm text-gray-500 mb-1">客户名称</p>
                     {selectedInquiry.customerId ? (
                       <button
@@ -984,11 +987,15 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                         onClick={() => navigateTo?.('customers', { customerId: selectedInquiry.customerId })}
                         className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
                       >
-                        {selectedInquiry.customerName || '-'}
+                        {selectedInquiry.customerName || selectedInquiry.companyName || '-'}
                       </button>
                     ) : (
-                      <p className="font-medium text-gray-900">{selectedInquiry.customerName || '-'}</p>
+                      <p className="font-medium text-gray-900">{selectedInquiry.customerName || selectedInquiry.companyName || '-'}</p>
                     )}
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">客户联系人</p>
+                    <p className="font-medium text-indigo-600">{selectedInquiry.contactPerson || '未关联'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">联系方式</p>
@@ -1037,6 +1044,10 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                   <div>
                     <p className="text-sm text-gray-500 mb-1">产品系列</p>
                     <p className="font-medium text-gray-900">{selectedInquiry.productSeries || selectedInquiry.category || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">分类产品线</p>
+                    <p className="font-medium text-gray-900">{getClassificationProductLineLabel(selectedInquiry.classificationProductLine) || '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 mb-1">客户省市</p>
@@ -1172,7 +1183,7 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                     contacts={contacts}
                     employees={[{ id: currentUser?.id || 'emp1', name: currentUser?.name || role, role: role }]}
                     customerId={selectedInquiry.customerId}
-                    customerName={selectedInquiry.companyName || selectedInquiry.customerName}
+                    customerName={selectedInquiry.customerName || selectedInquiry.companyName}
                     communications={communications}
                   />
                 )}
@@ -1421,11 +1432,11 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                     <tr>
                       <th className="px-6 py-4">序号</th>
                       <th className="px-6 py-4">询盘编号</th>
-                      <th className="px-6 py-4">公司名称</th>
                       <th className="px-6 py-4">客户名称</th>
                       <th className="px-6 py-4">联系方式</th>
                       <th className="px-6 py-4">来源渠道</th>
                       <th className="px-6 py-4">产品系列</th>
+                      <th className="px-6 py-4">分类产品线</th>
                       <th className="px-6 py-4">客户省市</th>
                       <th className="px-6 py-4">客户咨询内容</th>
                       <th className="px-6 py-4">客户情况</th>
@@ -1447,10 +1458,10 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                     <td className="px-6 py-4 text-gray-500">{index + 1}</td>
                     <td className="px-6 py-4 font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => setSelectedInquiry(inq)}>{inq.inquiryNo || '-'}</td>
                     <td className="px-6 py-4 font-medium text-gray-900">{inq.companyName}</td>
-                    <td className="px-6 py-4 text-gray-600">{inq.customerName}</td>
                     <td className="px-6 py-4 text-gray-600">{inq.contact}</td>
                     <td className="px-6 py-4 text-gray-600">{inq.sourceChannel}</td>
                     <td className="px-6 py-4 text-gray-600">{inq.productSeries || inq.category || '-'}</td>
+                    <td className="px-6 py-4 text-gray-600">{getClassificationProductLineLabel(inq.classificationProductLine) || '-'}</td>
                     <td className="px-6 py-4 text-gray-600">{inq.province}</td>
                     <td className="px-6 py-4 text-gray-600 truncate max-w-xs">{inq.customerInquiry || '-'}</td>
                     <td className="px-6 py-4 text-gray-600 truncate max-w-xs">{inq.situation}</td>
@@ -1556,10 +1567,6 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
               
               <div className="grid grid-cols-2 gap-y-2 text-sm">
                 <div>
-                  <p className="text-gray-500 text-xs">客户名称</p>
-                  <p className="text-gray-900">{inq.customerName}</p>
-                </div>
-                <div>
                   <p className="text-gray-500 text-xs">创建日期</p>
                   <p className="text-gray-900">{inq.createDate || inq.date}</p>
                 </div>
@@ -1570,6 +1577,10 @@ export default function Inquiries({ role, currentUser, viewParams, navigateTo, g
                 <div>
                   <p className="text-gray-500 text-xs">产品系列</p>
                   <p className="text-gray-900">{inq.productSeries || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">分类产品线</p>
+                  <p className="text-gray-900">{getClassificationProductLineLabel(inq.classificationProductLine) || '-'}</p>
                 </div>
               </div>
 

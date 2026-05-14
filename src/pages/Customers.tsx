@@ -10,17 +10,18 @@ import { PersonaEditModal, ContactEditModal } from '../components/customers/Cust
 import PotentialCustomerList from '../components/customers/PotentialCustomerList';
 import QuickTaskModal from '../components/QuickTaskModal';
 import TaskDetailModal from '../components/TaskDetailModal';
-import { fetchCustomersModuleDataFromSupabase, saveCustomersSnapshotToSupabase, savePersonasSnapshotToSupabase, saveVisitPlansSnapshotToSupabase, deleteCustomerFromSupabase, fetchCustomerCommunicationsFromSupabase, saveCustomerCommunicationToSupabase } from '../lib/customerRepository';
+import { fetchCustomersModuleDataFromSupabase, saveCustomersSnapshotToSupabase, savePersonasSnapshotToSupabase, saveVisitPlansSnapshotToSupabase, deleteCustomerFromSupabase, fetchCustomerCommunicationsFromSupabase, saveCustomerCommunicationToSupabase, fetchPotentialCustomerDetailFromSupabase } from '../lib/customerRepository';
 import { convertPotentialCustomerToCustomerInSupabase, fetchPotentialCustomersFromSupabase } from '../lib/potentialCustomerRepository';
 import { saveCustomerContactToSupabase, fetchCustomerContactsFromSupabase } from '../lib/customerInteractionRepository';
 import { parseAiJson, parsePersonaDimensions } from '../lib/aiJson';
 import { fetchPersonaAiConfig } from '../lib/personaAiConfigRepository';
 import {
+  CUSTOMER_CURRENCY_OPTIONS,
   CUSTOMER_REGION_OPTIONS,
   CUSTOMER_SOURCE_OPTIONS,
   CUSTOMER_TYPE_OPTIONS,
   CUSTOMER_INDUSTRY_OPTIONS,
-  PAYMENT_TERM_OPTIONS
+  formatCustomerCurrencyLabel
 } from '../lib/customerEnums';
 
 interface CustomersProps {
@@ -92,6 +93,27 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
   const [isOrganizing, setIsOrganizing] = useState(false);
   const [customerCommunications, setCustomerCommunications] = useState<CommunicationDetail[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const skipNextCustomersAutoSyncRef = useRef(false);
+  const isCustomersAutoSyncingRef = useRef(false);
+
+  const normalizeCustomerCurrency = (customer: Customer): Customer => {
+    const currencyId = String(customer.currencyId || '').trim();
+    return {
+      ...customer,
+      currencyId,
+      currency: formatCustomerCurrencyLabel(currencyId) || ''
+    };
+  };
+
+  const normalizeCustomerName = (value: string) => String(value || '').trim().toLowerCase();
+  const validateDuplicateCustomerName = (value: string) => {
+    const customerName = String(value || '').trim();
+    if (!customerName) return '';
+    const existingCustomer = customers.find((customer) =>
+      normalizeCustomerName(customer.name) === normalizeCustomerName(customerName)
+    );
+    return existingCustomer ? '该客户已存在' : '';
+  };
 
   useEffect(() => {
     if (!viewParams) return;
@@ -177,14 +199,29 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
 
   useEffect(() => {
     if (!isRemoteLoaded) return; // 只有在远程数据加载完成后才保存
+    if (skipNextCustomersAutoSyncRef.current) {
+      skipNextCustomersAutoSyncRef.current = false;
+      return;
+    }
+    if (isCustomersAutoSyncingRef.current) return;
     const timer = setTimeout(() => {
+      isCustomersAutoSyncingRef.current = true;
       saveCustomersSnapshotToSupabase(customers)
         .then(updatedCustomers => {
-          // Update local state with generated customer numbers
-          setCustomers(updatedCustomers);
+          setCustomers((prev) => {
+            if (prev.length !== updatedCustomers.length) return updatedCustomers;
+            for (let i = 0; i < prev.length; i++) {
+              if (String(prev[i]?.id || '') !== String(updatedCustomers[i]?.id || '')) return updatedCustomers;
+              if (String(prev[i]?.customerNumber || '') !== String(updatedCustomers[i]?.customerNumber || '')) return updatedCustomers;
+            }
+            return prev;
+          });
         })
         .catch((error) => {
           console.error('Error syncing customers:', error);
+        })
+        .finally(() => {
+          isCustomersAutoSyncingRef.current = false;
         });
     }, 600);
     return () => clearTimeout(timer);
@@ -218,7 +255,11 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
       const daysSince = differenceInDays(new Date(), new Date(lastFollowUp));
       if (daysSince <= freq) return false;
     }
-    if (searchTerm && !c.name.toLowerCase().includes(searchTerm.toLowerCase()) && !c.id.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    if (
+      searchTerm &&
+      !c.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+      !String(c.customerNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
+    ) return false;
     return true;
   });
   const uniqueIndustries = Array.from(
@@ -229,8 +270,9 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
   );
 
   const handleSaveCustomer = (updatedData: Customer) => {
-    setCustomers(customers.map(c => c.id === updatedData.id ? updatedData : c));
-    setSelectedCustomer(updatedData);
+    const normalizedCustomer = normalizeCustomerCurrency(updatedData);
+    setCustomers(customers.map(c => c.id === normalizedCustomer.id ? normalizedCustomer : c));
+    setSelectedCustomer(normalizedCustomer);
     setIsEditing(false);
     toast.success('客户信息已保存');
   };
@@ -492,7 +534,8 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
   const handleDeleteCustomer = async (customerId: string) => {
     try {
       await deleteCustomerFromSupabase(customerId);
-      setCustomers(customers.filter(c => c.id !== customerId));
+      skipNextCustomersAutoSyncRef.current = true;
+      setCustomers((prev) => prev.filter((c) => c.id !== customerId));
       if (selectedCustomer?.id === customerId) {
         setSelectedCustomer(null);
       }
@@ -611,13 +654,9 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
             { key: 'businessManager', label: '业务经理', type: 'user' },
             { key: 'merchandiser', label: '跟单员', type: 'user' },
             { key: 'customerType', label: '客户类型', type: 'select', options: CUSTOMER_TYPE_OPTIONS },
-            { key: 'currency', label: '币别' },
+            { key: 'currencyId', label: '币别', type: 'select', options: CUSTOMER_CURRENCY_OPTIONS },
             { key: 'customerCategory', label: '客户类别' },
             { key: 'groupName', label: '集团' },
-            { key: 'paymentTerm', label: '账期(天)', type: 'select', options: PAYMENT_TERM_OPTIONS },
-            { key: 'hasPaymentTerm', label: '是否有账期', type: 'boolean' },
-            { key: 'monthSettlementApplyStatus', label: '月结申请状态' },
-            { key: 'isPublicPool', label: '是否落入公海', type: 'boolean' },
             { key: 'isListedCompany', label: '是否上市公司', type: 'boolean' },
             { key: 'devPlan', label: '开发计划', type: 'textarea' },
             { key: 'carePlan', label: '关怀计划', type: 'textarea' },
@@ -635,8 +674,6 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
             { key: 'faxNumber', label: '传真号码' },
             { key: 'website', label: '网址' },
             { key: 'companyAddress', label: '公司地址', type: 'textarea' },
-            { key: 'monthSettlementAttachment', label: '月结附件' },
-            { key: 'monthSettlementAgreement', label: '月结协议' },
             { key: 'businessScope', label: '经营范围', type: 'textarea' },
           ]}
           title="编辑客户"
@@ -794,11 +831,20 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
             isOpen={isAdding}
             onClose={() => setIsAdding(false)}
             data={{}}
+            fieldValidators={{
+              name: validateDuplicateCustomerName
+            }}
             onSave={(data) => {
+              const customerName = String(data.name || '').trim();
+              if (validateDuplicateCustomerName(customerName)) {
+                toast.error(`客户“${customerName}”已存在，不能重复创建`);
+                return false;
+              }
               const today = new Date().toISOString().split('T')[0];
+              const currencyId = String(data.currencyId || '').trim();
               const newCustomer: Customer = {
                 id: '', // 由数据库触发器生成
-                name: data.name || '',
+                name: customerName,
                 shortName: data.shortName || '',
                 englishName: data.englishName || '',
                 level: data.level || '普通客户',
@@ -810,7 +856,8 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
                 businessManager: data.businessManager || '',
                 merchandiser: data.merchandiser || '',
                 customerType: data.customerType || '',
-                currency: data.currency || 'CNY',
+                currency: formatCustomerCurrencyLabel(currencyId) || '',
+                currencyId,
                 customerCategory: data.customerCategory || '',
                 groupName: data.groupName || '',
                 paymentTerm: data.paymentTerm || '',
@@ -857,9 +904,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
               { key: 'merchandiser', label: '跟单员', type: 'user' },
               { key: 'businessManager', label: '业务经理', type: 'user' },
               { key: 'customerType', label: '客户类型', type: 'select', options: CUSTOMER_TYPE_OPTIONS },
-              { key: 'currency', label: '币别' },
-              { key: 'paymentTerm', label: '账期(天)', type: 'select', options: PAYMENT_TERM_OPTIONS },
-              { key: 'hasPaymentTerm', label: '是否有账期', type: 'boolean' },
+              { key: 'currencyId', label: '币别', type: 'select', options: CUSTOMER_CURRENCY_OPTIONS },
               { key: 'groupName', label: '集团' },
               { key: 'unifiedSocialCreditCode', label: '统一社会信用代码' },
               { key: 'companyType', label: '企业类型' },
@@ -876,11 +921,21 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
           setSearchTerm={setPotentialSearchTerm}
           loading={isPotentialLoading}
           onRefresh={refreshPotentialCustomers}
-          onSelectCustomer={(p) => {
+          onSelectCustomer={async (p) => {
+            try {
+              const detail = await fetchPotentialCustomerDetailFromSupabase(p.id);
+              if (detail) {
+                setSelectedCustomer(detail);
+                return;
+              }
+            } catch (error) {
+              console.error('Error fetching potential customer detail:', error);
+            }
             const tempCustomer: Customer = {
               id: p.id,
               name: p.name,
-              level: '普通客户',
+              customerNumber: p.customerNumber,
+              level: '潜在客户',
               status: '活跃',
               industry: '',
               source: (p as any).source || '潜在客户',

@@ -4,6 +4,7 @@ import { Eye, Edit2, Plus, Search, Trash2 } from 'lucide-react';
 import DetailModal from '../components/DetailModal';
 import { PublicPropertyName } from '../types';
 import { deletePublicPropertyNameFromSupabase, fetchPublicPropertyNameListFromSupabase, savePublicPropertyNameToSupabase } from '../lib/productRepository';
+import { confirmDialog } from '../lib/toastConfirm';
 
 type ModalMode = 'view' | 'edit' | 'add' | null;
 
@@ -133,7 +134,7 @@ export default function SpecGroupsPage() {
 
   const handleDelete = async (row: PublicPropertyName) => {
     if (!row.id) return;
-    if (!window.confirm(`确认删除规格组 ${row.id}？`)) return;
+    if (!(await confirmDialog(`确认删除规格组 ${row.id}？`))) return;
     try {
       await deletePublicPropertyNameFromSupabase(row.id);
       await refreshData(true);
@@ -378,4 +379,3 @@ export default function SpecGroupsPage() {
     </div>
   );
 }
-

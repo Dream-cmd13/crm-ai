@@ -1,5 +1,6 @@
 import { CommunicationDetail, Customer, CustomerPersona, TodoTask } from '../types';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
+import { formatCustomerCurrencyLabel, resolveCustomerCurrencyValue } from './customerEnums';
 
 const visitFallback: TodoTask[] = [];
 
@@ -41,18 +42,25 @@ const mapDbCustomerToUi = (row: any): Customer => ({
   level: row.level || '普通客户',
   status: row.status === 1 ? '活跃' : row.status === 2 ? '休眠' : row.status === 3 ? '流失' : '活跃',
   industry: row.industry || '',
-  source: row.source ? String(row.source) : '',
-  region: row.region ? String(row.region) : '',
+  source: row.source === null || row.source === undefined ? '' : String(row.source),
+  region: row.region === null || row.region === undefined ? '' : String(row.region),
   salesRep: row.sales_rep || '',
-  paymentTerm: row.payment_term ? String(row.payment_term) : '',
+  paymentTerm: row.payment_term === null || row.payment_term === undefined ? '' : String(row.payment_term),
   hasPaymentTerm: Boolean(row.has_payment_term),
-  customerType: row.customer_type ? String(row.customer_type) : '',
+  customerType: row.customer_type === null || row.customer_type === undefined ? '' : String(row.customer_type),
   merchandiser: row.merchandiser || row.merchandiser_id || row.merchandiser_name || '',
   isPublicPool: Boolean(row.is_public_pool),
-  monthSettlementApplyStatus: row.month_settlement_apply_status || '',
+  monthSettlementApplyStatus:
+    row.month_settlement_apply_status === null || row.month_settlement_apply_status === undefined
+      ? ''
+      : String(row.month_settlement_apply_status),
   businessManager: row.business_manager || '',
-  currency: row.currency || '',
-  customerCategory: row.customer_category ? String(row.customer_category) : '',
+  currency: row.currency || formatCustomerCurrencyLabel(row.currency_id) || '',
+  currencyId:
+    row.currency_id === null || row.currency_id === undefined
+      ? resolveCustomerCurrencyValue(row.currency)
+      : String(row.currency_id),
+  customerCategory: row.customer_category === null || row.customer_category === undefined ? '' : String(row.customer_category),
   groupName: row.group_name || '',
   isListedCompany: Boolean(row.is_listed_company),
   shortName: row.short_name || '',
@@ -129,6 +137,8 @@ const mapDbVisitTaskToUi = (row: any): TodoTask => ({
 
 const mapUiCustomerToDb = (customer: Customer) => {
   const customerNumber = customer.customerNumber || toCustomerNumber(customer.id);
+  const currencyId = customer.currencyId || resolveCustomerCurrencyValue(customer.currency);
+  const currencyLabel = customer.currency || formatCustomerCurrencyLabel(currencyId) || '';
   return {
     customer_number: customerNumber,
     name: customer.name || '',
@@ -145,8 +155,8 @@ const mapUiCustomerToDb = (customer: Customer) => {
     is_public_pool: customer.isPublicPool ? true : false,
     month_settlement_apply_status: customer.monthSettlementApplyStatus ? parseInt(customer.monthSettlementApplyStatus, 10) || 0 : 0,
     business_manager: customer.businessManager || '',
-    currency: customer.currency || '',
-    currency_id: null,
+    currency: currencyLabel,
+    currency_id: currencyId ? parseInt(currencyId, 10) || null : null,
     customer_category: customer.customerCategory ? parseInt(customer.customerCategory, 10) || null : null,
     group_name: customer.groupName || '',
     is_listed_company: customer.isListedCompany ? true : false,
@@ -228,7 +238,7 @@ export const fetchCustomersModuleDataFromSupabase = async (): Promise<{
   }
   const supabase = getSupabaseClient();
   const [{ data: customerRows, error: customerError }, { data: contactRows, error: contactError }, { data: followRows, error: followError }, { data: personaRows, error: personaError }, { data: taskRows, error: taskError }] = await Promise.all([
-    supabase.from('ba_manucustinfo').select('*').order('created_at', { ascending: false }),
+    supabase.from('ba_manucustinfo').select('*').not('level', 'eq', '潜在客户').order('created_at', { ascending: false }),
     supabase.from('crm_customer_contact').select('*'),
     supabase.from('crm_communication_log').select('*').eq('source_group', 'customer_followup').order('created_at', { ascending: false }),
     supabase.from('crm_customer_persona').select('*').order('updated_at', { ascending: false }),
@@ -297,6 +307,72 @@ export const fetchCustomerCommunicationsFromSupabase = async (customerId: string
   return (data || []).map(mapDbCommunicationToUi);
 };
 
+export const fetchPotentialCustomerDetailFromSupabase = async (potentialCustomerId: string): Promise<Customer | null> => {
+  const id = String(potentialCustomerId || '').trim();
+  if (!id || !isSupabaseConfigured()) return null;
+  const supabase = getSupabaseClient();
+
+  let customerRow: any = null;
+  const { data: byPotentialId, error: byPotentialIdError } = await supabase
+    .from('ba_manucustinfo')
+    .select('*')
+    .eq('potential_customer_id', id)
+    .maybeSingle();
+  if (byPotentialIdError) throw byPotentialIdError;
+  customerRow = byPotentialId || null;
+
+  if (!customerRow) {
+    // 兼容历史数据：潜在客户 UUID 曾直接写入 customer_number
+    const { data: legacyRow, error: legacyError } = await supabase
+      .from('ba_manucustinfo')
+      .select('*')
+      .eq('customer_number', id)
+      .eq('level', '潜在客户')
+      .maybeSingle();
+    if (legacyError) throw legacyError;
+    customerRow = legacyRow || null;
+  }
+
+  if (!customerRow) return null;
+
+  const dbId = Number(customerRow.id || 0);
+  const [{ data: contactRows, error: contactError }, { data: followRows, error: followError }] = await Promise.all([
+    supabase.from('crm_customer_contact').select('*').eq('customer_id', dbId),
+    supabase
+      .from('crm_communication_log')
+      .select('*')
+      .eq('customer_id', dbId)
+      .eq('source_group', 'customer_followup')
+      .order('created_at', { ascending: false })
+  ]);
+  if (contactError) throw contactError;
+  if (followError) throw followError;
+
+  return {
+    ...mapDbCustomerToUi(customerRow),
+    contacts: (contactRows || []).map((row) => ({
+      id: row.id,
+      name: row.name || '',
+      position: row.position || '',
+      department: row.department || '',
+      phone: row.phone || '',
+      email: row.email || '',
+      wechatId: row.wechat_id || '',
+      isPrimary: Boolean(row.is_primary),
+      buyingRole: row.buying_role || '',
+      buyingMode: row.buying_mode || '',
+      appellation: row.appellation || ''
+    })),
+    followUps: (followRows || []).map((row) => ({
+      id: row.id,
+      date: row.date || '',
+      type: row.type || '跟进',
+      content: row.content || '',
+      author: row.sender || ''
+    }))
+  };
+};
+
 export const saveCustomerCommunicationToSupabase = async (
   customerId: string,
   comm: Partial<CommunicationDetail>
@@ -359,8 +435,9 @@ export const saveCustomersSnapshotToSupabase = async (customers: Customer[]): Pr
     customerNumberToId.set(row.customer_number, row.id);
   });
   
-  // Track newly inserted customers and their generated IDs
-  const newCustomerMap = new Map<string, string>(); // original index -> generated customer_number
+  // Track patched fields generated by DB insert (id + customer_number)
+  const patchedCustomerIdByIndex = new Map<number, string>();
+  const patchedCustomerNumberByIndex = new Map<number, string>();
   
   // Insert/update customers
   const customerRows = customers.map((customer, index) => {
@@ -404,9 +481,8 @@ export const saveCustomersSnapshotToSupabase = async (customers: Customer[]): Pr
           .single();
         if (!error && inserted) {
           customerNumberToId.set(inserted.customer_number, inserted.id);
-          newCustomerMap.set(String(originalIndex), String(inserted.id));
-          // Also update customerNumber in the local map if needed
-          customers[originalIndex].customerNumber = inserted.customer_number;
+          patchedCustomerIdByIndex.set(originalIndex, String(inserted.id));
+          patchedCustomerNumberByIndex.set(originalIndex, String(inserted.customer_number || ''));
         } else if (error && isDuplicateCustomerPrimaryKeyError(error)) {
           // 兼容历史序列不同步：冲突后改为显式 id 重试一次
           const { data: maxRow, error: maxError } = await supabase
@@ -424,8 +500,8 @@ export const saveCustomersSnapshotToSupabase = async (customers: Customer[]): Pr
             .single();
           if (retryError) throw retryError;
           customerNumberToId.set(retried.customer_number, retried.id);
-          newCustomerMap.set(String(originalIndex), String(retried.id));
-          customers[originalIndex].customerNumber = retried.customer_number;
+          patchedCustomerIdByIndex.set(originalIndex, String(retried.id));
+          patchedCustomerNumberByIndex.set(originalIndex, String(retried.customer_number || ''));
         } else if (error) {
           throw error;
         }
@@ -433,26 +509,29 @@ export const saveCustomersSnapshotToSupabase = async (customers: Customer[]): Pr
     }
   }
   
-  // 仅在有新客户编号回填时返回新数组，避免无变化时触发上层重复 setState 导致列表抖动
-  let hasGeneratedIdPatched = false;
+  let hasPatched = false;
   const updatedCustomers = customers.map((customer, index) => {
-    const generatedId = newCustomerMap.get(String(index));
-    if (generatedId && !/^\d+$/.test(customer.id)) {
-      hasGeneratedIdPatched = true;
-      return { ...customer, id: generatedId };
-    }
-    return customer;
+    const patchedId = patchedCustomerIdByIndex.get(index);
+    const patchedNumber = patchedCustomerNumberByIndex.get(index);
+    if (!patchedId && !patchedNumber) return customer;
+    hasPatched = true;
+    return {
+      ...customer,
+      id: patchedId || customer.id,
+      customerNumber: patchedNumber || customer.customerNumber
+    };
   });
   
   // Insert/update contacts using the database customer IDs
-  const contactRows = customers.flatMap((customer) => {
+  const contactRows = customers.flatMap((customer, index) => {
     const isNumericId = /^\d+$/.test(customer.id);
     let dbCustomerId: number | undefined;
     
     if (isNumericId) {
       dbCustomerId = parseInt(customer.id, 10);
     } else {
-      const customerNumber = customer.customerNumber || toCustomerNumber(customer.id);
+      const patchedCustomerNumber = patchedCustomerNumberByIndex.get(index);
+      const customerNumber = patchedCustomerNumber || customer.customerNumber || toCustomerNumber(customer.id);
       dbCustomerId = customerNumberToId.get(customerNumber);
     }
     
@@ -481,8 +560,9 @@ export const saveCustomersSnapshotToSupabase = async (customers: Customer[]): Pr
   }
 
   // Insert/update follow-ups using the database customer IDs
-  const followRows = customers.flatMap((customer) => {
-    const customerNumber = toCustomerNumber(customer.id);
+  const followRows = customers.flatMap((customer, index) => {
+    const patchedCustomerNumber = patchedCustomerNumberByIndex.get(index);
+    const customerNumber = patchedCustomerNumber || customer.customerNumber || toCustomerNumber(customer.id);
     const dbCustomerId = customerNumberToId.get(customerNumber);
     if (!dbCustomerId) return [];
     
@@ -515,7 +595,7 @@ export const saveCustomersSnapshotToSupabase = async (customers: Customer[]): Pr
     }
   }
 
-  return hasGeneratedIdPatched ? updatedCustomers : customers;
+  return hasPatched ? updatedCustomers : customers;
 }
 
 export const savePersonasSnapshotToSupabase = async (personas: CustomerPersona[]) => {
@@ -692,7 +772,16 @@ export const resolveCustomerDbIdFromSupabase = async (customerId: string): Promi
     .eq('customer_number', customerNumber)
     .maybeSingle();
   if (error) throw error;
-  return typeof data?.id === 'number' ? data.id : null;
+  if (typeof data?.id === 'number') return data.id;
+
+  // 兼容潜在客户：UUID 通过 potential_customer_id 映射到客户主表
+  const { data: byPotentialId, error: byPotentialIdError } = await supabase
+    .from('ba_manucustinfo')
+    .select('id')
+    .eq('potential_customer_id', id)
+    .maybeSingle();
+  if (byPotentialIdError) throw byPotentialIdError;
+  return typeof byPotentialId?.id === 'number' ? byPotentialId.id : null;
 };
 
 export const updateCustomerLastContactInSupabase = async (
@@ -729,7 +818,9 @@ export const deleteCustomerFromSupabase = async (customerId: string) => {
   
   // Get the database ID if we have a customer_number
   let dbId: number | null = null;
-  if (!isDbId && customerNumber) {
+  if (isDbId) {
+    dbId = Number(id);
+  } else if (customerNumber) {
     const { data, error } = await supabase
       .from('ba_manucustinfo')
       .select('id')
@@ -740,14 +831,37 @@ export const deleteCustomerFromSupabase = async (customerId: string) => {
   }
   
   if (!dbId && !isDbId) return;
+  const normalizedDbId = dbId || (isDbId ? Number(id) : null);
+  if (!normalizedDbId) return;
+
+  // 先做引用检查，避免直接触发外键报错导致用户无法理解
+  const { count: inquiryRefCount, error: inquiryCountError } = await supabase
+    .from('crm_inquiry')
+    .select('id', { count: 'exact' })
+    .limit(1)
+    .eq('customer_id', normalizedDbId);
+  if (inquiryCountError) throw inquiryCountError;
+  if ((inquiryRefCount || 0) > 0) {
+    throw new Error(`当前客户已被 ${(inquiryRefCount || 0)} 条询盘记录引用，请先迁移或删除相关询盘后再删除客户`);
+  }
   
   // 首先删除相关的联系人
-  await supabase.from('crm_customer_contact').delete().eq('customer_id', isDbId ? Number(id) : dbId);
+  await supabase.from('crm_customer_contact').delete().eq('customer_id', normalizedDbId);
   
   // 然后删除客户
   const { error } = await supabase
     .from('ba_manucustinfo')
     .delete()
     .eq(isDbId ? 'id' : 'customer_number', isDbId ? Number(id) : customerNumber);
-  if (error) throw error;
+  if (error) {
+    // 兜底处理：并发场景下仍可能触发外键约束
+    if (error.code === '23503') {
+      const details = String(error.details || '');
+      if (details.includes('crm_inquiry')) {
+        throw new Error('当前客户存在关联询盘，无法删除；请先迁移或删除相关询盘');
+      }
+      throw new Error('当前客户存在关联业务数据，无法删除；请先清理相关引用后再删除');
+    }
+    throw error;
+  }
 };

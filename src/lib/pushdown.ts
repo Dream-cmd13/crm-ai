@@ -5,6 +5,7 @@ import { createPotentialCustomerInSupabase, convertPotentialCustomerToCustomerIn
 import { saveSalesOrderToSupabase } from './documentRepository';
 import { triggerAutoFlowsForCreate } from './workflowRunner';
 import { resolveCustomerDbIdFromSupabase, updateCustomerLastContactInSupabase } from './customerRepository';
+import { toClassificationProductLineDbValue } from './classificationProductLine';
 
 const today = () => new Date().toISOString().split('T')[0];
 const LEAD_CUSTOMER_ACTION_ENUM_VALUES = ['寻替代料', '寻替代品', '找货寻料', '指定料号', '指定物料'] as const;
@@ -138,6 +139,9 @@ export const pushInquiryToLeadInSupabase = async (source: Inquiry, leadData: any
     source_type: normalizeLeadSourceType(leadData?.source),
     product_category: String(leadData?.productCategory || source.category || '').trim(),
     product_series: String(leadData?.productSeries || source.productSeries || '').trim(),
+    classification_product_line: toClassificationProductLineDbValue(
+      leadData?.classificationProductLine ?? source.classificationProductLine
+    ),
     source_status: '客服',
     inquiry_id: inquiryId,
     buyer_role: leadData?.buyerRole || source.buyerRole || null,
