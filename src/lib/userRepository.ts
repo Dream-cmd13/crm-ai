@@ -25,6 +25,8 @@ export const fetchUsersFromSupabase = async (): Promise<User[]> => {
     reviews: row.reviews || undefined,
     system_role_ids: row.system_role_ids || undefined,
     custom_permissions: row.custom_permissions || undefined,
+    wechat_name: row.wechat_name || undefined,
+    wechat_id: row.wechat_id || undefined,
     dataPermissions: {
       customerVisibility: 'all'
     }
@@ -92,6 +94,7 @@ export const saveUserToSupabase = async (user: User) => {
     role: user.role || (user.roles && user.roles[0]) || 'User',
     department_id: user.department_id || null,
     is_active: user.is_active ?? true,
+    wechat_name: user.wechat_name || null,
     updated_at: new Date().toISOString()
   };
 

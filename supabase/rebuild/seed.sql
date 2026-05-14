@@ -1,112 +1,5 @@
 begin;
 
-insert into public.users(id, username, name, email, role, employee_no, department_id, is_active) values
-  ('00000000-0000-0000-0000-000000000001', 'admin', '系统管理员', 'admin@app.local', 'Admin', 'E001', 'dept-executive', true),
-  ('00000000-0000-0000-0000-000000000002', 'sales_manager', '销售经理', 'sales_manager@app.local', 'Admin', 'E002', 'dept-sales', true),
-  ('00000000-0000-0000-0000-000000000003', 'sales_a', '业务员A', 'sales_a@app.local', 'User', 'E003', 'dept-sales', true),
-  ('00000000-0000-0000-0000-000000000004', 'fae_engineer', 'FAE工程师', 'fae@app.local', 'User', 'E004', 'dept-fae', true),
-  ('00000000-0000-0000-0000-000000000005', 'product_manager', '产品经理', 'pm@app.local', 'Admin', 'E005', 'dept-product', true),
-  ('00000000-0000-0000-0000-000000000006', 'quality_engineer', '品质工程师', 'qc@app.local', 'User', 'E006', 'dept-quality', true),
-  ('00000000-0000-0000-0000-000000000007', 'it_engineer', 'IT开发工程师', 'it@app.local', 'User', 'E007', 'dept-it', true),
-  ('00000000-0000-0000-0000-000000000008', 'finance_accountant', '财务会计', 'finance@app.local', 'User', 'E008', 'dept-finance', true),
-  ('00000000-0000-0000-0000-000000000009', 'purchasing_specialist', '采购专员', 'purchasing@app.local', 'User', 'E009', 'dept-1774349542675', true),
-  ('00000000-0000-0000-0000-00000000000a', 'cs_specialist', '客服专员', 'cs@app.local', 'User', 'E010', 'dept-1774349760986', true),
-  ('00000000-0000-0000-0000-00000000000b', 'hr_specialist', '招聘专员', 'hr@app.local', 'User', 'E011', 'dept-hr', true)
-on conflict (id) do nothing;
-
--- 创建 auth.users 用于登录认证（密码均为 dev 环境密码，勿用于生产）
--- 所有用户的密码均为 888888
-do $$
-declare
-  v_ids uuid[] := array[
-    '00000000-0000-0000-0000-000000000001',
-    '00000000-0000-0000-0000-000000000002',
-    '00000000-0000-0000-0000-000000000003',
-    '00000000-0000-0000-0000-000000000004',
-    '00000000-0000-0000-0000-000000000005',
-    '00000000-0000-0000-0000-000000000006',
-    '00000000-0000-0000-0000-000000000007',
-    '00000000-0000-0000-0000-000000000008',
-    '00000000-0000-0000-0000-000000000009',
-    '00000000-0000-0000-0000-00000000000a',
-    '00000000-0000-0000-0000-00000000000b'
-  ];
-  v_emails text[] := array[
-    'admin@app.local',
-    'sales_manager@app.local',
-    'sales_a@app.local',
-    'fae@app.local',
-    'pm@app.local',
-    'qc@app.local',
-    'it@app.local',
-    'finance@app.local',
-    'purchasing@app.local',
-    'cs@app.local',
-    'hr@app.local'
-  ];
-  v_names text[] := array[
-    '系统管理员',
-    '销售经理',
-    '业务员A',
-    'FAE工程师',
-    '产品经理',
-    '品质工程师',
-    'IT开发工程师',
-    '财务会计',
-    '采购专员',
-    '客服专员',
-    '招聘专员'
-  ];
-  v_id uuid;
-  i int;
-begin
-  create extension if not exists pgcrypto;
-
-  for i in 1..array_length(v_ids, 1) loop
-    v_id := v_ids[i];
-    if not exists (select 1 from auth.users where id = v_id) then
-      insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, confirmation_token, recovery_token, email_change_token_new, email_change_token_current, reauthentication_token, email_change, phone, phone_change, phone_change_token, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-      values (
-        v_id,
-        '00000000-0000-0000-0000-000000000000',
-        'authenticated',
-        'authenticated',
-        v_emails[i],
-        crypt('888888', gen_salt('bf')),
-        now(),
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        null,
-        '',
-        '',
-        '{"provider":"email","providers":["email"]}',
-        jsonb_build_object('name', v_names[i]),
-        now(),
-        now()
-      );
-    end if;
-
-    -- 创建对应的 auth.identities 记录（缺失会导致登录报 invalid_credentials）
-    if not exists (select 1 from auth.identities where user_id = v_id and provider = 'email') then
-      insert into auth.identities (user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at)
-      values (
-        v_id,
-        jsonb_build_object('sub', v_id::text, 'email', v_emails[i], 'email_verified', true),
-        'email',
-        v_emails[i],
-        now(),
-        now(),
-        now()
-      );
-    end if;
-  end loop;
-end;
-$$;
-
 insert into public.departments(id, name, roles, role_members, sub_departments, okrs, reviews) values
   ('dept-fae', 'FAE部', '["FAE工程师"]'::jsonb, '{}'::jsonb, '[]'::jsonb, '{}'::jsonb, '{}'::jsonb),
   ('dept-product', '产品部', '["产品工程师","产品报价工程师","产品开发工程师","技术员","PE工程师","IE工程师"]'::jsonb, '{}'::jsonb, '[]'::jsonb, '{}'::jsonb, '{}'::jsonb),
@@ -213,13 +106,13 @@ on conflict (id) do nothing;
 
 insert into public.crm_customer_contact(
   id, customer_id, name, position, department, phone, email, is_primary, buying_role, buying_mode, appellation,
-  wechat_id, faction, attitude_to_us, attitude_score, role_tag, influence_level, relation_level, graduation_school,
+  wechat_id, wechat_name, faction, attitude_to_us, attitude_score, role_tag, influence_level, relation_level, graduation_school,
   hometown, hobbies, family_situation, personality, preferences, key_concerns, follow_strategy
 ) values
   ('CON001', 1, '王总', '采购总监', '采购部', '13800000001', 'wang@app.local', true, '经济买家', '竞争性招标', '王总',
-   'wx_wangzong', '总部派', '正面评价', 1, 'D', 5, 3, '同济大学', '上海', '{"羽毛球","阅读"}', '已婚', '务实谨慎', '数据化沟通', '成本与交付稳定', '双周同步关键里程碑'),
+   'wx_wangzong', '王总', '总部派', '正面评价', 1, 'D', 5, 3, '同济大学', '上海', '{"羽毛球","阅读"}', '已婚', '务实谨慎', '数据化沟通', '成本与交付稳定', '双周同步关键里程碑'),
   ('CON002', 2, '李工', '研发经理', '研发部', '13800000002', 'li@app.local', true, '技术买家', '技术先行', '李工',
-   'wx_ligong', '技术线', '中性评价', 0, 'E', 4, 2, '华南理工', '广州', '{"跑步"}', '已婚', '理性严谨', '先看样品验证', '可靠性和认证进度', '先做样品小闭环')
+   'wx_ligong', '李工', '技术线', '中性评价', 0, 'E', 4, 2, '华南理工', '广州', '{"跑步"}', '已婚', '理性严谨', '先看样品验证', '可靠性和认证进度', '先做样品小闭环')
 on conflict (id) do nothing;
 
 insert into public.crm_customer_persona(
@@ -607,5 +500,28 @@ set
   system_link = excluded.system_link,
   is_sub_table = excluded.is_sub_table,
   updated_at = now();
+
+-- ========= 初始化微信昵称绑定 =========
+-- 从群成员和好友列表初始化昵称快照
+do $$
+begin
+  if to_regclass('public.crm_wechat_name_snapshot') is not null then
+    perform public.refresh_wechat_name_snapshot();
+  end if;
+end
+$$;
+
+-- 自动匹配种子用户和联系人
+do $$
+declare
+  v_result record;
+begin
+  if to_regclass('public.crm_wechat_binding') is not null then
+    for v_result in select * from public.auto_match_wechat_bindings() loop
+      raise notice 'auto_match: type=% name=% wxid=% bind_id=%', v_result.matched_type, v_result.matched_name, v_result.matched_wxid, v_result.bind_id;
+    end loop;
+  end if;
+end
+$$;
 
 commit;

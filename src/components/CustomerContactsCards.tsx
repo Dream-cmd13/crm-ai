@@ -138,7 +138,7 @@ export default function CustomerContactsCards({
                 </div>
                 <div className="flex items-center gap-2 text-base text-gray-800">
                     <MessageSquare className="w-4 h-4 text-green-500" />
-                    {contact.wechatId || '-'}
+                    {contact.wechatName || '-'}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-700 flex-wrap">
                   <span className={`px-2 py-0.5 rounded text-xs ${attitudeStyle(contact.attitudeToUs)}`}>{contact.attitudeToUs || '中性评价'}</span>

@@ -18,6 +18,8 @@ export interface User {
   reviews?: Record<string, any>;
   system_role_ids?: string[];
   custom_permissions?: Record<string, any>;
+  wechat_name?: string;
+  wechat_id?: string;
   dataPermissions?: {
     customerVisibility: 'all' | 'department' | 'own' | 'custom';
     allowedCustomerIds?: string[];

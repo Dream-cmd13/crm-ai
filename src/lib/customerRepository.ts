@@ -262,6 +262,7 @@ export const fetchCustomersModuleDataFromSupabase = async (): Promise<{
       phone: row.phone || '',
       email: row.email || '',
       wechatId: row.wechat_id || '',
+      wechatName: row.wechat_name || '',
       isPrimary: Boolean(row.is_primary),
       buyingRole: row.buying_role || '',
       buyingMode: row.buying_mode || '',
@@ -545,6 +546,7 @@ export const saveCustomersSnapshotToSupabase = async (customers: Customer[]): Pr
       phone: contact.phone || '',
       email: contact.email,
       wechat_id: contact.wechatId || '',
+      wechat_name: contact.wechatName || '',
       is_primary: Boolean(contact.isPrimary),
       buying_role: contact.buyingRole || '',
       buying_mode: contact.buyingMode || '',
@@ -676,7 +678,7 @@ export const saveVisitPlansSnapshotToSupabase = async (plans: TodoTask[]) => {
 
 export const addCustomerContactQuickToSupabase = async (
   customerId: string,
-  contact: { name: string; phone?: string; position?: string; email?: string; wechatId?: string }
+  contact: { name: string; phone?: string; position?: string; email?: string; wechatId?: string; wechatName?: string }
 ) => {
   if (!isSupabaseConfigured()) {
     return {
@@ -687,6 +689,7 @@ export const addCustomerContactQuickToSupabase = async (
       position: contact.position || '',
       email: contact.email || '',
       wechat_id: contact.wechatId || '',
+      wechat_name: contact.wechatName || '',
       is_primary: false
     };
   }
@@ -705,6 +708,7 @@ export const addCustomerContactQuickToSupabase = async (
     position: String(contact.position || '').trim(),
     email: String(contact.email || '').trim(),
     wechat_id: String(contact.wechatId || '').trim(),
+    wechat_name: String(contact.wechatName || '').trim(),
     is_primary: false,
     updated_at: new Date().toISOString()
   };

@@ -854,6 +854,84 @@ create index if not exists idx_crm_wx_projection_jobs_poll
     on public.crm_wx_projection_jobs (status, next_retry_at, created_at);
 create index if not exists idx_crm_wx_projection_jobs_source_guid
     on public.crm_wx_projection_jobs (source_guid, created_at desc);
+
+-- ============================================================================
+-- 8. WeChat Identity Binding
+-- ============================================================================
+
+create table if not exists public.crm_wechat_binding (
+    id bigint generated always as identity primary key,
+    wechat_id text not null,
+    wechat_name text,
+    bind_type text not null
+        check (bind_type in ('employee', 'customer_contact')),
+    bind_id text not null,
+    match_source text not null default 'nickname'
+        check (match_source in ('nickname', 'group_member', 'manual_confirm')),
+    is_verified boolean not null default false,
+    verified_at timestamptz,
+    verified_by text,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (wechat_id)
+);
+
+create index if not exists idx_crm_wechat_binding_lookup
+    on public.crm_wechat_binding (wechat_id);
+create index if not exists idx_crm_wechat_binding_bind
+    on public.crm_wechat_binding (bind_type, bind_id);
+
+create table if not exists public.crm_wechat_name_snapshot (
+    id bigint generated always as identity primary key,
+    original_nickname text not null,
+    display_name text,
+    wechat_id text not null,
+    source_table text not null,
+    source_context text,
+    first_seen_at timestamptz not null default now(),
+    last_seen_at timestamptz not null default now(),
+    created_at timestamptz not null default now(),
+    unique (original_nickname, wechat_id)
+);
+
+create index if not exists idx_crm_wx_name_snapshot_lookup
+    on public.crm_wechat_name_snapshot (original_nickname);
+create index if not exists idx_crm_wx_name_snapshot_wxid
+    on public.crm_wechat_name_snapshot (wechat_id);
+
+create table if not exists public.crm_wechat_unresolved_nickname (
+    id bigint generated always as identity primary key,
+    nickname text not null,
+    candidate_wxids jsonb default '[]'::jsonb,
+    status text not null default 'pending'
+        check (status in ('pending', 'resolved', 'ignored')),
+    resolved_wxid text,
+    resolved_bind_type text,
+    resolved_bind_id text,
+    resolved_by text,
+    resolved_at timestamptz,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (nickname)
+);
+
+do $$
+begin
+    if to_regclass('public.crm_wechat_unresolved_nickname') is not null
+       and not exists (
+         select 1 from pg_constraint
+         where conname = 'crm_wechat_unresolved_nickname_nickname_key'
+           and conrelid = 'public.crm_wechat_unresolved_nickname'::regclass
+       ) then
+        alter table public.crm_wechat_unresolved_nickname
+          add constraint crm_wechat_unresolved_nickname_nickname_key unique (nickname);
+    end if;
+end;
+$$;
+
+create index if not exists idx_crm_wechat_unresolved_status
+    on public.crm_wechat_unresolved_nickname (status, created_at desc);
+
 alter table if exists public.crm_wx_conversation
     add column if not exists last_member_sync_version bigint not null default 0,
     add column if not exists last_member_synced_at timestamptz;

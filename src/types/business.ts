@@ -542,6 +542,7 @@ export interface Contact {
   phone: string;
   email: string;
   wechatId?: string;
+  wechatName?: string;
   isPrimary: boolean;
   managerContactId?: string; // 上级联系人ID（组织架构）
   faction?: string; // 派系标签

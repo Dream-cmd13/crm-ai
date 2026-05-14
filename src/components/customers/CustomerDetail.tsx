@@ -437,7 +437,7 @@ export const CustomerDetail = ({
           aiContactProfiles={selectedCustomer.contacts || []}
           communications={communications}
           onAddCommunication={onAddCommunication}
-          contacts={(selectedCustomer.contacts || []).map((c: any) => ({ id: c.id, name: c.name, position: c.position, wechatId: c.wechatId }))}
+          contacts={(selectedCustomer.contacts || []).map((c: any) => ({ id: c.id, name: c.name, position: c.position, wechatName: c.wechatName }))}
           employees={dbEmployees.length > 0 ? dbEmployees : initialUsers.map((u: any) => ({ id: u.id, name: u.name, role: u.role }))}
           groupChats={groupChats}
           onManageMembers={(chat) => setSelectedChat(chat)}

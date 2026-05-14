@@ -122,7 +122,6 @@ export default function StakeholderMapPanel({
       position: '',
       phone: '',
       email: '',
-      wechatId: '',
       faction: '',
       managerContactId: '',
       graduationSchool: '',
@@ -150,7 +149,7 @@ export default function StakeholderMapPanel({
     '目标：补齐联系人字段，并重点提炼其视频号、抖音、小红书等社媒行为线索。',
     '输出要求：',
     '1) 仅输出 JSON 对象，不要代码块，不要额外解释；',
-    '2) 字段仅允许：name, position, phone, email, wechatId, graduationSchool, hometown, hobbies, personality, preferences, keyConcerns, followStrategy, videoChannelProfile, douyinProfile, xiaohongshuProfile, socialMediaBehavior；',
+    '2) 字段仅允许：name, position, phone, email, graduationSchool, hometown, hobbies, personality, preferences, keyConcerns, followStrategy, videoChannelProfile, douyinProfile, xiaohongshuProfile, socialMediaBehavior；',
     '3) 联系人姓名必须带“AI”后缀；',
     '4) 无可靠证据的字段留空字符串；',
     '5) socialMediaBehavior 要总结该联系人公开社媒行为特征与内容偏好；',
@@ -189,6 +188,10 @@ export default function StakeholderMapPanel({
 
   const handleSaveBaseInfo = async () => {
     if (!editingId || !String(editDraft.name || '').trim()) return;
+    if (!customerId) {
+      toast.error('客户信息缺失，无法保存联系人，请返回客户列表重新进入');
+      return;
+    }
     try {
       const isCreateMode = editingId === NEW_CONTACT_EDIT_ID;
       const sourceContactId = isCreateMode
@@ -201,6 +204,7 @@ export default function StakeholderMapPanel({
         phone: String(editDraft.phone || ''),
         email: String(editDraft.email || ''),
         wechatId: String(editDraft.wechatId || ''),
+        wechatName: String(editDraft.wechatName || ''),
         faction: String(editDraft.faction || ''),
         managerContactId: String(editDraft.managerContactId || ''),
         roleTag: (editDraft.roleTag || 'I') as any,
@@ -247,6 +251,7 @@ export default function StakeholderMapPanel({
       phone: source?.phone || '',
       email: source?.email || '',
       wechatId: source?.wechatId || '',
+      wechatName: source?.wechatName || '',
       faction: source?.faction || '',
       managerContactId: source?.managerContactId || '',
       roleTag: (source?.roleTag || s.roleTag || 'I') as any,
@@ -284,8 +289,8 @@ export default function StakeholderMapPanel({
     `联系人职位：${String(contact.position || '').trim() || '未知'}`,
     `联系人手机号：${String(contact.phone || '').trim() || '未知'}`,
     `联系人邮箱：${String(contact.email || '').trim() || '未知'}`,
-    `联系人微信号：${String(contact.wechatId || '').trim() || '未知'}`,
-    '请严格输出 JSON 对象，字段仅允许：name, position, phone, email, wechatId, graduationSchool, hometown, hobbies, personality, preferences, keyConcerns, followStrategy, videoChannelProfile, douyinProfile, xiaohongshuProfile, socialMediaBehavior。'
+    `联系人微信昵称：${String(contact.wechatName || '').trim() || '未知'}`,
+    '请严格输出 JSON 对象，字段仅允许：name, position, phone, email, graduationSchool, hometown, hobbies, personality, preferences, keyConcerns, followStrategy, videoChannelProfile, douyinProfile, xiaohongshuProfile, socialMediaBehavior。'
   ].join('\n\n');
 
   const buildSocialOnlyPrompt = (contact: Partial<Contact>, promptTemplate: string) => [
@@ -329,6 +334,10 @@ export default function StakeholderMapPanel({
   };
 
   const handleQuickCreateByAi = async () => {
+    if (!customerId) {
+      toast.error('客户信息缺失，无法AI搜集联系人，请返回客户列表重新进入');
+      return;
+    }
     setAiCollectingId('__quick_create__');
     try {
       const cfg = await fetchCustomerFollowStrategyConfig();
@@ -339,7 +348,7 @@ export default function StakeholderMapPanel({
         `客户ID：${customerId}`,
         '请只输出 JSON。',
         '推荐格式：{"contacts":[{...},{...}]}，每个对象使用统一字段。',
-        '必须包含并仅使用以下字段：name, position, phone, email, wechatId, graduationSchool, hometown, hobbies, personality, preferences, keyConcerns, followStrategy, videoChannelProfile, douyinProfile, xiaohongshuProfile, socialMediaBehavior, roleTag, influenceLevel, relationLevel。',
+        '必须包含并仅使用以下字段：name, position, phone, email, graduationSchool, hometown, hobbies, personality, preferences, keyConcerns, followStrategy, videoChannelProfile, douyinProfile, xiaohongshuProfile, socialMediaBehavior, roleTag, influenceLevel, relationLevel。',
         '禁止输出占位联系人（如仅有“关键联系人AI”且无任何可核实信息）。'
       ].join('\n\n');
       const raw = await callAiProxy(prompt);
@@ -542,7 +551,7 @@ export default function StakeholderMapPanel({
       customer_focus_archive: `客户关注点档案：${String(contact?.keyConcerns || '').trim() || '暂无（可在客户关注点SWOT中补充）'}`,
       contact_persona: `联系人：${target.name}\n职位：${target.title || '-'}\n角色：${target.roleTag}\n态度：${target.attitudeScore}\n影响力：${target.influenceLevel}\n关系：${target.relationLevel}\n派系：${contact?.faction || '-'}`,
       email_records: contact?.email ? `联系人邮箱：${contact.email}` : '暂无邮箱记录',
-      wechat_records: contact?.wechatId ? `联系人微信：${contact.wechatId}` : '暂无微信记录',
+      wechat_records: contact?.wechatName ? `联系人微信昵称：${contact.wechatName}` : '暂无微信记录',
       meeting_records: '暂无会议纪要（可在后续接入会议记录数据源）',
       chat_records: '暂无聊天记录摘要（可在后续接入聊天数据源）'
     };
@@ -596,6 +605,7 @@ export default function StakeholderMapPanel({
         phone: String(source?.phone || ''),
         email: String(source?.email || ''),
         wechatId: String(source?.wechatId || ''),
+        wechatName: String(source?.wechatName || ''),
         faction: String(source?.faction || ''),
         managerContactId: String(source?.managerContactId || ''),
         roleTag: (source?.roleTag || detailTarget.roleTag || 'I') as any,
@@ -727,13 +737,19 @@ export default function StakeholderMapPanel({
         <div className="flex items-center justify-between gap-3">
           <div className="text-xs text-gray-500">默认仅展示组织架构图中的联系人，点击“新增联系人”后弹出字段填写。</div>
           <div className="flex items-center gap-2 shrink-0">
-            <button onClick={openCreateContactModal} className="px-3 py-2 bg-indigo-600 text-white rounded text-sm font-bold flex items-center justify-center gap-1">
+            <button
+              onClick={openCreateContactModal}
+              disabled={!customerId}
+              title={!customerId ? '客户信息缺失，无法新增联系人' : ''}
+              className="px-3 py-2 bg-indigo-600 text-white rounded text-sm font-bold flex items-center justify-center gap-1 disabled:opacity-50"
+            >
               <Plus className="w-4 h-4" />
               新增联系人
             </button>
             <button
               onClick={handleQuickCreateByAi}
-              disabled={aiCollectingId === '__quick_create__'}
+              disabled={aiCollectingId === '__quick_create__' || !customerId}
+              title={!customerId ? '客户信息缺失，无法AI搜集联系人' : ''}
               className="px-3 py-2 border border-indigo-200 text-indigo-700 bg-white rounded text-sm font-bold disabled:opacity-60"
             >
               {aiCollectingId === '__quick_create__' ? 'AI搜集中...' : '新联系人AI搜集'}
@@ -868,7 +884,7 @@ export default function StakeholderMapPanel({
                 <div><span className="text-gray-500">职位：</span><span className="font-medium text-gray-900">{detailTarget.title || '-'}</span></div>
                 <div><span className="text-gray-500">电话：</span><span className="font-medium text-gray-900">{findContactByStakeholder(detailTarget)?.phone || '-'}</span></div>
                 <div><span className="text-gray-500">邮箱：</span><span className="font-medium text-gray-900">{findContactByStakeholder(detailTarget)?.email || '-'}</span></div>
-                <div><span className="text-gray-500">微信：</span><span className="font-medium text-gray-900">{findContactByStakeholder(detailTarget)?.wechatId || '-'}</span></div>
+                <div><span className="text-gray-500">微信昵称：</span><span className="font-medium text-gray-900">{findContactByStakeholder(detailTarget)?.wechatName || '-'}</span></div>
                 <div><span className="text-gray-500">派系：</span><span className="font-medium text-gray-900">{findContactByStakeholder(detailTarget)?.faction || '-'}</span></div>
                 <div><span className="text-gray-500">毕业院校：</span><span className="font-medium text-gray-900">{findContactByStakeholder(detailTarget)?.graduationSchool || '-'}</span></div>
                 <div><span className="text-gray-500">上级：</span><span className="font-medium text-gray-900">{getManagerName(detailTarget)}</span></div>
@@ -971,7 +987,7 @@ export default function StakeholderMapPanel({
                   <input value={String(editDraft.position || '')} onChange={(e) => setEditDraft({ ...editDraft, position: e.target.value })} placeholder="职位" className="px-2 py-2 border border-gray-200 rounded" />
                   <input value={String(editDraft.phone || '')} onChange={(e) => setEditDraft({ ...editDraft, phone: e.target.value })} placeholder="电话" className="px-2 py-2 border border-gray-200 rounded" />
                   <input value={String(editDraft.email || '')} onChange={(e) => setEditDraft({ ...editDraft, email: e.target.value })} placeholder="邮箱" className="px-2 py-2 border border-gray-200 rounded" />
-                  <input value={String(editDraft.wechatId || '')} onChange={(e) => setEditDraft({ ...editDraft, wechatId: e.target.value })} placeholder="微信号" className="px-2 py-2 border border-gray-200 rounded" />
+                  <input value={String(editDraft.wechatName || '')} onChange={(e) => setEditDraft({ ...editDraft, wechatName: e.target.value })} placeholder="微信昵称" className="px-2 py-2 border border-gray-200 rounded" />
                   <input value={String(editDraft.faction || '')} onChange={(e) => setEditDraft({ ...editDraft, faction: e.target.value })} placeholder="派系" className="px-2 py-2 border border-gray-200 rounded" />
                   <input value={String(editDraft.graduationSchool || '')} onChange={(e) => setEditDraft({ ...editDraft, graduationSchool: e.target.value })} placeholder="毕业院校" className="px-2 py-2 border border-gray-200 rounded" />
                   <select value={String(editDraft.managerContactId || '')} onChange={(e) => setEditDraft({ ...editDraft, managerContactId: e.target.value })} className="px-2 py-2 border border-gray-200 rounded">

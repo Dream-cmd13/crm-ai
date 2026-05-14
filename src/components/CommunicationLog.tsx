@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MessageSquare, Send, Mic, Plus, Sparkles, Loader2 } from 'lucide-react';
 import { CommunicationDetail, CustomerMessageSession } from '../types';
 import { cn } from '../lib/utils';
@@ -15,7 +15,7 @@ import { toast } from 'react-hot-toast';
 interface CommunicationLogProps {
   onAddCommunication: (comm: Partial<CommunicationDetail>) => void;
   title?: string;
-  contacts?: { id: string; name: string; position?: string; department?: string; wechatId?: string }[];
+  contacts?: { id: string; name: string; position?: string; department?: string; wechatName?: string }[];
   employees?: { id: string; name: string; role?: string }[];
   customerId?: string;
   customerName?: string;
@@ -60,6 +60,7 @@ export default function CommunicationLog({
   const [chatAssistConfig, setChatAssistConfig] = useState(defaultChatAssistConfig);
   const [selectedFlowIdForRun, setSelectedFlowIdForRun] = useState('');
   const [selectedNodeIdsForRun, setSelectedNodeIdsForRun] = useState<string[]>([]);
+  const messageContainerRef = useRef<HTMLDivElement>(null);
   const activeChatFlow = useMemo(() => {
     const flows = chatAssistConfig.flows || [];
     if (flows.length === 0) return undefined;
@@ -170,6 +171,22 @@ export default function CommunicationLog({
 
   const getMessageKey = (comm: any, idx: number) => String(comm?.id || `${comm?.date || ''}_${comm?.sender || ''}_${idx}`);
 
+  const employeeNames = useMemo(() => {
+    const names = new Set<string>();
+    employees.forEach(emp => {
+      names.add(emp.name);
+      names.add(`${emp.name} (${emp.role || '员工'})`);
+    });
+    return names;
+  }, [employees]);
+
+  const isEmployeeSender = (sender: string) => {
+    const s = String(sender || '').trim();
+    if (!s) return false;
+    if (employeeNames.has(s)) return true;
+    return Array.from(employeeNames).some(name => s.includes(name));
+  };
+
   const sessionMessages = useMemo(() => {
     // 1. 获取基础消息 (如果是真实会话，从 selectedCustomerSessionMessages 获取)
     let baseMessages = [...selectedCustomerSessionMessages];
@@ -198,13 +215,20 @@ export default function CommunicationLog({
       return true;
     });
 
-    // 按时间倒序排列 (最新的在最上面)
+    // 按时间正序排列 (最早的在上面，最新的在最下面)
     return final.sort((a, b) => {
       const timeA = new Date(a.date || 0).getTime();
       const timeB = new Date(b.date || 0).getTime();
-      return timeB - timeA;
+      return timeA - timeB;
     });
   }, [selectedCustomerSessionMessages, communications, activeTab, selectedCustomerSessionId, customerSessions]);
+
+  // 消息列表变化时自动滚动到底部（最新消息）
+  useEffect(() => {
+    if (messageContainerRef.current) {
+      messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
+    }
+  }, [sessionMessages, selectedCustomerSessionId]);
 
   const manualSessions = useMemo(() => {
     if (activeTab !== 'wechat' && activeTab !== 'wechat_group') return [];
@@ -518,7 +542,7 @@ export default function CommunicationLog({
         : '未匹配到高置信常见问题。';
       const lastExternalMessage = [...workingMessages].reverse().find((m: any) => {
         const senderText = String(m?.sender || '');
-        return !senderText.includes('销售') && !senderText.includes('我');
+        return !isEmployeeSender(senderText);
       });
       const speakerName = String(lastExternalMessage?.sender || '').trim();
       const matchedContact = (contacts || []).find((c) => {
@@ -712,7 +736,7 @@ export default function CommunicationLog({
                 )}
               </div>
             </div>
-            <div className={cn("h-full overflow-y-auto p-4 space-y-4 relative bg-white", showAiPanel ? "pr-[390px]" : "")}>
+            <div ref={messageContainerRef} className={cn("h-full overflow-y-auto p-4 space-y-4 relative bg-white", showAiPanel ? "pr-[390px]" : "")}>
               {sessionMessages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-2">
                   <MessageSquare className="w-12 h-12 opacity-20" />
@@ -734,7 +758,7 @@ export default function CommunicationLog({
                       onClick={() => {
                         if (selectedMessageIds.length === 0) {
                           const lastIds = sessionMessages
-                            .slice(0, 6)
+                            .slice(-6)
                             .map((comm: any, idx: number) => getMessageKey(comm, idx));
                           setSelectedMessageIds(lastIds);
                         } else {
@@ -749,7 +773,7 @@ export default function CommunicationLog({
 
                   <div className="space-y-4">
                     {sessionMessages.map((comm: any, idx: number) => {
-                      const isSelf = String(comm.sender || '').includes('销售') || String(comm.sender || '').includes('张三') || String(comm.sender || '').includes('我');
+                      const isSelf = isEmployeeSender(String(comm.sender || ''));
                       const messageKey = getMessageKey(comm, idx);
                       const checked = selectedMessageIds.includes(messageKey);
                       return (
@@ -763,7 +787,7 @@ export default function CommunicationLog({
                               }}
                               className="w-3.5 h-3.5 text-indigo-600 rounded border-gray-300"
                             />
-                            {!isSelf && <span className="text-[10px] font-bold text-gray-600">{comm.sender}</span>}
+                            <span className="text-[10px] font-bold text-gray-600">{comm.sender}</span>
                             <span className="text-[10px] text-gray-400">{comm.date}</span>
                           </div>
                           <div className={cn('group relative max-w-[85%] rounded-2xl p-3 shadow-sm', isSelf ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white text-gray-900 border border-gray-200 rounded-tl-none')}>

@@ -303,6 +303,9 @@ class ContactSyncService:
             )
 
         self.save_sync_state(guid, current_contact_seq, current_room_seq, sync_kind=sync_kind)
+        self.refresh_wechat_name_snapshot()
+        self.auto_match_wechat_bindings()
+        self.auto_link_forwarded_conversations()
 
     def handle_contact_change_event(self, guid: str, notify_type: int, payload: dict[str, Any]) -> None:
         if not guid:
@@ -465,6 +468,24 @@ class ContactSyncService:
 
     def resolve_room_display_name(self, guid: str, room_username: str | None, fallback: str | None = None) -> str | None:
         return self.resolve_room_names(guid, room_username, fallback).get("display_name")
+
+    def refresh_wechat_name_snapshot(self) -> None:
+        try:
+            self.supabase.rpc("refresh_wechat_name_snapshot")
+        except Exception:
+            logger.exception("refresh_wechat_name_snapshot rpc failed")
+
+    def auto_match_wechat_bindings(self) -> None:
+        try:
+            self.supabase.rpc("auto_match_wechat_bindings")
+        except Exception:
+            logger.exception("auto_match_wechat_bindings rpc failed")
+
+    def auto_link_forwarded_conversations(self) -> None:
+        try:
+            self.supabase.rpc("auto_link_forwarded_conversations")
+        except Exception:
+            logger.exception("auto_link_forwarded_conversations rpc failed")
 
     def resolve_chatroom_member_display_name(
         self,
@@ -1100,6 +1121,7 @@ class ContactSyncService:
                     on_conflict="guid,room_username,username",
                 )
 
+            placeholder_usernames: list[str] = []
             for member_username in all_member_usernames:
                 if not member_username or member_username in detailed_usernames:
                     continue
@@ -1109,6 +1131,17 @@ class ContactSyncService:
                     room_name,
                     room_remark_name,
                     member_username,
+                    now_iso,
+                )
+                placeholder_usernames.append(member_username)
+
+            if placeholder_usernames:
+                self._fetch_and_update_placeholder_members(
+                    guid,
+                    room_username,
+                    room_name,
+                    room_remark_name,
+                    placeholder_usernames,
                     now_iso,
                 )
 
@@ -1148,6 +1181,79 @@ class ContactSyncService:
                 chatroom_payload,
                 on_conflict="guid,room_username",
             )
+
+        self.refresh_wechat_name_snapshot()
+        self.auto_match_wechat_bindings()
+        self.auto_link_forwarded_conversations()
+
+    def _fetch_and_update_placeholder_members(
+        self,
+        guid: str,
+        room_username: str,
+        room_name: str,
+        room_remark_name: str | None,
+        usernames: list[str],
+        now_iso: str,
+    ) -> None:
+        batch_size = 50
+        total = len(usernames)
+        for i in range(0, total, batch_size):
+            batch = usernames[i : i + batch_size]
+            try:
+                result = self.wechat_client.get_contact(
+                    guid,
+                    username_list=batch,
+                    room_username=room_username,
+                )
+            except Exception:
+                logger.warning(
+                    "failed to fetch details for placeholder members guid=%s room_username=%s batch_size=%s",
+                    guid,
+                    room_username,
+                    len(batch),
+                )
+                continue
+
+            contacts = result.get("contacts") or []
+            for contact in contacts:
+                contact_username = self._extract_contact_username(contact)
+                if not contact_username:
+                    continue
+                self.supabase.upsert(
+                    "wechat_raw.wechat_chatroom_members",
+                    {
+                        "guid": guid,
+                        "room_username": room_username,
+                        "room_name": room_name,
+                        "room_remark_name": room_remark_name,
+                        "username": contact_username,
+                        "nickname": self._extract_contact_nickname(contact) or None,
+                        "display_name": safe_str(
+                            self._pick_contact_value(contact, "displayName", "DisplayName", "display_name")
+                        ) or None,
+                        "inviter_username": safe_str(
+                            self._pick_contact_value(contact, "inviterUserName", "InviterUserName", "inviter_username")
+                        ) or None,
+                        "avatar_small": self._extract_contact_avatar_small(contact) or None,
+                        "avatar_big": self._extract_contact_avatar_big(contact) or None,
+                        "member_flag": self._extract_optional_contact_int(
+                            contact,
+                            "chatroomMemberFlag",
+                            "chat_room_member_flag",
+                        ),
+                        "status": self._extract_optional_contact_int(contact, "status"),
+                        "join_scene_xml": self._extract_contact_text(
+                            contact,
+                            "addChatRoomSceneNewXml",
+                            "add_chat_room_scene_new_xml",
+                        ) or None,
+                        "is_deleted": False,
+                        "last_synced_at": now_iso,
+                        "raw_json": contact,
+                        "updated_at": now_iso,
+                    },
+                    on_conflict="guid,room_username,username",
+                )
 
     def _fetch_room_profile(self, guid: str, room_username: str) -> dict[str, Any]:
         room_contact_result = self.wechat_client.get_contact(guid, username_list=[room_username], room_username="")

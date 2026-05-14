@@ -55,7 +55,7 @@ export const defaultCustomerFollowStrategyConfig: CustomerFollowStrategyConfig =
     '目标：补齐联系人字段，并重点提炼其视频号、抖音、小红书等社媒行为线索。',
     '输出要求：',
     '1) 仅输出 JSON 对象，不要代码块，不要额外解释；',
-    '2) 字段仅允许：name, position, phone, email, wechatId, graduationSchool, hometown, hobbies, personality, preferences, keyConcerns, followStrategy, videoChannelProfile, douyinProfile, xiaohongshuProfile, socialMediaBehavior；',
+    '2) 字段仅允许：name, position, phone, email, graduationSchool, hometown, hobbies, personality, preferences, keyConcerns, followStrategy, videoChannelProfile, douyinProfile, xiaohongshuProfile, socialMediaBehavior；',
     '3) 联系人姓名必须带“AI”后缀；',
     '4) 无可靠证据的字段留空字符串；',
     '5) socialMediaBehavior 要总结该联系人公开社媒行为特征与内容偏好；',

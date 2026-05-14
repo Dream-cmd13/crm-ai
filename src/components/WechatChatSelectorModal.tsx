@@ -28,11 +28,17 @@ export default function WechatChatSelectorModal({ mode, customerId, contacts, on
       const supabase = getSupabaseClient();
       try {
         if (mode === 'individual') {
-          // 只查当前客户联系人的微信号关联的会话
-          const wechatIds = contacts.filter(c => c.wechatId).map(c => c.wechatId);
-          if (wechatIds.length > 0) {
-            const { data } = await supabase.from('crm_wechat_session').select('*').in('peer_wechat_id', wechatIds);
-            setChats(data || []);
+          // 通过绑定表查找联系人关联的微信号，再查对应会话
+          const contactIds = contacts.map(c => c.id).filter(Boolean);
+          if (contactIds.length > 0) {
+            const { data: bindings } = await supabase.from('crm_wechat_binding').select('wechat_id').eq('bind_type', 'contact').in('bind_id', contactIds);
+            const wxids = (bindings || []).map((b: any) => b.wechat_id).filter(Boolean);
+            if (wxids.length > 0) {
+              const { data } = await supabase.from('crm_wechat_session').select('*').in('peer_wechat_id', wxids);
+              setChats(data || []);
+            } else {
+              setChats([]);
+            }
           } else {
             setChats([]);
           }
@@ -79,8 +85,8 @@ export default function WechatChatSelectorModal({ mode, customerId, contacts, on
               className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
             />
           </div>
-          {mode === 'individual' && contacts.filter(c => !c.wechatId).length > 0 && (
-            <p className="text-xs text-amber-600 mt-2">提示：部分联系人尚未配置微信号，无法关联会话。</p>
+          {mode === 'individual' && contacts.length > 0 && (
+            <p className="text-xs text-amber-600 mt-2">提示：联系人需在微信绑定管理中绑定微信号后才可关联会话。</p>
           )}
         </div>
 

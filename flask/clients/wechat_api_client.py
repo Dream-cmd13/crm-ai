@@ -171,7 +171,11 @@ class WechatApiClient:
     @staticmethod
     def _unwrap_contact_record(record: Any) -> Any:
         if isinstance(record, dict) and isinstance(record.get("contact"), dict):
-            return record["contact"]
+            # Preserve top-level fields such as displayName while reusing nested contact info.
+            return {
+                **record["contact"],
+                **{key: value for key, value in record.items() if key != "contact"},
+            }
         return record
 
     @staticmethod
