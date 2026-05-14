@@ -274,7 +274,7 @@ type CustomerLite = { id: string; name: string };
 type ContactLite = { id: string; name: string };
 
 export default function SystemWechatQuery() {
-  const [activeTab, setActiveTab] = useState<'individual' | 'group'>('individual');
+  const [activeTab, setActiveTab] = useState<'individual' | 'group' | 'forwarded'>('individual');
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [senderInboxes, setSenderInboxes] = useState<WechatSenderInbox[]>([]);
@@ -297,9 +297,12 @@ export default function SystemWechatQuery() {
   const [selectedContactId, setSelectedContactId] = useState('');
   const [selectedContactName, setSelectedContactName] = useState('');
   const [conversations, setConversations] = useState<WxConversationRow[]>([]);
+  const [forwardedConversations, setForwardedConversations] = useState<WxConversationRow[]>([]);
   const [customersById, setCustomersById] = useState<Record<string, CustomerLite>>({});
   const [memberCountByConversationId, setMemberCountByConversationId] = useState<Record<number, number>>({});
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
+  const [editingConversationNameId, setEditingConversationNameId] = useState<number | null>(null);
+  const [editConversationNameValue, setEditConversationNameValue] = useState('');
   const [groupMessages, setGroupMessages] = useState<WxMessageRow[]>([]);
   const [previewAttachment, setPreviewAttachment] = useState<AttachmentDescriptor | null>(null);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -310,12 +313,17 @@ export default function SystemWechatQuery() {
     setLoadingChats(true);
     const supabase = getSupabaseClient();
     try {
-      const [inboxes, conversationResp] = await Promise.all([
+      const [inboxes, conversationResp, forwardedResp] = await Promise.all([
         fetchWechatSenderInboxesFromSupabase(),
         supabase
           .from('crm_wx_conversation')
           .select('*')
           .eq('conversation_type', 'group')
+          .order('last_message_at', { ascending: false, nullsFirst: false }),
+        supabase
+          .from('crm_wx_conversation')
+          .select('*')
+          .eq('conversation_identity_type', 'private_forward_batch')
           .order('last_message_at', { ascending: false, nullsFirst: false }),
       ]);
       if (conversationResp.error) throw conversationResp.error;
@@ -324,9 +332,15 @@ export default function SystemWechatQuery() {
       setSelectedSenderKey((prev) => prev || inboxes[0]?.senderKey || '');
       const nextConversations = (conversationResp.data || []) as WxConversationRow[];
       setConversations(nextConversations);
+      const nextForwarded = (forwardedResp.data || []) as WxConversationRow[];
+      setForwardedConversations(nextForwarded);
       setSelectedConversationId((prev) => prev || (nextConversations[0] ? Number(nextConversations[0].id) : null));
 
-      const customerIds = Array.from(new Set(nextConversations.map((item) => String(item.customer_id || '')).filter(Boolean)));
+      const customerIds = Array.from(new Set(
+        [...nextConversations, ...nextForwarded]
+          .map((item) => String(item.customer_id || ''))
+          .filter(Boolean)
+      ));
       if (customerIds.length > 0) {
         const { data: customerRowsData } = await supabase.from('ba_manucustinfo').select('id,name').in('id', customerIds);
         const nextCustomers: Record<string, CustomerLite> = {};
@@ -495,6 +509,15 @@ export default function SystemWechatQuery() {
     [conversations, customersById, searchQuery]
   );
 
+  const filteredForwarded = useMemo(
+    () => forwardedConversations.filter((item) =>
+      [item.conversation_name, item.peer_wechat_name, ...(item.peer_name_tokens || []), customersById[String(item.customer_id || '')]?.name]
+        .filter(Boolean)
+        .some((value) => String(value).includes(searchQuery))
+    ),
+    [forwardedConversations, customersById, searchQuery]
+  );
+
   const selectedInbox = useMemo(
     () => senderInboxes.find((item) => item.senderKey === selectedSenderKey) || null,
     [senderInboxes, selectedSenderKey]
@@ -530,7 +553,7 @@ export default function SystemWechatQuery() {
     setContactDropdownOpen(false);
   };
 
-  const handleBindGroupChat = async () => {
+  const handleBindConversation = async () => {
     if (!targetConversationId) return;
     if (!selectedCustomerId) {
       toast.error('请选择客户');
@@ -538,7 +561,11 @@ export default function SystemWechatQuery() {
     }
     try {
       await bindGroupChatToCustomer(targetConversationId, selectedCustomerId);
-      toast.success('群聊绑定成功');
+      if (selectedContactId) {
+        const supabase = getSupabaseClient();
+        await supabase.from('crm_wx_conversation').update({ primary_contact_id: selectedContactId }).eq('id', targetConversationId);
+      }
+      toast.success('绑定成功');
       resetModals();
       await fetchChats();
     } catch (error) {
@@ -630,6 +657,12 @@ export default function SystemWechatQuery() {
                 onClick={() => setActiveTab('group')}
               >
                 群聊会话
+              </button>
+              <button
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'forwarded' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                onClick={() => setActiveTab('forwarded')}
+              >
+                转发消息
               </button>
             </div>
 
@@ -795,11 +828,19 @@ export default function SystemWechatQuery() {
                     <th className="p-4 text-sm font-medium text-gray-500">已归档数</th>
                     <th className="p-4 text-sm font-medium text-gray-500">操作</th>
                   </>
-                ) : (
+                ) : activeTab === 'group' ? (
                   <>
                     <th className="p-4 text-sm font-medium text-gray-500">群ID</th>
                     <th className="p-4 text-sm font-medium text-gray-500">群名称</th>
                     <th className="p-4 text-sm font-medium text-gray-500">成员数</th>
+                    <th className="p-4 text-sm font-medium text-gray-500">匹配客户</th>
+                    <th className="p-4 text-sm font-medium text-gray-500">操作</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="p-4 text-sm font-medium text-gray-500">会话名称</th>
+                    <th className="p-4 text-sm font-medium text-gray-500">涉及昵称</th>
+                    <th className="p-4 text-sm font-medium text-gray-500">消息数</th>
                     <th className="p-4 text-sm font-medium text-gray-500">匹配客户</th>
                     <th className="p-4 text-sm font-medium text-gray-500">操作</th>
                   </>
@@ -827,7 +868,7 @@ export default function SystemWechatQuery() {
                 ) : (
                   <tr><td colSpan={5} className="p-8 text-center text-gray-500 text-sm">暂无数据</td></tr>
                 )
-              ) : (
+              ) : activeTab === 'group' ? (
                 filteredGroups.length > 0 ? (
                   filteredGroups.map((group) => (
                     <tr key={group.id} className="border-b border-gray-100 hover:bg-gray-50">
@@ -854,11 +895,11 @@ export default function SystemWechatQuery() {
                           <button onClick={() => handleOpenGroup(Number(group.id))} className="text-xs px-2 py-1 border border-blue-200 text-blue-700 rounded bg-white hover:bg-blue-50">
                             进入会话
                           </button>
-                          <button 
+                          <button
                             onClick={() => {
                               setTargetConversationId(Number(group.id));
                               setShowBindCustomerModal(true);
-                            }} 
+                            }}
                             className="text-xs px-2 py-1 border border-green-200 text-green-700 rounded bg-white hover:bg-green-50"
                           >
                             {group.customer_id ? '重新绑定' : '绑定客户'}
@@ -869,6 +910,71 @@ export default function SystemWechatQuery() {
                   ))
                 ) : (
                   <tr><td colSpan={5} className="p-8 text-center text-gray-500 text-sm">暂无数据</td></tr>
+                )
+              ) : (
+                filteredForwarded.length > 0 ? (
+                  filteredForwarded.map((conv) => (
+                    <tr key={conv.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="p-4 text-sm text-gray-900 font-medium">
+                        {editingConversationNameId === conv.id ? (
+                          <input
+                            type="text"
+                            value={editConversationNameValue}
+                            onChange={(e) => setEditConversationNameValue(e.target.value)}
+                            onBlur={async () => {
+                              setEditingConversationNameId(null);
+                              if (editConversationNameValue !== (conv.conversation_name || '')) {
+                                const supabase = getSupabaseClient();
+                                await supabase.from('crm_wx_conversation').update({ conversation_name: editConversationNameValue || null }).eq('id', conv.id);
+                                setForwardedConversations(prev => prev.map(c => c.id === conv.id ? {...c, conversation_name: editConversationNameValue || null} : c));
+                              }
+                            }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                            className="w-full px-2 py-1 border border-indigo-300 rounded text-sm"
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            className="cursor-pointer hover:text-indigo-600 border-b border-dashed border-gray-300"
+                            onClick={() => { setEditingConversationNameId(conv.id); setEditConversationNameValue(conv.conversation_name || ''); }}
+                            title="点击编辑会话名称"
+                          >
+                            {conv.conversation_name || '未命名会话'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4 text-sm text-gray-600 max-w-[240px] truncate">
+                        {(conv.peer_name_tokens || []).slice(0, 3).join(', ') || conv.peer_wechat_name || '-'}
+                        {(conv.peer_name_tokens || []).length > 3 && <span className="text-gray-400"> +{conv.peer_name_tokens!.length - 3}</span>}
+                      </td>
+                      <td className="p-4 text-sm text-gray-600">{conv.message_count || 0}</td>
+                      <td className="p-4">
+                        {conv.customer_id && customersById[String(conv.customer_id)] ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
+                            <Building2 className="w-3.5 h-3.5" />
+                            {customersById[String(conv.customer_id)].name}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">未匹配</span>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setTargetConversationId(Number(conv.id));
+                              setShowBindCustomerModal(true);
+                            }}
+                            className="text-xs px-2 py-1 border border-green-200 text-green-700 rounded bg-white hover:bg-green-50"
+                          >
+                            {conv.customer_id ? '重新绑定' : '绑定客户'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan={5} className="p-8 text-center text-gray-500 text-sm">暂无转发消息</td></tr>
                 )
               )}
             </tbody>
@@ -1202,7 +1308,7 @@ export default function SystemWechatQuery() {
       {showBindCustomerModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-2xl p-5 space-y-4">
-            <h4 className="text-base font-bold text-gray-900">群聊绑定客户</h4>
+            <h4 className="text-base font-bold text-gray-900">绑定客户</h4>
             <div>
               <label className="block text-xs text-gray-600 mb-1">选择客户（必填）</label>
               <div className="relative">
@@ -1240,9 +1346,47 @@ export default function SystemWechatQuery() {
               </div>
               {selectedCustomerName && <div className="mt-1 text-xs text-gray-500">已选择：{selectedCustomerName}</div>}
             </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">联系人（可选）</label>
+              <div className="relative">
+                <input
+                  value={contactKeyword}
+                  disabled={!selectedCustomerId}
+                  onFocus={() => setContactDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setContactDropdownOpen(false), 120)}
+                  onChange={(e) => {
+                    setContactKeyword(e.target.value);
+                    setSelectedContactId('');
+                    setSelectedContactName('');
+                  }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white disabled:bg-gray-100 disabled:text-gray-400"
+                  placeholder={selectedCustomerId ? '搜索联系人名称' : '请先选择客户'}
+                />
+                {contactDropdownOpen && selectedCustomerId && contactOptions.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full max-h-44 overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+                    {contactOptions.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedContactId(option.id);
+                          setSelectedContactName(option.name);
+                          setContactKeyword(option.name);
+                          setContactDropdownOpen(false);
+                        }}
+                        className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                      >
+                        {option.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {selectedContactName && <div className="mt-1 text-xs text-gray-500">已选择：{selectedContactName}</div>}
+            </div>
             <div className="flex justify-end gap-2">
               <button onClick={resetModals} className="text-xs px-3 py-1.5 border border-gray-200 rounded bg-white">取消</button>
-              <button onClick={handleBindGroupChat} className="text-xs px-3 py-1.5 bg-green-600 text-white rounded">确认绑定</button>
+              <button onClick={handleBindConversation} className="text-xs px-3 py-1.5 bg-green-600 text-white rounded">确认绑定</button>
             </div>
           </div>
         </div>

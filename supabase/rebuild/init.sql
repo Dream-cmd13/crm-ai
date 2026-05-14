@@ -2099,17 +2099,17 @@ begin
     insert into public.crm_wechat_name_snapshot
       (original_nickname, display_name, wechat_id, source_table, source_context)
     select distinct on (
-      trim(coalesce(nullif(trim(m.nickname), ''), m.username)),
+      trim(m.nickname),
       m.username
     )
-      trim(coalesce(nullif(trim(m.nickname), ''), m.username)),
+      trim(m.nickname),
       m.display_name,
       m.username,
       'wechat_chatroom_members',
       m.room_username
     from wechat_raw.wechat_chatroom_members m
     where m.is_deleted = false
-      and coalesce(nullif(trim(m.nickname), ''), m.username) is not null
+      and nullif(trim(m.nickname), '') is not null
     order by 1, 3, m.updated_at desc nulls last
     on conflict (original_nickname, wechat_id)
     do update set
@@ -2122,14 +2122,15 @@ begin
     insert into public.crm_wechat_name_snapshot
       (original_nickname, wechat_id, source_table)
     select distinct on (
-      trim(coalesce(nullif(trim(c.remark), ''), nullif(trim(c.nickname), ''), c.username)),
+      trim(c.nickname),
       c.username
     )
-      trim(coalesce(nullif(trim(c.remark), ''), nullif(trim(c.nickname), ''), c.username)),
+      trim(c.nickname),
       c.username,
       'wechat_contacts'
     from wechat_raw.wechat_contacts c
     where c.is_deleted = false
+      and nullif(trim(c.nickname), '') is not null
     order by 1, 2, c.updated_at desc nulls last
     on conflict (original_nickname, wechat_id)
     do update set
@@ -2357,6 +2358,102 @@ begin
 end;
 $$;
 
+-- 自动归因：转发消息 peer_name_tokens 匹配到联系人 → 回填 conversation 的 customer_id
+-- 路径①: token → snapshot → wxid → binding → contact → customer（需要快照和绑定）
+-- 路径②: token → 直接匹配 crm_customer_contact.wechat_name → contact → customer（不需快照）
+create or replace function public.auto_link_forwarded_conversations()
+returns table(conversation_id bigint, linked_customer_id text, linked_contact_id text, match_path text)
+language plpgsql
+as $$
+declare
+  v_conv record;
+  v_token text;
+  v_wxid text;
+  v_bind record;
+  v_contact record;
+begin
+  for v_conv in
+    select * from public.crm_wx_conversation
+    where customer_id is null
+      and peer_name_tokens is not null
+      and array_length(peer_name_tokens, 1) > 0
+  loop
+    foreach v_token in array v_conv.peer_name_tokens
+    loop
+      -- ===== 路径①：token → snapshot → wxid → binding → contact =====
+      select wechat_id into v_wxid
+      from public.crm_wechat_name_snapshot
+      where original_nickname = trim(v_token)
+      limit 1;
+
+      if v_wxid is not null then
+        select bind_type, bind_id into v_bind
+        from public.crm_wechat_binding
+        where wechat_id = v_wxid
+          and bind_type = 'customer_contact';
+
+        if v_bind.bind_id is not null then
+          select id, customer_id into v_contact
+          from public.crm_customer_contact
+          where id = v_bind.bind_id;
+
+          if v_contact.customer_id is not null then
+            update public.crm_wx_conversation
+            set customer_id = v_contact.customer_id::text,
+                primary_contact_id = v_contact.id
+            where id = v_conv.id;
+
+            -- 更新已有 wxid 的成员行
+            update public.crm_wx_conversation_member
+            set member_type = 'customer_contact',
+                contact_id = v_contact.id
+            where wechat_id = v_wxid
+              and conversation_id = v_conv.id;
+
+            conversation_id := v_conv.id;
+            linked_customer_id := v_contact.customer_id::text;
+            linked_contact_id := v_contact.id;
+            match_path := 'snapshot';
+            return next;
+            exit;  -- 匹配到即停
+          end if;
+        end if;
+      end if;
+
+      -- ===== 路径②：token → 直接匹配 crm_customer_contact.wechat_name =====
+      select id, customer_id into v_contact
+      from public.crm_customer_contact
+      where wechat_name = trim(v_token)
+      limit 1;
+
+      if v_contact.customer_id is null then
+        continue;
+      end if;
+
+      -- 更新 conversation
+      update public.crm_wx_conversation
+      set customer_id = v_contact.customer_id::text,
+          primary_contact_id = v_contact.id
+      where id = v_conv.id;
+
+      -- 更新 name:xxx 占位 member 行
+      update public.crm_wx_conversation_member
+      set member_type = 'customer_contact',
+          contact_id = v_contact.id
+      where wechat_id = 'name:' || trim(v_token)
+        and conversation_id = v_conv.id;
+
+      conversation_id := v_conv.id;
+      linked_customer_id := v_contact.customer_id::text;
+      linked_contact_id := v_contact.id;
+      match_path := 'wechat_name';
+      return next;
+      exit;
+    end loop;
+  end loop;
+end;
+$$;
+
 -- ========= AUTO-MATCH TRIGGERS (前端填写 wechat_name 后自动触发匹配) =========
 create or replace function public.trg_on_wechat_name_change()
 returns trigger
@@ -2371,6 +2468,8 @@ begin
     perform public.refresh_wechat_name_snapshot();
     -- 再执行自动匹配
     perform public.auto_match_wechat_bindings();
+    -- 最后归因转发消息会话
+    perform public.auto_link_forwarded_conversations();
   end if;
   return NEW;
 end;

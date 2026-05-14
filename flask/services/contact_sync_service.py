@@ -305,6 +305,7 @@ class ContactSyncService:
         self.save_sync_state(guid, current_contact_seq, current_room_seq, sync_kind=sync_kind)
         self.refresh_wechat_name_snapshot()
         self.auto_match_wechat_bindings()
+        self.auto_link_forwarded_conversations()
 
     def handle_contact_change_event(self, guid: str, notify_type: int, payload: dict[str, Any]) -> None:
         if not guid:
@@ -479,6 +480,12 @@ class ContactSyncService:
             self.supabase.rpc("auto_match_wechat_bindings")
         except Exception:
             logger.exception("auto_match_wechat_bindings rpc failed")
+
+    def auto_link_forwarded_conversations(self) -> None:
+        try:
+            self.supabase.rpc("auto_link_forwarded_conversations")
+        except Exception:
+            logger.exception("auto_link_forwarded_conversations rpc failed")
 
     def resolve_chatroom_member_display_name(
         self,
@@ -1177,6 +1184,7 @@ class ContactSyncService:
 
         self.refresh_wechat_name_snapshot()
         self.auto_match_wechat_bindings()
+        self.auto_link_forwarded_conversations()
 
     def _fetch_and_update_placeholder_members(
         self,

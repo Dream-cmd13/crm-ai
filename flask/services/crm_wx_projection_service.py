@@ -317,9 +317,10 @@ class CrmWxProjectionService:
                 peer_name_tokens=message_context.get("peer_name_tokens"),
             )
 
-        # 刷新昵称快照 + 触发自动绑定匹配
+        # 刷新昵称快照 + 触发自动绑定匹配 + 转发消息归因
         self.contact_sync_service.refresh_wechat_name_snapshot()
         self.contact_sync_service.auto_match_wechat_bindings()
+        self.contact_sync_service.auto_link_forwarded_conversations()
 
     def _build_message_context(
         self,
@@ -421,7 +422,10 @@ class CrmWxProjectionService:
                 forward_batch_key = self._build_forward_batch_key(raw_event_dedupe_key)
                 if peer_name_tokens:
                     conversation_identity_type = "private_forward_batch"
-                    conversation_name = peer_wechat_name or my_wechat_name or "未命名会话"
+                    if is_group_forward:
+                        conversation_name = "群聊"
+                    else:
+                        conversation_name = peer_wechat_name or my_wechat_name or "未命名会话"
                 else:
                     conversation_identity_type = "private_internal"
                     is_internal_chat = True
