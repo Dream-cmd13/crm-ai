@@ -16,7 +16,7 @@ interface CommunicationLogProps {
   onAddCommunication: (comm: Partial<CommunicationDetail>) => void;
   title?: string;
   contacts?: { id: string; name: string; position?: string; department?: string; wechatName?: string }[];
-  employees?: { id: string; name: string; role?: string }[];
+  employees?: { id: string; name: string; role?: string; wechatName?: string }[];
   customerId?: string;
   customerName?: string;
   communications?: CommunicationDetail[];
@@ -180,11 +180,37 @@ export default function CommunicationLog({
     return names;
   }, [employees]);
 
+  const employeeWechatNames = useMemo(() => {
+    const names = new Set<string>();
+    employees.forEach(emp => {
+      const wn = String(emp.wechatName || '').trim();
+      if (wn) names.add(wn);
+    });
+    return names;
+  }, [employees]);
+
+  const contactWechatNames = useMemo(() => {
+    const names = new Set<string>();
+    contacts.forEach(c => {
+      const wn = String(c.wechatName || '').trim();
+      if (wn) names.add(wn);
+    });
+    return names;
+  }, [contacts]);
+
   const isEmployeeSender = (sender: string) => {
     const s = String(sender || '').trim();
     if (!s) return false;
+    // 精确匹配员工微信昵称 → 我方员工
+    if (employeeWechatNames.has(s)) return true;
+    // 精确匹配员工姓名/角色 → 我方员工
     if (employeeNames.has(s)) return true;
-    return Array.from(employeeNames).some(name => s.includes(name));
+    // 模糊匹配员工姓名 → 我方员工
+    if (Array.from(employeeNames).some(name => s.includes(name))) return true;
+    // 精确匹配客户联系人微信昵称 → 非我方，左侧显示
+    if (contactWechatNames.has(s)) return false;
+    // 默认左侧
+    return false;
   };
 
   const sessionMessages = useMemo(() => {

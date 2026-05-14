@@ -122,7 +122,7 @@ export const CustomerDetail = ({
   useEffect(() => {
     fetchUsersFromSupabase().then(users => {
       if (users && users.length > 0) {
-        setDbEmployees(users.map(u => ({ id: u.id, name: u.name, role: u.role })));
+        setDbEmployees(users.map(u => ({ id: u.id, name: u.name, role: u.role, wechatName: u.wechat_name })));
       }
     }).catch(console.error);
   }, []);
@@ -438,7 +438,7 @@ export const CustomerDetail = ({
           communications={communications}
           onAddCommunication={onAddCommunication}
           contacts={(selectedCustomer.contacts || []).map((c: any) => ({ id: c.id, name: c.name, position: c.position, wechatName: c.wechatName }))}
-          employees={dbEmployees.length > 0 ? dbEmployees : initialUsers.map((u: any) => ({ id: u.id, name: u.name, role: u.role }))}
+          employees={dbEmployees.length > 0 ? dbEmployees : initialUsers.map((u: any) => ({ id: u.id, name: u.name, role: u.role, wechatName: u.wechat_name }))}
           groupChats={groupChats}
           onManageMembers={(chat) => setSelectedChat(chat)}
         />
