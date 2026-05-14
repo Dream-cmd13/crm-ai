@@ -19,14 +19,28 @@ interface CustomerListProps {
   onSelectCustomer: (customer: Customer) => void;
   onAddCustomer: () => void;
   onDeleteCustomer?: (customerId: string) => void | Promise<void>;
-  displayCount: number;
+  page: number;
+  setPage: React.Dispatch<React.SetStateAction<number>>;
+  pageSize: number;
+  setPageSize: React.Dispatch<React.SetStateAction<number>>;
+  PAGE_SIZE_OPTIONS: number[];
 }
 
 export const CustomerList = ({
   customers, searchTerm, setSearchTerm, filterLevel, setFilterLevel,
   filterIndustry, setFilterIndustry, filterOverdue, setFilterOverdue,
-  uniqueIndustries, onSelectCustomer, onAddCustomer, onDeleteCustomer, displayCount
+  uniqueIndustries, onSelectCustomer, onAddCustomer, onDeleteCustomer, page, setPage, pageSize, setPageSize, PAGE_SIZE_OPTIONS
 }: CustomerListProps) => {
+  const total = customers.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  React.useEffect(() => {
+    if (page > totalPages && totalPages > 0) {
+      setPage(totalPages);
+    }
+  }, [totalPages, page, setPage]);
+
+  const paginatedCustomers = customers.slice((page - 1) * pageSize, page * pageSize);
   return (
     <div className="space-y-3">
       <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm space-y-3">
@@ -87,7 +101,7 @@ export const CustomerList = ({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
-        {customers.slice(0, displayCount).map((customer) => {
+        {paginatedCustomers.map((customer) => {
           const customerTypeLabel = formatCustomerTypeLabel(customer.customerType) || '-';
           return (
           <div 
@@ -190,6 +204,51 @@ export const CustomerList = ({
           </div>
           <h3 className="text-base font-bold text-gray-900 mb-1">未找到相关客户</h3>
           <p className="text-sm text-gray-500">尝试调整搜索词或筛选条件</p>
+        </div>
+      )}
+
+      {customers.length > 0 && (
+        <div className="px-4 py-3 bg-white border border-gray-200 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span>共 {total} 条</span>
+            <span className="ml-2">每页</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              className="px-2 py-1 border border-gray-200 rounded-lg text-sm"
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+            <span>条</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-50"
+            >
+              上一页
+            </button>
+            <span className="text-sm text-gray-500">
+              第 {Math.min(page, totalPages)} / {totalPages} 页
+            </span>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-50"
+            >
+              下一页
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -80,7 +80,9 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
   const [newContact, setNewContact] = useState<Partial<Contact>>({
     name: '', position: '', phone: '', email: '', isPrimary: false, age: undefined, personality: '', appellation: '', decisionPower: '', familySituation: '', hometown: '', hobbies: [], attitudeToUs: '中性评价', faction: '', managerContactId: '', videoChannelProfile: '', douyinProfile: '', xiaohongshuProfile: '', socialMediaBehavior: ''
   });
-  const [displayCount, setDisplayCount] = useState(20);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const PAGE_SIZE_OPTIONS = [20, 50, 100];
   const [isSelectingCustomer, setIsSelectingCustomer] = useState(false);
   const [isSelectingAssignee, setIsSelectingAssignee] = useState(false);
   const [recordingPlanId, setRecordingPlanId] = useState<string | null>(null);
@@ -825,7 +827,11 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
             onSelectCustomer={setSelectedCustomer}
             onAddCustomer={() => setIsAdding(true)}
             onDeleteCustomer={handleDeleteCustomer}
-            displayCount={displayCount}
+            page={page}
+            setPage={setPage}
+            pageSize={pageSize}
+            setPageSize={setPageSize}
+            PAGE_SIZE_OPTIONS={PAGE_SIZE_OPTIONS}
           />
 
           <DetailModal 
