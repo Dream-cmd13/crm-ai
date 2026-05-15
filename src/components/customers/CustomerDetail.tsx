@@ -62,6 +62,7 @@ interface CustomerDetailProps {
   communications: CommunicationDetail[];
   onAddCommunication: (comm: Partial<CommunicationDetail>) => void;
   onCreateFollowupTask?: (task: TodoTask) => void;
+  tabActive?: string;
 }
 
 export const CustomerDetail = ({
@@ -75,7 +76,7 @@ export const CustomerDetail = ({
   isSyncingChats, handleSyncChats, currentMonth, setCurrentMonth,
   selectedDate, setSelectedDate, setIsAddingToDate, handleOpenPlanDetails,
   communications, onAddCommunication,
-  onCreateFollowupTask
+  onCreateFollowupTask, tabActive
 }: CustomerDetailProps) => {
 
   const relatedInquiryIds = [
@@ -441,6 +442,7 @@ export const CustomerDetail = ({
           employees={dbEmployees.length > 0 ? dbEmployees : initialUsers.map((u: any) => ({ id: u.id, name: u.name, role: u.role, wechatName: u.wechat_name }))}
           groupChats={groupChats}
           onManageMembers={(chat) => setSelectedChat(chat)}
+          tabActive={tabActive}
         />
       )}
 

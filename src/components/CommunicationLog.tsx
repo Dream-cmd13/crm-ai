@@ -12,6 +12,24 @@ import { fetchProductSeriesFromSupabase } from '../lib/productRepository';
 import { fetchCustomerMessageSessionMessagesFromSupabase, fetchCustomerMessageSessionsFromSupabase } from '../lib/customerMessageSessionRepository';
 import { toast } from 'react-hot-toast';
 
+const formatChinaTime = (timeStr?: string | null) => {
+  if (!timeStr) return '';
+  try {
+    return new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(new Date(timeStr)).replace(/\//g, '-');
+  } catch {
+    return String(timeStr);
+  }
+};
+
 interface CommunicationLogProps {
   onAddCommunication: (comm: Partial<CommunicationDetail>) => void;
   title?: string;
@@ -20,6 +38,7 @@ interface CommunicationLogProps {
   customerId?: string;
   customerName?: string;
   communications?: CommunicationDetail[];
+  tabActive?: string;
   aiContactProfiles?: Array<{
     id?: string;
     name?: string;
@@ -33,14 +52,15 @@ interface CommunicationLogProps {
   }>;
 }
 
-export default function CommunicationLog({ 
-  onAddCommunication, 
+export default function CommunicationLog({
+  onAddCommunication,
   contacts = [],
   employees = [],
   customerId = '',
   customerName = '',
   communications = [],
-  aiContactProfiles = []
+  aiContactProfiles = [],
+  tabActive,
 }: CommunicationLogProps) {
   const [activeTab, setActiveTab] = useState<CommunicationDetail['type']>('wechat');
   const [newContent, setNewContent] = useState('');
@@ -105,16 +125,18 @@ export default function CommunicationLog({
       setSelectedCustomerSessionMessages([]);
       return;
     }
+    // 只在微信/微信群聊标签页时拉取，避免无效请求
+    if (activeTab !== 'wechat' && activeTab !== 'wechat_group') return;
+
     fetchCustomerMessageSessionsFromSupabase(customerId)
       .then((sessions) => {
         setCustomerSessions(sessions);
-        // 不在这里设置 setSelectedCustomerSessionId，由下面的 tab 切换逻辑处理
       })
       .catch((error) => {
         console.error(error);
         setCustomerSessions([]);
       });
-  }, [customerId]);
+  }, [customerId, activeTab, tabActive]);
 
   // 当切换微信/微信群聊标签时，如果当前选中的会话不属于该标签，则自动切换到该标签下的第一个会话
   React.useEffect(() => {
@@ -162,7 +184,7 @@ export default function CommunicationLog({
       content: data.content,
       type: data.type,
       sender: sender || '销售',
-      date: new Date(data.date).toLocaleString('zh-CN', { hour12: false }),
+      date: formatChinaTime(data.date),
       sourceId: sourceId || undefined,
       sourceGroup: data.location
     });
@@ -754,7 +776,7 @@ export default function CommunicationLog({
                           {session.sourceSenderDisplayName || session.sourceSenderWechatId || session.sourceSenderKey}
                         </div>
                         <div className="text-[10px] text-gray-400 mt-0.5">
-                          {session.messageCount}条 · {session.lastMessageAt ? new Date(session.lastMessageAt).toLocaleString('zh-CN', { hour12: false }) : '-'}
+                          {session.messageCount}条 · {formatChinaTime(session.lastMessageAt) || '-'}
                         </div>
                       </button>
                     );
@@ -978,7 +1000,7 @@ export default function CommunicationLog({
                   content: newContent,
                   type: newCommType as any,
                   sender: sender || '销售',
-                  date: new Date().toLocaleString('zh-CN', { hour12: false }),
+                  date: formatChinaTime(new Date().toISOString()),
                   sourceId: undefined,
                   sourceGroup: undefined
                 });

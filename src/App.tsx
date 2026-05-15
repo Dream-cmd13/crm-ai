@@ -192,7 +192,7 @@ export default function App() {
   };
 
   const renderView = (view: string, params: any) => {
-    const props: any = { role: currentRole, currentUser, viewParams: params, navigateTo, goBack };
+    const props: any = { role: currentRole, currentUser, viewParams: params, navigateTo, goBack, tabActive: activeTabKey };
     switch (view) {
       case 'dashboard': return <TodoCenter {...props} />;
       case 'inquiries': return <Inquiries {...props} />;

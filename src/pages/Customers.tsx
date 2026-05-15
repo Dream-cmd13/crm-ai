@@ -30,9 +30,10 @@ interface CustomersProps {
   viewParams?: any;
   navigateTo?: (view: string, params?: any) => void;
   goBack?: () => void;
+  tabActive?: string;
 }
 
-export default function Customers({ role, currentUser, viewParams, navigateTo, goBack }: CustomersProps) {
+export default function Customers({ role, currentUser, viewParams, navigateTo, goBack, tabActive }: CustomersProps) {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
@@ -629,6 +630,7 @@ export default function Customers({ role, currentUser, viewParams, navigateTo, g
           handleOpenPlanDetails={handleOpenPlanDetails}
           communications={customerCommunications}
           onAddCommunication={handleAddCommunication}
+          tabActive={tabActive}
           onCreateFollowupTask={(task) => {
             setFollowUpPlans((prev) => [task, ...prev]);
             setTodoTasks((prev) => [task, ...prev]);

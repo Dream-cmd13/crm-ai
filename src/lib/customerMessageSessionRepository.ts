@@ -7,6 +7,24 @@ import {
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
 import { resolveCustomerDbIdFromSupabase } from './customerRepository';
 
+const formatChinaTime = (timeStr?: string | null) => {
+  if (!timeStr) return '';
+  try {
+    return new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(new Date(timeStr)).replace(/\//g, '-');
+  } catch {
+    return String(timeStr);
+  }
+};
+
 const normalizeSenderKey = (senderWechatId?: string | null, senderDisplayName?: string | null) => {
   const cleanWechatId = String(senderWechatId || '').trim();
   if (cleanWechatId) return cleanWechatId;
@@ -82,7 +100,7 @@ const mapWxMessageToCommunication = (
 
   return {
     id: `WXM_${row.id}`,
-    date: String(row.send_time || ''),
+    date: formatChinaTime(row.send_time),
     sender: String(row.sender_display_name || row.sender_wechat_id || ''),
     content: content || '[空消息]',
     type: session?.channel === 'wechat_group' ? 'wechat_group' : 'wechat',
