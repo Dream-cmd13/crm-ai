@@ -92,7 +92,7 @@ function dedupWithinSession(prefix: string, baseId: string, padLen: number): str
  * generate_business_number RPC 所需的表/列映射。
  */
 const BUSINESS_NUMBER_TABLE_MAP: Partial<Record<string, { table: string; column: string; padLen: number }>> = {
-  XJ: { table: 'crm_inquiry', column: 'inquiry_no', padLen: 4 },
+  XP: { table: 'crm_inquiry', column: 'inquiry_no', padLen: 4 },
   XS: { table: 'crm_lead', column: 'lead_no', padLen: 4 },
   JH: { table: 'crm_opportunity', column: 'opportunity_no', padLen: 4 },
   XM: { table: 'crm_project', column: 'project_no', padLen: 4 },
@@ -106,11 +106,11 @@ const BUSINESS_NUMBER_TABLE_MAP: Partial<Record<string, { table: string; column:
  * 业务前缀常量定义。
  */
 export const ID_PREFIX = {
-  COMPETITOR: 'XP',
+  COMPETITOR: 'JP',
   CASE: 'AL',
   LEAD: 'XS',
   OPPORTUNITY: 'JH',
-  INQUIRY: 'XJ',
+  INQUIRY: 'XP',
   PROJECT: 'XM',
   QUOTATION: 'BJ',
   SALES_ORDER: 'DD',
